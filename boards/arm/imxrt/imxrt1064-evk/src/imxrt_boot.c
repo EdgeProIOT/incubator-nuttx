@@ -95,11 +95,10 @@ void imxrt_flexram_initialize(void)
   /* 
    * Final Configuration is
    *    128 ITCM    (0000:0000-0001:ffff)
-   *    384 DTCM    (2000:0000-2005:ffff)
-   *    512 OCRAM2  (2020:0000-2027:ffff)
+   *    256 DTCM    (2000:0000-2005:ffff)
+   *    640 OCRAM   (2020:0000-2027:ffff)
    * */
-
-  putreg32(0xaaffaaaa, IMXRT_IOMUXC_GPR_GPR17);
+  putreg32(0x5aaffaa5, IMXRT_IOMUXC_GPR_GPR17);
   regval = getreg32(IMXRT_IOMUXC_GPR_GPR16);
   putreg32(regval | GPR_GPR16_FLEXRAM_BANK_CFG_SELF, IMXRT_IOMUXC_GPR_GPR16);
 
@@ -129,7 +128,7 @@ void imxrt_boardinitialize(void)
 
   mm_initialize(&itcm_heap, (FAR void *)&_sitcm, 128*1024);
 
-  mm_initialize(&ocram_heap, (FAR void *)&_socram, 512*1024);
+  mm_initialize(&ocram_heap, (FAR void *)&_socram, 640*1024);
 }
 
 /****************************************************************************
