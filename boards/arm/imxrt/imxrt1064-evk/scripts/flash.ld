@@ -24,8 +24,8 @@ MEMORY
 {
   flash (rx)  : ORIGIN = 0x70000000, LENGTH = 4M
   itcm  (rwx) : ORIGIN = 0x00000000, LENGTH = 128K
-  dtcm  (rwx) : ORIGIN = 0x20000000, LENGTH = 384K
-  ocram2 (rwx) : ORIGIN = 0x20200000, LENGTH = 512K
+  dtcm  (rwx) : ORIGIN = 0x20000000, LENGTH = 256K
+  ocram (rwx) : ORIGIN = 0x20200000, LENGTH = 640K
 }
 
 OUTPUT_ARCH(arm)
