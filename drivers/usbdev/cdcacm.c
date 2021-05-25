@@ -40,6 +40,7 @@
 #include <nuttx/kmalloc.h>
 #include <nuttx/wdog.h>
 #include <nuttx/arch.h>
+#include <nuttx/signal.h>
 #include <nuttx/serial/serial.h>
 
 #include <nuttx/usb/usb.h>
@@ -468,6 +469,9 @@ static int cdcacm_recvpacket(FAR struct cdcacm_dev_s *priv,
   uint16_t reqlen;
   uint16_t nexthead;
   uint16_t nbytes = 0;
+#if defined(CONFIG_TTY_SIGINT) || defined(CONFIG_TTY_SIGTSTP)
+  int signo = 0;
+#endif
 
   DEBUGASSERT(priv != NULL && rdcontainer != NULL);
 
@@ -555,6 +559,52 @@ static int cdcacm_recvpacket(FAR struct cdcacm_dev_s *priv,
               break;
             }
         }
+#endif
+
+#ifdef CONFIG_TTY_SIGINT
+      /* Is this the special character that will generate the SIGINT
+       * signal?
+       */
+
+      if (serdev->pid >= 0 && (serdev->tc_lflag & ISIG) &&
+          *reqbuf == CONFIG_TTY_SIGINT_CHAR)
+        {
+          /* Yes.. note that the kill is needed and do not put the character
+           * into the Rx buffer.  It should not be read as normal data.
+           */
+
+          signo = SIGINT;
+          nxsig_kill(serdev->pid, signo);
+          uart_reset_sem(serdev);
+          return OK;
+        }
+      else
+#endif
+#ifdef CONFIG_TTY_SIGTSTP
+      /* Is this the special character that will generate the SIGTSTP
+       * signal?
+       */
+
+      if (serdev->pid >= 0 && (serdev->tc_lflag & ISIG) &&
+          *reqbuf == CONFIG_TTY_SIGTSTP_CHAR)
+        {
+#ifdef CONFIG_TTY_SIGINT
+          /* Give precedence to SIGINT */
+
+          if (signo == 0)
+#endif
+            {
+              /* Note that the kill is needed and do not put the character
+               * into the Rx buffer.  It should not be read as normal data.
+               */
+
+              signo = SIGTSTP;
+              nxsig_kill(serdev->pid, signo);
+              uart_reset_sem(serdev);
+              return OK;
+            }
+        }
+      else
 #endif
 
       /* Copy one byte to the head of the circular RX buffer */
