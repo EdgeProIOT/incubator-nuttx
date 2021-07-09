@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm/src/imxrt/hardware/imxrt_ccm.h
+ * arch/arm/src/imxrt/hardware/rt117x/imxrt117x_ccm.h
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -18,8 +18,8 @@
  *
  ****************************************************************************/
 
-#ifndef __ARCH_ARM_SRC_IMXRT_HARDWARE_IMXRT_CCM_H
-#define __ARCH_ARM_SRC_IMXRT_HARDWARE_IMXRT_CCM_H
+#ifndef __ARCH_ARM_SRC_IMXRT_HARDWARE_IMXRT117X_CCM_H
+#define __ARCH_ARM_SRC_IMXRT_HARDWARE_IMXRT117X_CCM_H
 
 /****************************************************************************
  * Included Files
@@ -28,15 +28,11 @@
 #include <nuttx/config.h>
 #include "hardware/imxrt_memorymap.h"
 
-#if defined(CONFIG_ARCH_FAMILY_IMXRT102x)
-#  include "hardware/rt102x/imxrt102x_ccm.h"
-#elif defined(CONFIG_ARCH_FAMILY_IMXRT105x)
-#  include "hardware/rt105x/imxrt105x_ccm.h"
-#elif defined(CONFIG_ARCH_FAMILY_IMXRT106x)
-#  include "hardware/rt106x/imxrt106x_ccm.h"
-#elif defined(CONFIG_ARCH_FAMILY_IMXRT117x)
-#  include "hardware/rt117x/imxrt117x_ccm.h"
-#else
-#  error Unrecognized i.MX RT architecture
-#endif
-#endif /* __ARCH_ARM_SRC_IMXRT_HARDWARE_IMXRT_CCM_H */
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+
+
+
+#endif /* __ARCH_ARM_SRC_IMXRT_HARDWARE_IMXRT117X_CCM_H */
