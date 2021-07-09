@@ -33,12 +33,114 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
+#define IMXRT_PMU_LDO_LPSR_ANA_OFFSET     0x510
+#define IMXRT_PMU_LDO_LPSR_DIG_2_OFFSET   0x520
+#define IMXRT_PMU_LDO_LPSR_DIG_OFFSET     0x530
 #define IMXRT_PMU_CTRL_OFFSET             0x550  /* PMU CTRL register */
 #define IMXRT_PMU_CTRL2_OFFSET            0x560  /* PMU CTRL2 register */
 
+#define IMXRT_PMU_LDO_LPSR_ANA            (IMXRT_ANALOG_BASE + IMXRT_PMU_LDO_LPSR_ANA_OFFSET)
+#define IMXRT_PMU_LDO_LPSR_DIG_2          (IMXRT_ANALOG_BASE + IMXRT_PMU_LDO_LPSR_DIG_2_OFFSET)
+#define IMXRT_PMU_LDO_LPSR_DIG            (IMXRT_ANALOG_BASE + IMXRT_PMU_LDO_LPSR_DIG_OFFSET)
 #define IMXRT_PMU_CTRL                    (IMXRT_ANALOG_BASE + IMXRT_PMU_CTRL_OFFSET)
 #define IMXRT_PMU_CTRL2                   (IMXRT_ANALOG_BASE + IMXRT_PMU_CTRL2_OFFSET)
 
+
+#define PMU_LDO_LPSR_ANA_REG_LP_EN_MASK   (0x1)
+#define PMU_LDO_LPSR_ANA_REG_LP_EN_SHIFT  (0)
+#define PMU_LDO_LPSR_ANA_REG_LP_EN(x)                                               \
+    (((uint32_t)(((uint32_t)(x)) << PMU_LDO_LPSR_ANA_REG_LP_EN_SHIFT)) & \
+    PMU_LDO_LPSR_ANA_REG_LP_EN_MASK)
+
+#define PMU_LDO_LPSR_ANA_REG_DISABLE_MASK  (0x4)
+#define PMU_LDO_LPSR_ANA_REG_DISABLE_SHIFT (2)
+#define PMU_LDO_LPSR_ANA_REG_DISABLE(x)                                             \
+    (((uint32_t)(((uint32_t)(x)) << PMU_LDO_LPSR_ANA_REG_DISABLE_SHIFT)) & \
+    PMU_LDO_LPSR_ANA_REG_DISABLE_MASK)
+
+#define PMU_LDO_LPSR_ANA_PULL_DOWN_2MA_EN_MASK  (0x8)
+#define PMU_LDO_LPSR_ANA_PULL_DOWN_2MA_EN_SHIFT (3)
+#define PMU_LDO_LPSR_ANA_PULL_DOWN_2MA_EN(x)                                        \
+    (((uint32_t)(((uint32_t)(x)) << PMU_LDO_LPSR_ANA_PULL_DOWN_2MA_EN_SHIFT)) & \
+    PMU_LDO_LPSR_ANA_PULL_DOWN_2MA_EN_MASK)
+
+#define PMU_LDO_LPSR_ANA_LPSR_ANA_CONTROL_MODE_MASK   (0x10)
+#define PMU_LDO_LPSR_ANA_LPSR_ANA_CONTROL_MODE_SHIFT  (4)
+#define PMU_LDO_LPSR_ANA_LPSR_ANA_CONTROL_MODE(x)                                   \
+    (((uint32_t)(((uint32_t)(x)) << PMU_LDO_LPSR_ANA_LPSR_ANA_CONTROL_MODE_SHIFT)) & \
+    PMU_LDO_LPSR_ANA_LPSR_ANA_CONTROL_MODE_MASK)
+
+#define PMU_LDO_LPSR_ANA_BYPASS_MODE_EN_MASK  (0x20)
+#define PMU_LDO_LPSR_ANA_BYPASS_MODE_EN_SHIFT (5)
+#define PMU_LDO_LPSR_ANA_BYPASS_MODE_EN(x)                                          \
+    (((uint32_t)(((uint32_t)(x)) << PMU_LDO_LPSR_ANA_BYPASS_MODE_EN_SHIFT)) & \
+    PMU_LDO_LPSR_ANA_BYPASS_MODE_EN_MASK)
+
+#define PMU_LDO_LPSR_ANA_STANDBY_EN_MASK  (0x40)
+#define PMU_LDO_LPSR_ANA_STANDBY_EN_SHIFT (6)
+#define PMU_LDO_LPSR_ANA_STANDBY_EN(x)                                              \
+    (((uint32_t)(((uint32_t)(x)) << PMU_LDO_LPSR_ANA_STANDBY_EN_SHIFT)) & \
+    PMU_LDO_LPSR_ANA_STANDBY_EN_MASK)
+
+#define PMU_LDO_LPSR_ANA_ALWAYS_4MA_PULLDOWN_EN_MASK  (0x100)
+#define PMU_LDO_LPSR_ANA_ALWAYS_4MA_PULLDOWN_EN_SHIFT (8)
+#define PMU_LDO_LPSR_ANA_ALWAYS_4MA_PULLDOWN_EN(x)                                  \
+    (((uint32_t)(((uint32_t)(x)) << PMU_LDO_LPSR_ANA_ALWAYS_4MA_PULLDOWN_EN_SHIFT)) & \
+    PMU_LDO_LPSR_ANA_ALWAYS_4MA_PULLDOWN_EN_MASK)
+
+#define PMU_LDO_LPSR_ANA_TRACK_MODE_EN_MASK   (0x80000)
+#define PMU_LDO_LPSR_ANA_TRACK_MODE_EN_SHIFT  (19)
+#define PMU_LDO_LPSR_ANA_TRACK_MODE_EN(x)                                           \
+    (((uint32_t)(((uint32_t)(x)) << PMU_LDO_LPSR_ANA_TRACK_MODE_EN_SHIFT)) & \
+    PMU_LDO_LPSR_ANA_TRACK_MODE_EN_MASK)
+
+#define PMU_LDO_LPSR_ANA_PULL_DOWN_20UA_EN_MASK   (0x100000)
+#define PMU_LDO_LPSR_ANA_PULL_DOWN_20UA_EN_SHIFT  (20)
+#define PMU_LDO_LPSR_ANA_PULL_DOWN_20UA_EN(x)                                       \
+    (((uint32_t)(((uint32_t)(x)) << PMU_LDO_LPSR_ANA_PULL_DOWN_20UA_EN_SHIFT)) & \
+    PMU_LDO_LPSR_ANA_PULL_DOWN_20UA_EN_MASK)
+
+#define PMU_LDO_LPSR_DIG_2_VOLTAGE_STEP_INC_MASK  (0x3)
+#define PMU_LDO_LPSR_DIG_2_VOLTAGE_STEP_INC_SHIFT (0)
+#define PMU_LDO_LPSR_DIG_2_VOLTAGE_STEP_INC(x)                                      \
+    (((uint32_t)(((uint32_t)(x)) << PMU_LDO_LPSR_DIG_2_VOLTAGE_STEP_INC_SHIFT)) & \
+    PMU_LDO_LPSR_DIG_2_VOLTAGE_STEP_INC_MASK)
+
+#define PMU_LDO_LPSR_DIG_REG_EN_MASK  (0x4)
+#define PMU_LDO_LPSR_DIG_REG_EN_SHIFT (2)
+#define PMU_LDO_LPSR_DIG_REG_EN(x)                                                  \
+    (((uint32_t)(((uint32_t)(x)) << PMU_LDO_LPSR_DIG_REG_EN_SHIFT)) & \
+    PMU_LDO_LPSR_DIG_REG_EN_MASK)
+
+#define PMU_LDO_LPSR_DIG_LPSR_DIG_CONTROL_MODE_MASK   (0x20)
+#define PMU_LDO_LPSR_DIG_LPSR_DIG_CONTROL_MODE_SHIFT  (5)
+#define PMU_LDO_LPSR_DIG_LPSR_DIG_CONTROL_MODE(x)                                   \
+    (((uint32_t)(((uint32_t)(x)) << PMU_LDO_LPSR_DIG_LPSR_DIG_CONTROL_MODE_SHIFT)) & \
+    PMU_LDO_LPSR_DIG_LPSR_DIG_CONTROL_MODE_MASK)
+
+#define PMU_LDO_LPSR_DIG_STANDBY_EN_MASK  (0x40)
+#define PMU_LDO_LPSR_DIG_STANDBY_EN_SHIFT (6)
+#define PMU_LDO_LPSR_DIG_STANDBY_EN(x)                                              \
+    (((uint32_t)(((uint32_t)(x)) << PMU_LDO_LPSR_DIG_STANDBY_EN_SHIFT)) & \
+    PMU_LDO_LPSR_DIG_STANDBY_EN_MASK)
+
+#define PMU_LDO_LPSR_DIG_TRACKING_MODE_MASK   (0x20000)
+#define PMU_LDO_LPSR_DIG_TRACKING_MODE_SHIFT  (17)
+#define PMU_LDO_LPSR_DIG_TRACKING_MODE(x)                                           \
+    (((uint32_t)(((uint32_t)(x)) << PMU_LDO_LPSR_DIG_TRACKING_MODE_SHIFT)) & \
+    PMU_LDO_LPSR_DIG_TRACKING_MODE_MASK)
+
+#define PMU_LDO_LPSR_DIG_BYPASS_MODE_MASK   (0x40000)
+#define PMU_LDO_LPSR_DIG_BYPASS_MODE_SHIFT  (18)
+#define PMU_LDO_LPSR_DIG_BYPASS_MODE(x)                                             \
+    (((uint32_t)(((uint32_t)(x)) << PMU_LDO_LPSR_DIG_BYPASS_MODE_SHIFT)) & \
+    PMU_LDO_LPSR_DIG_BYPASS_MODE_MASK)
+
+#define PMU_LDO_LPSR_DIG_VOLTAGE_SELECT_MASK  (0x1F00000)
+#define PMU_LDO_LPSR_DIG_VOLTAGE_SELECT_SHIFT (20)
+#define PMU_LDO_LPSR_DIG_VOLTAGE_SELECT(x)                                          \
+    (((uint32_t)(((uint32_t)(x)) << PMU_LDO_LPSR_DIG_VOLTAGE_SELECT_SHIFT)) & \
+    PMU_LDO_LPSR_DIG_VOLTAGE_SELECT_MASK)
 
 /* CTRL */
 
@@ -79,5 +181,7 @@
 #define PMU_CTRL2_WB_OK(x)                                                        \
     (((uint32_t)(((uint32_t)(x)) << PMU_CTRL2_WB_OK_SHIFT)) & \
     PMU_CTRL2_WB_OK_MASK)
+
+
 
 #endif /* __ARCH_ARM_SRC_IMXRT_HARDWARE_IMXRT117X_PMU_H */
