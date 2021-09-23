@@ -36,8 +36,8 @@
 /****************************************************************************
  * Public Data
  ****************************************************************************/
-struct mm_heap_s itcm_heap;
-struct mm_heap_s ocram_heap;
+struct mm_heap_s *itcm_heap;
+struct mm_heap_s *ocram_heap;
 
 /****************************************************************************
  * Public Functions
@@ -126,9 +126,9 @@ void imxrt_boardinitialize(void)
   imxrt_autoled_initialize();
 #endif
 
-  mm_initialize(&itcm_heap, "itcm", (FAR void *)&_sitcm, 128*1024);
+  itcm_heap = mm_initialize("itcm", (FAR void *)&_sitcm, 128*1024);
 
-  mm_initialize(&ocram_heap, "ocram", (FAR void *)&_socram, 640*1024);
+  ocram_heap = mm_initialize("ocram", (FAR void *)&_socram, 640*1024);
 }
 
 /****************************************************************************
