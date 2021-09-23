@@ -126,9 +126,9 @@ void imxrt_boardinitialize(void)
   imxrt_autoled_initialize();
 #endif
 
-  mm_initialize(&itcm_heap, (FAR void *)&_sitcm, 128*1024);
+  mm_initialize(&itcm_heap, "itcm", (FAR void *)&_sitcm, 128*1024);
 
-  mm_initialize(&ocram_heap, (FAR void *)&_socram, 640*1024);
+  mm_initialize(&ocram_heap, "ocram", (FAR void *)&_socram, 640*1024);
 }
 
 /****************************************************************************
