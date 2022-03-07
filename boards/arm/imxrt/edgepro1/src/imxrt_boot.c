@@ -58,40 +58,6 @@ void imxrt_ocram_initialize(void)
   uint32_t *dest;
   uint32_t regval;
 
-  /* Reallocate 128K of Flex RAM from ITCM to OCRAM
-   * Final Configuration is
-   *    128 DTCM
-   *
-   *    128 FlexRAM OCRAM  (202C:0000-202D:ffff)
-   *    256 FlexRAM OCRAM  (2028:0000-202B:ffff)
-   *    512 System  OCRAM2 (2020:0000-2027:ffff)
-   * */
-
-  putreg32(0xaa555555, IMXRT_IOMUXC_GPR_GPR17);
-  regval = getreg32(IMXRT_IOMUXC_GPR_GPR16);
-  putreg32(regval | GPR_GPR16_FLEXRAM_BANK_CFG_SELF, IMXRT_IOMUXC_GPR_GPR16);
-
-  src = (uint32_t *) (LOCATE_IN_SRC(g_boot_data.start) + g_boot_data.size);
-  dest = (uint32_t *) (g_boot_data.start + g_boot_data.size);
-
-  while (dest < (uint32_t *) &_etext)
-    {
-      *dest++ = *src++;
-    }
-}
-
-/****************************************************************************
- * Name: imxrt_flexram_initialize
- *
- * Description:
- *   Called off reset vector to reconfigure the flexRAM
- *
- ****************************************************************************/
-
-void imxrt_flexram_initialize(void)
-{
-  uint32_t regval;
-
   /* 
    * Final Configuration is
    *    128 ITCM    (0000:0000-0001:ffff)
@@ -102,6 +68,15 @@ void imxrt_flexram_initialize(void)
   regval = getreg32(IMXRT_IOMUXC_GPR_GPR16);
   putreg32(regval | GPR_GPR16_FLEXRAM_BANK_CFG_SELF, IMXRT_IOMUXC_GPR_GPR16);
 
+#ifdef CONFIG_BOOT_RUNFROMISRAM
+  src = (uint32_t *) (LOCATE_IN_SRC(g_boot_data.start) + g_boot_data.size);
+  dest = (uint32_t *) (g_boot_data.start + g_boot_data.size);
+
+  while (dest < (uint32_t *) &_etext)
+    {
+      *dest++ = *src++;
+    }
+#endif
 }
 
 /****************************************************************************
