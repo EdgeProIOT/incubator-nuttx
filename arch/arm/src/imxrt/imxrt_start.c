@@ -149,6 +149,9 @@ void __start(void)
     imxrt_ocram_initialize();
 #endif
 
+  /* Set ITCM, DTCM, OCRAM */
+  imxrt_flexram_initialize();
+
   /* Clear .bss.  We'll do this inline (vs. calling memset) just to be
    * certain that there are no issues with the state of global variables.
    */
