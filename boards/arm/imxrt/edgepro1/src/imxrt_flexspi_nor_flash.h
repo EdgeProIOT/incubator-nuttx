@@ -18,8 +18,8 @@
  *
  ****************************************************************************/
 
-#ifndef __BOARDS_ARM_IMXRT_IMXRT1064_EVK_SRC_IMXRT_FLEXSPI_NOR_FLASH_H
-#define __BOARDS_ARM_IMXRT_IMXRT1064_EVK_SRC_IMXRT_FLEXSPI_NOR_FLASH_H
+#ifndef __BOARDS_ARM_IMXRT_EDGEPRO1_FLEXSPI_NOR_FLASH_H
+#define __BOARDS_ARM_IMXRT_EDGEPRO1_FLEXSPI_NOR_FLASH_H
 
 /****************************************************************************
  * Included Files
@@ -354,4 +354,4 @@ struct flexspi_nor_config_s
   uint32_t reserve2[11];               /* Reserved for future use */
 };
 
-#endif /* __BOARDS_ARM_IMXRT_IMXRT1064_EVK_SRC_IMXRT_FLEXSPI_NOR_FLASH_H */
+#endif /* __BOARDS_ARM_IMXRT_EDGEPRO1_FLEXSPI_NOR_FLASH_H */
