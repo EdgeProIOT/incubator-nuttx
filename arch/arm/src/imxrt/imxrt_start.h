@@ -105,8 +105,6 @@ void imxrt_boardinitialize(void);
 void imxrt_ocram_initialize(void);
 #endif
 
-void imxrt_flexram_initialize(void);
-
 #undef EXTERN
 #if defined(__cplusplus)
 }
