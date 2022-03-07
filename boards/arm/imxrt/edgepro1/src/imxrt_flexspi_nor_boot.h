@@ -18,8 +18,8 @@
  *
  ****************************************************************************/
 
-#ifndef __BOARDS_ARM_IMXRT_IMXRT1060_EVK_SRC_IMXRT_FLEXSPI_NOR_BOOT_H
-#define __BOARDS_ARM_IMXRT_IMXRT1060_EVK_SRC_IMXRT_FLEXSPI_NOR_BOOT_H
+#ifndef __BOARDS_ARM__IMXRT_EDGEPRO1_FLEXSPI_NOR_BOOT_H
+#define __BOARDS_ARM__IMXRT_EDGEPRO1_FLEXSPI_NOR_BOOT_H
 
 /****************************************************************************
  * Included Files
@@ -84,11 +84,8 @@
 #define LOCATE_IN_DEST(x)           (((uint32_t)(x)) - FLASH_BASE + IMAGE_DEST)
 #define LOCATE_IN_SRC(x)            (((uint32_t)(x)) - IMAGE_DEST + FLASH_BASE)
 
-#ifdef CONFIG_IMXRT1064_EVK_SDRAM
-#  define DCD_ADDRESS               &g_dcd_data
-#else
-#  define DCD_ADDRESS               0
-#endif
+#define DCD_ADDRESS                 0
+
 #define BOOT_DATA_ADDRESS           LOCATE_IN_DEST(&g_boot_data)
 #define CSF_ADDRESS                 0
 #define PLUGIN_FLAG                 (uint32_t)0
@@ -160,9 +157,7 @@ struct boot_data_s
  ****************************************************************************/
 
 extern const struct boot_data_s g_boot_data;
-#ifdef CONFIG_IMXRT1064_EVK_SDRAM
-extern const uint8_t g_dcd_data[];
-#endif
+
 extern  const uint32_t  _vectors[];
 
-#endif /* __BOARDS_ARM_IMXRT_IMXRT1060_EVK_SRC_IMXRT_FLEXSPI_NOR_BOOT_H */
+#endif /* __BOARDS_ARM__IMXRT_EDGEPRO1_FLEXSPI_NOR_BOOT_H */
