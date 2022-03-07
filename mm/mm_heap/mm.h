@@ -189,15 +189,16 @@ struct mm_delaynode_s
 
 struct mm_heap_s
 {
+  /* This is the size of the heap provided to mm */
+
+  size_t mm_heapsize;
+  
   /* Mutually exclusive access to this data set is enforced with
    * the following un-named mutex.
    */
 
   mutex_t mm_lock;
 
-  /* This is the size of the heap provided to mm */
-
-  size_t mm_heapsize;
 
   /* This is the first and last nodes of the heap */
 
