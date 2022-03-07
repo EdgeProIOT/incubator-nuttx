@@ -23,9 +23,9 @@
 MEMORY
 {
   flash (rx)  : ORIGIN = 0x70000000, LENGTH = 4M
-  sram  (rwx) : ORIGIN = 0x20200000, LENGTH = 512M
   itcm  (rwx) : ORIGIN = 0x00000000, LENGTH = 128K
-  dtcm  (rwx) : ORIGIN = 0x20000000, LENGTH = 128K
+  dtcm  (rwx) : ORIGIN = 0x20000000, LENGTH = 256K
+  ocram (rwx) : ORIGIN = 0x20200000, LENGTH = 640K
 }
 
 OUTPUT_ARCH(arm)
@@ -53,7 +53,7 @@ SECTIONS
         KEEP(*(.boot_hdr.dcd_data))
         __boot_hdr_end__ = ABSOLUTE(.) ;
         . = 0x2000 ;
-    } >flash
+    } > flash
 
     .text :
     {
@@ -101,14 +101,14 @@ SECTIONS
         CONSTRUCTORS
         . = ALIGN(4);
         _edata = ABSOLUTE(.);
-    } > sram AT > flash
+    } > dtcm AT > flash
 
     .ramfunc ALIGN(4):
     {
         _sramfuncs = ABSOLUTE(.);
         *(.ramfunc  .ramfunc.*)
         _eramfuncs = ABSOLUTE(.);
-    } > sram AT > flash
+    } > dtcm AT > flash
 
     _framfuncs = LOADADDR(.ramfunc);
 
@@ -120,7 +120,21 @@ SECTIONS
         *(COMMON)
         . = ALIGN(4);
         _ebss = ABSOLUTE(.);
-    } > sram
+    } > dtcm
+
+    .itcm 0x00000000:
+    {
+        _sitcm = ABSOLUTE(.);
+        *(.itcm  .itcm.*)
+        _eitcm = ABSOLUTE(.);
+    }
+
+    .ocram 0x20200000:
+    {
+        _socram = ABSOLUTE(.);
+        *(.ocram  .ocram.*)
+        _eocram = ABSOLUTE(.);
+    }
 
     /* Stabs debugging sections. */
 
