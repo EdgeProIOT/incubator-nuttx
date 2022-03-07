@@ -25,12 +25,19 @@
 #include <nuttx/config.h>
 
 #include <nuttx/board.h>
+#include <nuttx/mm/mm.h>
 #include <arch/board/board.h>
 
 #include "imxrt_start.h"
 #include "edgepro1.h"
 #include "arm_arch.h"
 #include "imxrt_flexspi_nor_boot.h"
+
+/****************************************************************************
+ * Public Data
+ ****************************************************************************/
+struct mm_heap_s *itcm_heap;
+struct mm_heap_s *ocram_heap;
 
 /****************************************************************************
  * Public Functions
@@ -74,6 +81,30 @@ void imxrt_ocram_initialize(void)
 }
 
 /****************************************************************************
+ * Name: imxrt_flexram_initialize
+ *
+ * Description:
+ *   Called off reset vector to reconfigure the flexRAM
+ *
+ ****************************************************************************/
+
+void imxrt_flexram_initialize(void)
+{
+  uint32_t regval;
+
+  /* 
+   * Final Configuration is
+   *    128 ITCM    (0000:0000-0001:ffff)
+   *    256 DTCM    (2000:0000-2005:ffff)
+   *    640 OCRAM   (2020:0000-2027:ffff)
+   * */
+  putreg32(0x5aaffaa5, IMXRT_IOMUXC_GPR_GPR17);
+  regval = getreg32(IMXRT_IOMUXC_GPR_GPR16);
+  putreg32(regval | GPR_GPR16_FLEXRAM_BANK_CFG_SELF, IMXRT_IOMUXC_GPR_GPR16);
+
+}
+
+/****************************************************************************
  * Name: imxrt_boardinitialize
  *
  * Description:
@@ -84,6 +115,9 @@ void imxrt_ocram_initialize(void)
  *
  ****************************************************************************/
 
+extern uint32_t _sitcm;
+extern uint32_t _socram;
+
 void imxrt_boardinitialize(void)
 {
   /* Configure on-board LEDs if LED support has been selected. */
@@ -91,6 +125,10 @@ void imxrt_boardinitialize(void)
 #ifdef CONFIG_ARCH_LEDS
   imxrt_autoled_initialize();
 #endif
+
+  itcm_heap = mm_initialize("itcm", (FAR void *)&_sitcm, 128*1024);
+
+  ocram_heap = mm_initialize("ocram", (FAR void *)&_socram, 640*1024);
 }
 
 /****************************************************************************
