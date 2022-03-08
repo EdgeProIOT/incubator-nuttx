@@ -18,26 +18,12 @@
  *
  ****************************************************************************/
 
-#include <nuttx/config.h>
-
-#ifdef CONFIG_IMXRT_ITCM
-#define ITCM_SIZE   CONFIG_IMXRT_ITCM
-#else
-#define ITCM_SIZE   0x00020000
-#endif
-
-#ifdef CONFIG_IMXRT_DTCM
-#define DTCM_SIZE   CONFIG_IMXRT_DTCM
-#else
-#define DTCM_SIZE   0x00040000
-#endif
-
 MEMORY
 {
   flash (rx)  : ORIGIN = 0x70000000, LENGTH = 4M
-  itcm  (rwx) : ORIGIN = 0x00000000, LENGTH = ITCM_SIZE
-  dtcm  (rwx) : ORIGIN = 0x20000000, LENGTH = DTCM_SIZE
-  ocram (rwx) : ORIGIN = 0x20200000, LENGTH = 0x00100000 - ITCM_SIZE - DTCM_SIZE 
+  itcm  (rwx) : ORIGIN = 0x00000000, LENGTH = 128K
+  dtcm  (rwx) : ORIGIN = 0x20000000, LENGTH = 256K
+  ocram (rwx) : ORIGIN = 0x20200000, LENGTH = 640K
 }
 
 OUTPUT_ARCH(arm)
