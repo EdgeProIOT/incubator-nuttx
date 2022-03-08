@@ -68,9 +68,11 @@ struct mm_heap_s *ocram_heap;
 
 static uint8_t map_tcm_size(uint8_t tcm_bank_num)
 {
-    uint8_t tcm_size_config = 0U;
-    uint32_t total_tcm_size = 0U;
+    uint8_t tcm_size_config;
+    uint32_t total_tcm_size;
 
+    tcm_size_config = 0U;
+    total_tcm_size = 0U;
     /* if bank number is a odd value, use a new bank number which bigger 
        than target */
     do 
@@ -155,14 +157,19 @@ static void set_tcm_size(uint8_t itcm_bank_num, uint8_t dtcm_bank_num)
 void imxrt_ocram_initialize(void)
 {
   uint32_t regval;
-  uint8_t dtcm_bank_num = (CONFIG_IMXRT_DTCM % 32);
-  uint8_t itcm_bank_num = (CONFIG_IMXRT_ITCM % 32);
-  uint8_t ocram_bank_num = ((512-CONFIG_IMXRT_DTCM-CONFIG_IMXRT_ITCM) % 32); 
-  uint32_t bank_cfg = 0U, i;
+  uint8_t dtcm_bank_num;
+  uint8_t itcm_bank_num;
+  uint8_t ocram_bank_num;
+  uint32_t bank_cfg, i;
 #ifdef CONFIG_BOOT_RUNFROMISRAM
   const uint32_t *src;
   uint32_t *dest;
 #endif
+
+  dtcm_bank_num = (CONFIG_IMXRT_DTCM / 32);
+  itcm_bank_num = (CONFIG_IMXRT_ITCM / 32);
+  ocram_bank_num = ((512-CONFIG_IMXRT_DTCM-CONFIG_IMXRT_ITCM) / 32);
+  bank_cfg = 0U; 
 
   /* check the arguments */
   if (16 < (dtcm_bank_num + itcm_bank_num + ocram_bank_num))
@@ -207,6 +214,7 @@ void imxrt_ocram_initialize(void)
     }
 #endif
 }
+
 
 /****************************************************************************
  * Name: imxrt_boardinitialize
