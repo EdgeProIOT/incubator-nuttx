@@ -18,18 +18,9 @@
  *
  ****************************************************************************/
 
-/* There are four LED status indicators located on the EVK Board.  The
- * functions of these LEDs include:
+/* There is RGB LED indicator located on the EdegPro1 Board.
  *
- *   - Main Power Supply(D3)
- *     Green: DC 5V main supply is normal.
- *     Red:   J2 input voltage is over 5.6V.
- *     Off:   The board is not powered.
- *   - Reset RED LED(D21)
- *   - OpenSDA LED(D20)
- *   - USER LED(D18)
- *
- * Only a single LED, D18, is under software control.
+ * Only a single LED, RED, is under software control.
  *
  * This LED is not used by the board port unless CONFIG_ARCH_LEDS is
  * defined.  In that case, the usage by the board port is defined in
@@ -92,7 +83,7 @@ void imxrt_autoled_initialize(void)
 {
   /* Configure LED GPIO for output */
 
-  imxrt_config_gpio(GPIO_LED);
+  imxrt_config_gpio(GPIO_LED_RED);
 }
 
 /****************************************************************************
@@ -128,7 +119,7 @@ void board_autoled_on(int led)
         break;
     }
 
-  imxrt_gpio_write(GPIO_LED, ledoff); /* Low illuminates */
+  imxrt_gpio_write(GPIO_LED_RED, ledoff); /* Low illuminates */
 }
 
 /****************************************************************************
@@ -159,7 +150,7 @@ void board_autoled_off(int led)
         return;
     }
 
-  imxrt_gpio_write(GPIO_LED, true); /* Low illuminates */
+  imxrt_gpio_write(GPIO_LED_RED, true); /* Low illuminates */
 }
 
 #endif /* CONFIG_ARCH_LEDS */
