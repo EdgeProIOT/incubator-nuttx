@@ -44,22 +44,15 @@
 
 /* LEDs */
 
-/* There are four LED status indicators located on the EVK Board.
- * The functions of these LEDs include:
- *
- *   - Main Power Supply(D3)
- *     Green: DC 5V main supply is normal.
- *     Red:   J2 input voltage is over 5.6V.
- *     Off:   The board is not powered.
- *   - Reset RED LED(D15)
- *   - OpenSDA LED(D16)
- *   - USER LED(D18)
- *
- * Only a single LED, D18, is under software control.
+/* There is RGB LED indicator located on the EdegPro1 Board.
  */
 
-#define GPIO_LED        (GPIO_OUTPUT | IOMUX_LED_DEFAULT | \
-                         GPIO_OUTPUT_ZERO | GPIO_PORT1 | GPIO_PIN9)  /* AD_BO_09 */
+#define GPIO_LED_RED    (GPIO_OUTPUT | IOMUX_LED_DEFAULT | \
+                          GPIO_OUTPUT_ZERO | GPIO_PORT2 | GPIO_PIN11)  /* BO_11 */
+#define GPIO_LED_GREEN  (GPIO_OUTPUT | IOMUX_LED_DEFAULT | \
+                          GPIO_OUTPUT_ZERO | GPIO_PORT2 | GPIO_PIN16)  /* B1_00 */
+#define GPIO_LED_BLUE   (GPIO_OUTPUT | IOMUX_LED_DEFAULT | \
+                          GPIO_OUTPUT_ZERO | GPIO_PORT2 | GPIO_PIN17)  /* B1_01 */
 
 #define LED_DRIVER_PATH "/dev/userleds"
 
@@ -132,6 +125,27 @@ int imxrt_adc_initialize(void);
 
 #ifdef CONFIG_IMXRT_FLEXSPI
 int imxrt_flexspi_nor_initialize(void);
+#endif
+
+
+/****************************************************************************
+ * Name: imxrt_rgbled_setup
+ *
+ * Description:
+ *   This function is called by board initialization logic to configure the
+ *   RGB LED driver.  This function will register the driver as /dev/rgbled0.
+ *
+ * Input Parameters:
+ *   None
+ *
+ * Returned Value:
+ *   Zero is returned on success.  Otherwise, a negated errno value is
+ *   returned to indicate the nature of the failure.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_RGBLED
+int imxrt_rgbled_setup(void);
 #endif
 
 #endif /* __ASSEMBLY__ */

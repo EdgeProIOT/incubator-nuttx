@@ -121,43 +121,67 @@
 
 /* LED definitions **********************************************************/
 
-/* There are four LED status indicators located on the EVK Board.
- * The functions of these LEDs include:
- *
- *   - Main Power Supply(D3)
- *     Green: DC 5V main supply is normal.
- *     Red:   J2 input voltage is over 5.6V.
- *     Off:   The board is not powered.
- *   - Reset RED LED(D15)
- *   - OpenSDA LED(D16)
- *   - USER LED(D18)
- *
- * Only a single LED, D18, is under software control.
+/* There is RGB LED indicator located on the EdegPro1 Board.
  */
 
 /* LED index values for use with board_userled() */
 
-#define BOARD_USERLED     0
-#define BOARD_NLEDS       1
+#define BOARD_USERLED_RED   0
+#define BOARD_USERLED_GREEN 1
+#define BOARD_USERLED_BLUE  2
+#define BOARD_NLEDS         3
 
 /* LED bits for use with board_userled_all() */
 
-#define BOARD_USERLED_BIT (1 << BOARD_USERLED)
+#define BOARD_USERLED_RED_BIT   (1 << BOARD_USERLED_RED)
+#define BOARD_USERLED_GREEN_BIT (1 << BOARD_USERLED_GREEN)
+#define BOARD_USERLED_BLUE_BIT  (1 << BOARD_USERLED_BLUE)
+
+/* RGB LED
+ *
+ * R = PWM2 on B0_11 | G = PWM1 on B1_00 | B = PWM1 on B1_01
+ */
+
+#define GPIO_FLEXPWM1_MOD4_A  GPIO_FLEXPWM1_PWMA03_5
+#define GPIO_FLEXPWM1_MOD4_B  GPIO_FLEXPWM1_PWMB03_5
+#define GPIO_FLEXPWM2_MOD3_A  GPIO_FLEXPWM2_PWMB02_2
+
+#define RGBLED_RPWMTIMER   2
+#define RGBLED_RPWMCHANNEL 2
+#define RGBLED_GPWMTIMER   1
+#define RGBLED_GPWMCHANNEL 3
+#define RGBLED_BPWMTIMER   1
+#define RGBLED_BPWMCHANNEL 3
 
 
 /* PIO Disambiguation *******************************************************/
 
 /* LPUARTs
- *
- * Virtual console port provided by OpenSDA on UART1 and
- * Arduino RS-232 Shield on UART3.
- *
  */
 
 #define GPIO_LPUART1_RX      (GPIO_LPUART1_RX_1|IOMUX_UART_DEFAULT) /* GPIO_AD_B0_13 */
 #define GPIO_LPUART1_TX      (GPIO_LPUART1_TX_1|IOMUX_UART_DEFAULT) /* GPIO_AD_B0_12 */
 #define GPIO_LPUART3_RX      (GPIO_LPUART3_RX_1|IOMUX_UART_DEFAULT) /* GPIO_AD_B1_07 */
 #define GPIO_LPUART3_TX      (GPIO_LPUART3_TX_1|IOMUX_UART_DEFAULT) /* GPIO_AD_B1_06 */
+
+/* LPI2Cs
+ */
+
+#define GPIO_LPI2C1_SDA      (GPIO_LPI2C1_SDA_2|IOMUX_LPI2C_DEFAULT) /* GPIO_AD_B1_01 */
+#define GPIO_LPI2C1_SCL      (GPIO_LPI2C1_SCL_2|IOMUX_LPI2C_DEFAULT) /* GPIO_AD_B1_00 */
+#define GPIO_LPI2C3_SDA      (GPIO_LPI2C3_SDA_2|IOMUX_LPI2C_DEFAULT) /* GPIO_AD_B1_01 */
+#define GPIO_LPI2C3_SCL      (GPIO_LPI2C3_SCL_2|IOMUX_LPI2C_DEFAULT) /* GPIO_AD_B1_00 */
+
+/* LPSPI
+ *
+ *   J24 D09   GPIO_AD_B0_02  LPSPI3_SDI
+ *   J24 D14   GPIO_AD_B0_01  LPSPI3_SDO
+ *   J24 D15   GPIO_AD_B0_00  LPSPI3_SCK
+ */
+
+#define GPIO_LPSPI3_SCK      (GPIO_LPSPI3_SCK_2|IOMUX_LPSPI_DEFAULT) /* GPIO_AD_B0_00 */
+#define GPIO_LPSPI3_MISO     (GPIO_LPSPI3_SDI_2|IOMUX_LPSPI_DEFAULT) /* GPIO_AD_B0_02 */
+#define GPIO_LPSPI3_MOSI     (GPIO_LPSPI3_SDO_2|IOMUX_LPSPI_DEFAULT) /* GPIO_AD_B0_01 */
 
 /* FLEXSPI */
 

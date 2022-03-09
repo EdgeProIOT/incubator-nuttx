@@ -39,8 +39,21 @@
 
 #ifdef CONFIG_IMXRT_FLEXSPI
 
+#ifndef CONFIG_FLEXSPI_FLASH_SIZE
+#define CONFIG_FLEXSPI_FLASH_SIZE 8192
+#endif
+
+#ifndef CONFIG_FLEXSPI_FLASH_PAGE_SIZE
 #define NOR_PAGE_SIZE   0x0100U
+#else
+#define NOR_PAGE_SIZE   CONFIG_FLEXSPI_FLASH_PAGE_SIZE
+#endif
+
+#ifndef CONFIG_FLEXSPI_FLASH_SECTOR_SIZE
 #define NOR_SECTOR_SIZE 0x1000U
+#else
+#define NOR_SECTOR_SIZE CONFIG_FLEXSPI_FLASH_SECTOR_SIZE
+#endif
 
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
@@ -170,7 +183,7 @@ static int imxrt_flexspi_nor_ioctl(FAR struct mtd_dev_s *dev,
 static struct flexspi_device_config_s g_flexspi_device_config =
 {
   .flexspi_root_clk = 120000000,
-  .flash_size = 8192,
+  .flash_size = CONFIG_FLEXSPI_FLASH_SIZE,
   .cs_interval_unit = FLEXSPI_CS_INTERVAL_UNIT1_SCK_CYCLE,
   .cs_interval = 0,
   .cs_hold_time = 3,
@@ -568,7 +581,8 @@ static int imxrt_flexspi_nor_ioctl(FAR struct mtd_dev_s *dev,
 
               geo->blocksize    = (NOR_PAGE_SIZE);
               geo->erasesize    = (NOR_SECTOR_SIZE);
-              geo->neraseblocks = 2048; /* 8MB only */
+              geo->neraseblocks = ((CONFIG_FLEXSPI_FLASH_SIZE*1024U)/
+                                    NOR_SECTOR_SIZE);
 
               ret               = OK;
 
@@ -584,7 +598,8 @@ static int imxrt_flexspi_nor_ioctl(FAR struct mtd_dev_s *dev,
             (FAR struct partition_info_s *)arg;
           if (info != NULL)
             {
-              info->numsectors  = 32768; /* 8MB only */
+              info->numsectors  = ((CONFIG_FLEXSPI_FLASH_SIZE*1024U)/
+                                    NOR_PAGE_SIZE);
               info->sectorsize  = NOR_PAGE_SIZE;
               info->startsector = 0;
               info->parent[0]   = '\0';
