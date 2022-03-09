@@ -50,4 +50,8 @@ ifeq ($(CONFIG_IMXRT_FLEXSPI),y)
 CSRCS += imxrt_flexspi_nor.c
 endif
 
+ifeq ($(CONFIG_RGBLED),y)
+CSRCS += imxrt_rgbled.c
+endif
+
 include $(TOPDIR)/boards/Board.mk

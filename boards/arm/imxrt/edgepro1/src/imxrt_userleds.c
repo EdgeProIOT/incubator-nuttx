@@ -18,18 +18,7 @@
  *
  ****************************************************************************/
 
-/* There are four LED status indicators located on the EVK Board.  The
- * functions of these LEDs include:
- *
- *   - Main Power Supply(D3)
- *     Green: DC 5V main supply is normal.
- *     Red:   J2 input voltage is over 5.6V.
- *     Off:   The board is not powered.
- *   - Reset RED LED(D15)
- *   - OpenSDA LED(D16)
- *   - USER LED(D18)
- *
- * Only a single LED, D18, is under software control.
+/* TThere is RGB LED indicator located on the EdegPro1 Board.
  */
 
 /****************************************************************************
@@ -57,7 +46,9 @@ uint32_t board_userled_initialize(void)
 {
   /* Configure LED GPIO for output */
 
-  imxrt_config_gpio(GPIO_LED);
+  imxrt_config_gpio(GPIO_LED_RED);
+  imxrt_config_gpio(GPIO_LED_GREEN);
+  imxrt_config_gpio(GPIO_LED_BLUE);
   return BOARD_NLEDS;
 }
 
@@ -67,7 +58,20 @@ uint32_t board_userled_initialize(void)
 
 void board_userled(int led, bool ledon)
 {
-  imxrt_gpio_write(GPIO_LED, !ledon);  /* Low illuminates */
+  switch (led)
+    {
+    case GPIO_LED_RED:
+      imxrt_gpio_write(GPIO_LED_RED, !ledon);  /* Low illuminates */
+      break;
+
+    case GPIO_LED_GREEN:
+      imxrt_gpio_write(GPIO_LED_GREEN, !ledon);  /* Low illuminates */
+      break;
+
+    case GPIO_LED_BLUE:
+      imxrt_gpio_write(GPIO_LED_BLUE, !ledon);  /* Low illuminates */
+      break;
+    }
 }
 
 /****************************************************************************
@@ -77,8 +81,9 @@ void board_userled(int led, bool ledon)
 void board_userled_all(uint32_t ledset)
 {
   /* Low illuminates */
-
-  imxrt_gpio_write(GPIO_LED, (ledset & BOARD_USERLED_BIT) == 0);
+  imxrt_gpio_write(GPIO_LED_RED, (ledset & BOARD_USERLED_RED_BIT) == 0);
+  imxrt_gpio_write(GPIO_LED_GREEN, (ledset & BOARD_USERLED_GREEN_BIT) == 0);
+  imxrt_gpio_write(GPIO_LED_BLUE, (ledset & BOARD_USERLED_BLUE_BIT) == 0);
 }
 
 #endif /* !CONFIG_ARCH_LEDS */
