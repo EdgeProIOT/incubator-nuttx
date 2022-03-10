@@ -134,17 +134,21 @@ static struct imxrt_flexpwm_module_s g_pwm1_modules[] =
   {
     .module = 1,
     .used = true,
+#ifdef CONFIG_IMXRT_FLEXPWM1_MOD1_OUTPUT_A
     .out_a =
     {
       .used = true,
       .pin = GPIO_FLEXPWM1_MOD1_A
     },
-#ifdef CONFIG_IMXRT_FLEXPWM1_MOD1_COMP
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM1_MOD1_OUTPUT_B
     .out_b =
     {
       .used = true,
       .pin = GPIO_FLEXPWM1_MOD1_B
     },
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM1_MOD1_COMP
     .complementary = true
 #else
     .complementary = false
@@ -155,17 +159,21 @@ static struct imxrt_flexpwm_module_s g_pwm1_modules[] =
   {
     .module = 2,
     .used = true,
+#ifdef CONFIG_IMXRT_FLEXPWM1_MOD2_OUTPUT_A
     .out_a =
     {
       .used = true,
       .pin = GPIO_FLEXPWM1_MOD2_A
     },
-#ifdef CONFIG_IMXRT_FLEXPWM1_MOD2_COMP
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM1_MOD2_OUTPUT_B
     .out_b =
     {
       .used = true,
       .pin = GPIO_FLEXPWM1_MOD2_B
     },
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM1_MOD2_COMP
     .complementary = true
 #else
     .complementary = false
@@ -176,17 +184,21 @@ static struct imxrt_flexpwm_module_s g_pwm1_modules[] =
   {
     .module = 3,
     .used = true,
+#ifdef CONFIG_IMXRT_FLEXPWM1_MOD3_OUTPUT_A
     .out_a =
     {
       .used = true,
       .pin = GPIO_FLEXPWM1_MOD3_A
     },
-#ifdef CONFIG_IMXRT_FLEXPWM1_MOD3_COMP
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM1_MOD3_OUTPUT_B
     .out_b =
     {
       .used = true,
       .pin = GPIO_FLEXPWM1_MOD3_B
     },
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM1_MOD3_COMP
     .complementary = true
 #else
     .complementary = false
@@ -197,17 +209,21 @@ static struct imxrt_flexpwm_module_s g_pwm1_modules[] =
   {
     .module = 4,
     .used = true,
+#ifdef CONFIG_IMXRT_FLEXPWM1_MOD4_OUTPUT_A
     .out_a =
     {
       .used = true,
       .pin = GPIO_FLEXPWM1_MOD4_A
     },
-#ifdef CONFIG_IMXRT_FLEXPWM1_MOD4_COMP
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM1_MOD4_OUTPUT_B
     .out_b =
     {
       .used = true,
       .pin = GPIO_FLEXPWM1_MOD4_B
     },
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM1_MOD4_COMP
     .complementary = true
 #else
     .complementary = false
@@ -236,17 +252,21 @@ static struct imxrt_flexpwm_module_s g_pwm2_modules[] =
   {
     .module = 1,
     .used = true,
+#ifdef CONFIG_IMXRT_FLEXPWM2_MOD1_OUTPUT_A
     .out_a =
     {
       .used = true,
       .pin = GPIO_FLEXPWM2_MOD1_A
     },
-#ifdef CONFIG_IMXRT_FLEXPWM2_MOD1_COMP
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM2_MOD1_OUTPUT_B
     .out_b =
     {
       .used = true,
       .pin = GPIO_FLEXPWM2_MOD1_B
     },
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM2_MOD1_COMP
     .complementary = true
 #else
     .complementary = false
@@ -257,17 +277,21 @@ static struct imxrt_flexpwm_module_s g_pwm2_modules[] =
   {
     .module = 2,
     .used = true,
+#ifdef CONFIG_IMXRT_FLEXPWM2_MOD2_OUTPUT_A
     .out_a =
     {
       .used = true,
-      .pin = GPIO_FLEXPWM2_MOD2_A,
+      .pin = GPIO_FLEXPWM2_MOD2_A
     },
-#ifdef CONFIG_IMXRT_FLEXPWM2_MOD2_COMP
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM2_MOD2_OUTPUT_B
     .out_b =
     {
       .used = true,
       .pin = GPIO_FLEXPWM2_MOD2_B
-    }
+    },
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM2_MOD2_COMP
     .complementary = true
 #else
     .complementary = false
@@ -278,17 +302,21 @@ static struct imxrt_flexpwm_module_s g_pwm2_modules[] =
   {
     .module = 3,
     .used = true,
+#ifdef CONFIG_IMXRT_FLEXPWM2_MOD3_OUTPUT_A
     .out_a =
     {
       .used = true,
       .pin = GPIO_FLEXPWM2_MOD3_A
     },
-#ifdef CONFIG_IMXRT_FLEXPWM2_MOD3_COMP
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM2_MOD3_OUTPUT_B
     .out_b =
     {
       .used = true,
       .pin = GPIO_FLEXPWM2_MOD3_B
     },
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM2_MOD3_COMP
     .complementary = true
 #else
     .complementary = false
@@ -299,22 +327,26 @@ static struct imxrt_flexpwm_module_s g_pwm2_modules[] =
   {
     .module = 4,
     .used = true,
+#ifdef CONFIG_IMXRT_FLEXPWM2_MOD4_OUTPUT_A
     .out_a =
     {
       .used = true,
       .pin = GPIO_FLEXPWM2_MOD4_A
     },
-#ifdef CONFIG_IMXRT_FLEXPWM2_MOD4_COMP
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM2_MOD4_OUTPUT_B
     .out_b =
     {
       .used = true,
       .pin = GPIO_FLEXPWM2_MOD4_B
     },
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM2_MOD4_COMP
     .complementary = true
 #else
     .complementary = false
 #endif
-  }
+  },
 #endif
 };
 
@@ -338,17 +370,21 @@ static struct imxrt_flexpwm_module_s g_pwm3_modules[] =
   {
     .module = 1,
     .used = true,
+#ifdef CONFIG_IMXRT_FLEXPWM3_MOD1_OUTPUT_A
     .out_a =
     {
       .used = true,
       .pin = GPIO_FLEXPWM3_MOD1_A
     },
-#ifdef CONFIG_IMXRT_FLEXPWM3_MOD1_COMP
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM3_MOD1_OUTPUT_B
     .out_b =
     {
       .used = true,
       .pin = GPIO_FLEXPWM3_MOD1_B
     },
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM3_MOD1_COMP
     .complementary = true
 #else
     .complementary = false
@@ -359,17 +395,21 @@ static struct imxrt_flexpwm_module_s g_pwm3_modules[] =
   {
     .module = 2,
     .used = true,
+#ifdef CONFIG_IMXRT_FLEXPWM3_MOD2_OUTPUT_A
     .out_a =
     {
       .used = true,
       .pin = GPIO_FLEXPWM3_MOD2_A
     },
-#ifdef CONFIG_IMXRT_FLEXPWM3_MOD2_COMP
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM3_MOD2_OUTPUT_B
     .out_b =
     {
       .used = true,
       .pin = GPIO_FLEXPWM3_MOD2_B
     },
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM3_MOD2_COMP
     .complementary = true
 #else
     .complementary = false
@@ -380,17 +420,21 @@ static struct imxrt_flexpwm_module_s g_pwm3_modules[] =
   {
     .module = 3,
     .used = true,
+#ifdef CONFIG_IMXRT_FLEXPWM3_MOD3_OUTPUT_A
     .out_a =
     {
       .used = true,
       .pin = GPIO_FLEXPWM3_MOD3_A
     },
-#ifdef CONFIG_IMXRT_FLEXPWM3_MOD3_COMP
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM3_MOD3_OUTPUT_B
     .out_b =
     {
       .used = true,
       .pin = GPIO_FLEXPWM3_MOD3_B
     },
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM3_MOD3_COMP
     .complementary = true
 #else
     .complementary = false
@@ -401,17 +445,21 @@ static struct imxrt_flexpwm_module_s g_pwm3_modules[] =
   {
     .module = 4,
     .used = true,
+#ifdef CONFIG_IMXRT_FLEXPWM3_MOD4_OUTPUT_A
     .out_a =
     {
       .used = true,
       .pin = GPIO_FLEXPWM3_MOD4_A
     },
-#ifdef CONFIG_IMXRT_FLEXPWM3_MOD4_COMP
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM3_MOD4_OUTPUT_B
     .out_b =
     {
       .used = true,
       .pin = GPIO_FLEXPWM3_MOD4_B
     },
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM3_MOD4_COMP
     .complementary = true
 #else
     .complementary = false
@@ -440,17 +488,21 @@ static struct imxrt_flexpwm_module_s g_pwm4_modules[] =
   {
     .module = 1,
     .used = true,
+#ifdef CONFIG_IMXRT_FLEXPWM4_MOD1_OUTPUT_A
     .out_a =
     {
       .used = true,
       .pin = GPIO_FLEXPWM4_MOD1_A
     },
-#ifdef CONFIG_IMXRT_FLEXPWM4_MOD1_COMP
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM4_MOD1_OUTPUT_B
     .out_b =
     {
       .used = true,
       .pin = GPIO_FLEXPWM4_MOD1_B
-    }
+    },
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM4_MOD1_COMP
     .complementary = true
 #else
     .complementary = false
@@ -461,17 +513,21 @@ static struct imxrt_flexpwm_module_s g_pwm4_modules[] =
   {
     .module = 2,
     .used = true,
+#ifdef CONFIG_IMXRT_FLEXPWM4_MOD2_OUTPUT_A
     .out_a =
     {
       .used = true,
       .pin = GPIO_FLEXPWM4_MOD2_A
     },
-#ifdef CONFIG_IMXRT_FLEXPWM4_MOD2_COMP
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM4_MOD2_OUTPUT_B
     .out_b =
     {
       .used = true,
       .pin = GPIO_FLEXPWM4_MOD2_B
-    }
+    },
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM4_MOD2_COMP
     .complementary = true
 #else
     .complementary = false
@@ -482,17 +538,21 @@ static struct imxrt_flexpwm_module_s g_pwm4_modules[] =
   {
     .module = 3,
     .used = true,
+#ifdef CONFIG_IMXRT_FLEXPWM4_MOD3_OUTPUT_A
     .out_a =
     {
       .used = true,
       .pin = GPIO_FLEXPWM4_MOD3_A
     },
-#ifdef CONFIG_IMXRT_FLEXPWM4_MOD3_COMP
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM4_MOD3_OUTPUT_B
     .out_b =
     {
       .used = true,
       .pin = GPIO_FLEXPWM4_MOD3_B
-    }
+    },
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM4_MOD3_COMP
     .complementary = true
 #else
     .complementary = false
@@ -503,17 +563,21 @@ static struct imxrt_flexpwm_module_s g_pwm4_modules[] =
   {
     .module = 4,
     .used = true,
+#ifdef CONFIG_IMXRT_FLEXPWM4_MOD4_OUTPUT_A
     .out_a =
     {
       .used = true,
       .pin = GPIO_FLEXPWM4_MOD4_A
     },
-#ifdef CONFIG_IMXRT_FLEXPWM4_MOD3_COMP
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM4_MOD4_OUTPUT_B
     .out_b =
     {
       .used = true,
       .pin = GPIO_FLEXPWM4_MOD4_B
-    }
+    },
+#endif
+#ifdef CONFIG_IMXRT_FLEXPWM4_MOD4_COMP
     .complementary = true
 #else
     .complementary = false
@@ -727,17 +791,13 @@ static int pwm_setup(struct pwm_lowerhalf_s *dev)
             }
         }
 
-      /* Configure PIN_B if complementary option is turn on */
-
-      if (priv->modules[i].complementary)
+      
+      if (priv->modules[i].out_b.used)
         {
-          if (priv->modules[i].out_b.used)
+          pin = priv->modules[i].out_b.pin;
+          if (pin != 0)
             {
-              pin = priv->modules[i].out_b.pin;
-              if (pin != 0)
-                {
-                  imxrt_config_gpio(pin);
-                }
+              imxrt_config_gpio(pin);
             }
         }
 

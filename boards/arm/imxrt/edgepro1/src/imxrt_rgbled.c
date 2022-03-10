@@ -88,7 +88,7 @@ int imxrt_rgbled_setup(void)
     {
       /* Call imxrt_pwminitialize() to get an instance of the PWM interface */
 
-      ledr = imxrt_pwminitialize(RGBLED_RPWMTIMER);
+      ledr = imxrt_pwminitialize(RGBLED_PWM2);
       if (!ledr)
         {
           lederr("ERROR: Failed to get the IMXRT PWM lower half to LEDR\n");
@@ -99,7 +99,7 @@ int imxrt_rgbled_setup(void)
 
       /* Call imxrt_pwminitialize() to get an instance of the PWM interface */
 
-      ledg = imxrt_pwminitialize(RGBLED_GPWMTIMER);
+      ledg = imxrt_pwminitialize(RGBLED_PWM1);
       if (!ledg)
         {
           lederr("ERROR: Failed to get the IMXRT PWM lower half to LEDG\n");
@@ -110,14 +110,7 @@ int imxrt_rgbled_setup(void)
 
       /* Call imxrt_pwminitialize() to get an instance of the PWM interface */
 
-      ledb = imxrt_pwminitialize(RGBLED_BPWMTIMER);
-      if (!ledb)
-        {
-          lederr("ERROR: Failed to get the IMXRT PWM lower half to LEDB\n");
-          return -ENODEV;
-        }
-
-      ledb->ops->setup(ledb);
+      ledb = ledg;
 
       /* Register the RGB LED diver at "/dev/rgbled0" */
 
