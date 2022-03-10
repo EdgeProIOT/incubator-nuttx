@@ -575,6 +575,11 @@ config IMXRT_FLEXPWM4
 	default n
 	select IMXRT_FLEXPWM
 
+config IMXRT_FLEXPWM_DUAL_CHANNEL
+	bool "FLEXPWM Dual channel per module (A and B)"
+	default n
+	select PWM_MULTICHAN
+
 endif # ARCH_FAMILY_IMXRT105x || ARCH_FAMILY_IMXRT106x
 
 endmenu # FLEXPWM Peripherals

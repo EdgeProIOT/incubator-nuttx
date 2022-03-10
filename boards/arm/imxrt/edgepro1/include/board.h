@@ -121,38 +121,6 @@
 
 /* LED definitions **********************************************************/
 
-/* There is RGB LED indicator located on the EdegPro1 Board.
- */
-
-/* LED index values for use with board_userled() */
-
-#define BOARD_USERLED     0
-#define BOARD_NLEDS       1
-
-/* LED bits for use with board_userled_all() */
-
-#define BOARD_USERLED_BIT (1 << BOARD_USERLED)
-
-/* This LED is not used by the board port unless CONFIG_ARCH_LEDS is
- * defined.  In that case, the usage by the board port is defined in
- * include/board.h and src/imxrt_autoleds.c. The LED is used to encode
- * OS-related events as follows:
- *
- *   -------------------- ----------------------------- ------
- *   SYMBOL                   Meaning                   LED
- *   -------------------- ----------------------------- ------
- */
-
-#define LED_STARTED       0  /* NuttX has been started  OFF    */
-#define LED_HEAPALLOCATE  0  /* Heap has been allocated OFF    */
-#define LED_IRQSENABLED   0  /* Interrupts enabled      OFF    */
-#define LED_STACKCREATED  1  /* Idle stack created      ON     */
-#define LED_INIRQ         2  /* In an interrupt         N/C    */
-#define LED_SIGNAL        2  /* In a signal handler     N/C    */
-#define LED_ASSERTION     2  /* An assertion failed     N/C    */
-#define LED_PANIC         3  /* The system has crashed  FLASH  */
-#undef  LED_IDLE             /* Not used                       */
-
 /* RGB LED
  *
  * R = PWM2 on B0_11 | G = PWM1 on B1_00 | B = PWM1 on B1_01
@@ -164,9 +132,9 @@
 
 #define RGBLED_PWM1         1
 #define RGBLED_PWM2         2
-#define RGBLED_RPWMCHANNEL  2
-#define RGBLED_GPWMCHANNEL  3
-#define RGBLED_BPWMCHANNEL  3
+#define RGBLED_RPWMCHANNEL  5
+#define RGBLED_GPWMCHANNEL  6
+#define RGBLED_BPWMCHANNEL  7
 
 
 /* PIO Disambiguation *******************************************************/
