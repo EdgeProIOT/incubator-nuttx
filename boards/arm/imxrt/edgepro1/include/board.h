@@ -126,32 +126,47 @@
 
 /* LED index values for use with board_userled() */
 
-#define BOARD_USERLED_RED   0
-#define BOARD_USERLED_GREEN 1
-#define BOARD_USERLED_BLUE  2
-#define BOARD_NLEDS         3
+#define BOARD_USERLED     0
+#define BOARD_NLEDS       1
 
 /* LED bits for use with board_userled_all() */
 
-#define BOARD_USERLED_RED_BIT   (1 << BOARD_USERLED_RED)
-#define BOARD_USERLED_GREEN_BIT (1 << BOARD_USERLED_GREEN)
-#define BOARD_USERLED_BLUE_BIT  (1 << BOARD_USERLED_BLUE)
+#define BOARD_USERLED_BIT (1 << BOARD_USERLED)
+
+/* This LED is not used by the board port unless CONFIG_ARCH_LEDS is
+ * defined.  In that case, the usage by the board port is defined in
+ * include/board.h and src/imxrt_autoleds.c. The LED is used to encode
+ * OS-related events as follows:
+ *
+ *   -------------------- ----------------------------- ------
+ *   SYMBOL                   Meaning                   LED
+ *   -------------------- ----------------------------- ------
+ */
+
+#define LED_STARTED       0  /* NuttX has been started  OFF    */
+#define LED_HEAPALLOCATE  0  /* Heap has been allocated OFF    */
+#define LED_IRQSENABLED   0  /* Interrupts enabled      OFF    */
+#define LED_STACKCREATED  1  /* Idle stack created      ON     */
+#define LED_INIRQ         2  /* In an interrupt         N/C    */
+#define LED_SIGNAL        2  /* In a signal handler     N/C    */
+#define LED_ASSERTION     2  /* An assertion failed     N/C    */
+#define LED_PANIC         3  /* The system has crashed  FLASH  */
+#undef  LED_IDLE             /* Not used                       */
 
 /* RGB LED
  *
  * R = PWM2 on B0_11 | G = PWM1 on B1_00 | B = PWM1 on B1_01
  */
+#define GPIO_FLEXPWM2_MOD3_B  GPIO_FLEXPWM2_PWMB02_2  /* R LED */
+#define GPIO_FLEXPWM1_MOD4_A  GPIO_FLEXPWM1_PWMA03_5  /* G LED */
+#define GPIO_FLEXPWM1_MOD4_B  GPIO_FLEXPWM1_PWMB03_5  /* B LED */
 
-#define GPIO_FLEXPWM1_MOD4_A  GPIO_FLEXPWM1_PWMA03_5
-#define GPIO_FLEXPWM1_MOD4_B  GPIO_FLEXPWM1_PWMB03_5
-#define GPIO_FLEXPWM2_MOD3_A  GPIO_FLEXPWM2_PWMB02_2
 
-#define RGBLED_RPWMTIMER   2
-#define RGBLED_RPWMCHANNEL 2
-#define RGBLED_GPWMTIMER   1
-#define RGBLED_GPWMCHANNEL 3
-#define RGBLED_BPWMTIMER   1
-#define RGBLED_BPWMCHANNEL 3
+#define RGBLED_PWM1         1
+#define RGBLED_PWM2         2
+#define RGBLED_RPWMCHANNEL  2
+#define RGBLED_GPWMCHANNEL  3
+#define RGBLED_BPWMCHANNEL  3
 
 
 /* PIO Disambiguation *******************************************************/
