@@ -588,9 +588,19 @@ config IMXRT_FLEXPWM1_MOD1
 
 if IMXRT_FLEXPWM1_MOD1
 
+config IMXRT_FLEXPWM1_MOD1_OUTPUT_A
+	bool "Use output A"
+	default y
+
+config IMXRT_FLEXPWM1_MOD1_OUTPUT_B
+	bool "Use output B"
+	default n
+
 config IMXRT_FLEXPWM1_MOD1_COMP
 	bool "Use complementary output"
 	default n
+	select IMXRT_FLEXPWM1_MOD1_OUTPUT_A
+	select IMXRT_FLEXPWM1_MOD1_OUTPUT_B
 
 config IMXRT_FLEXPWM1_MOD1_TRIG
 	bool "Enable trigger generation"
@@ -621,9 +631,19 @@ config IMXRT_FLEXPWM1_MOD2
 
 if IMXRT_FLEXPWM1_MOD2
 
+config IMXRT_FLEXPWM1_MOD2_OUTPUT_A
+	bool "Use output A"
+	default y
+
+config IMXRT_FLEXPWM1_MOD2_OUTPUT_B
+	bool "Use output B"
+	default n
+
 config IMXRT_FLEXPWM1_MOD2_COMP
 	bool "Use complementary output"
 	default n
+	select IMXRT_FLEXPWM1_MOD2_OUTPUT_A
+	select IMXRT_FLEXPWM1_MOD2_OUTPUT_B
 
 config IMXRT_FLEXPWM1_MOD2_TRIG
 	bool "Enable trigger generation"
@@ -654,9 +674,19 @@ config IMXRT_FLEXPWM1_MOD3
 
 if IMXRT_FLEXPWM1_MOD3
 
+config IMXRT_FLEXPWM1_MOD3_OUTPUT_A
+	bool "Use output A"
+	default y
+
+config IMXRT_FLEXPWM1_MOD3_OUTPUT_B
+	bool "Use output B"
+	default n
+
 config IMXRT_FLEXPWM1_MOD3_COMP
 	bool "Use complementary output"
 	default n
+	select IMXRT_FLEXPWM1_MOD3_OUTPUT_A
+	select IMXRT_FLEXPWM1_MOD3_OUTPUT_B
 
 config IMXRT_FLEXPWM1_MOD3_TRIG
 	bool "Enable trigger generation"
@@ -687,9 +717,19 @@ config IMXRT_FLEXPWM1_MOD4
 
 if IMXRT_FLEXPWM1_MOD4
 
+config IMXRT_FLEXPWM1_MOD4_OUTPUT_A
+	bool "Use output A"
+	default y
+
+config IMXRT_FLEXPWM1_MOD4_OUTPUT_B
+	bool "Use output B"
+	default n
+
 config IMXRT_FLEXPWM1_MOD4_COMP
 	bool "Use complementary output"
 	default n
+	select IMXRT_FLEXPWM1_MOD3_OUTPUT_A
+	select IMXRT_FLEXPWM1_MOD3_OUTPUT_B
 
 config IMXRT_FLEXPWM1_MOD4_TRIG
 	bool "Enable trigger generation"
@@ -725,9 +765,19 @@ config IMXRT_FLEXPWM2_MOD1
 
 if IMXRT_FLEXPWM2_MOD1
 
+config IMXRT_FLEXPWM2_MOD1_OUTPUT_A
+	bool "Use output A"
+	default y
+
+config IMXRT_FLEXPWM2_MOD1_OUTPUT_B
+	bool "Use output B"
+	default n
+
 config IMXRT_FLEXPWM2_MOD1_COMP
 	bool "Use complementary output"
 	default n
+	select IMXRT_FLEXPWM2_MOD1_OUTPUT_A
+	select IMXRT_FLEXPWM2_MOD1_OUTPUT_B
 
 config IMXRT_FLEXPWM2_MOD1_TRIG
 	bool "Enable trigger generation"
@@ -758,9 +808,19 @@ config IMXRT_FLEXPWM2_MOD2
 
 if IMXRT_FLEXPWM2_MOD2
 
+config IMXRT_FLEXPWM2_MOD2_OUTPUT_A
+	bool "Use output A"
+	default y
+
+config IMXRT_FLEXPWM2_MOD2_OUTPUT_B
+	bool "Use output B"
+	default n
+
 config IMXRT_FLEXPWM2_MOD2_COMP
 	bool "Use complementary output"
 	default n
+	select IMXRT_FLEXPWM2_MOD2_OUTPUT_A
+	select IMXRT_FLEXPWM2_MOD2_OUTPUT_B
 
 config IMXRT_FLEXPWM2_MOD2_TRIG
 	bool "Enable trigger generation"
@@ -791,9 +851,19 @@ config IMXRT_FLEXPWM2_MOD3
 
 if IMXRT_FLEXPWM2_MOD3
 
+config IMXRT_FLEXPWM2_MOD3_OUTPUT_A
+	bool "Use output A"
+	default y
+
+config IMXRT_FLEXPWM2_MOD3_OUTPUT_B
+	bool "Use output B"
+	default n
+
 config IMXRT_FLEXPWM2_MOD3_COMP
 	bool "Use complementary output"
 	default n
+	select IMXRT_FLEXPWM2_MOD3_OUTPUT_A
+	select IMXRT_FLEXPWM2_MOD3_OUTPUT_B
 
 config IMXRT_FLEXPWM2_MOD3_TRIG
 	bool "Enable trigger generation"
@@ -824,9 +894,19 @@ config IMXRT_FLEXPWM2_MOD4
 
 if IMXRT_FLEXPWM2_MOD4
 
+config IMXRT_FLEXPWM2_MOD4_OUTPUT_A
+	bool "Use output A"
+	default y
+
+config IMXRT_FLEXPWM2_MOD4_OUTPUT_B
+	bool "Use output B"
+	default n
+
 config IMXRT_FLEXPWM2_MOD4_COMP
 	bool "Use complementary output"
 	default n
+	select IMXRT_FLEXPWM2_MOD4_OUTPUT_A
+	select IMXRT_FLEXPWM2_MOD4_OUTPUT_B
 
 config IMXRT_FLEXPWM2_MOD4_TRIG
 	bool "Enable trigger generation"
@@ -862,9 +942,19 @@ config IMXRT_FLEXPWM3_MOD1
 
 if IMXRT_FLEXPWM3_MOD1
 
+config IMXRT_FLEXPWM3_MOD1_OUTPUT_A
+	bool "Use output A"
+	default y
+
+config IMXRT_FLEXPWM3_MOD1_OUTPUT_B
+	bool "Use output B"
+	default n
+
 config IMXRT_FLEXPWM3_MOD1_COMP
 	bool "Use complementary output"
 	default n
+	select IMXRT_FLEXPWM3_MOD1_OUTPUT_A
+	select IMXRT_FLEXPWM3_MOD1_OUTPUT_B
 
 config IMXRT_FLEXPWM3_MOD1_TRIG
 	bool "Enable trigger generation"
@@ -895,9 +985,19 @@ config IMXRT_FLEXPWM3_MOD2
 
 if IMXRT_FLEXPWM3_MOD2
 
+config IMXRT_FLEXPWM3_MOD2_OUTPUT_A
+	bool "Use output A"
+	default y
+
+config IMXRT_FLEXPWM3_MOD2_OUTPUT_B
+	bool "Use output B"
+	default n
+
 config IMXRT_FLEXPWM3_MOD2_COMP
 	bool "Use complementary output"
 	default n
+	select IMXRT_FLEXPWM3_MOD2_OUTPUT_A
+	select IMXRT_FLEXPWM3_MOD2_OUTPUT_B
 
 config IMXRT_FLEXPWM3_MOD2_TRIG
 	bool "Enable trigger generation"
@@ -928,9 +1028,19 @@ config IMXRT_FLEXPWM3_MOD3
 
 if IMXRT_FLEXPWM3_MOD3
 
+config IMXRT_FLEXPWM3_MOD3_OUTPUT_A
+	bool "Use output A"
+	default y
+
+config IMXRT_FLEXPWM3_MOD3_OUTPUT_B
+	bool "Use output B"
+	default n
+
 config IMXRT_FLEXPWM3_MOD3_COMP
 	bool "Use complementary output"
 	default n
+	select IMXRT_FLEXPWM3_MOD3_OUTPUT_A
+	select IMXRT_FLEXPWM3_MOD3_OUTPUT_B
 
 config IMXRT_FLEXPWM3_MOD3_TRIG
 	bool "Enable trigger generation"
@@ -961,9 +1071,19 @@ config IMXRT_FLEXPWM3_MOD4
 
 if IMXRT_FLEXPWM3_MOD4
 
+config IMXRT_FLEXPWM3_MOD4_OUTPUT_A
+	bool "Use output A"
+	default y
+
+config IMXRT_FLEXPWM3_MOD4_OUTPUT_B
+	bool "Use output B"
+	default n
+
 config IMXRT_FLEXPWM3_MOD4_COMP
 	bool "Use complementary output"
 	default n
+	select IMXRT_FLEXPWM3_MOD4_OUTPUT_A
+	select IMXRT_FLEXPWM3_MOD4_OUTPUT_B
 
 config IMXRT_FLEXPWM3_MOD4_TRIG
 	bool "Enable trigger generation"
@@ -999,9 +1119,19 @@ config IMXRT_FLEXPWM4_MOD1
 
 if IMXRT_FLEXPWM4_MOD1
 
+config IMXRT_FLEXPWM4_MOD1_OUTPUT_A
+	bool "Use output A"
+	default y
+
+config IMXRT_FLEXPWM4_MOD1_OUTPUT_B
+	bool "Use output B"
+	default n
+
 config IMXRT_FLEXPWM4_MOD1_COMP
 	bool "Use complementary output"
 	default n
+	select IMXRT_FLEXPWM4_MOD1_OUTPUT_A
+	select IMXRT_FLEXPWM4_MOD1_OUTPUT_B
 
 config IMXRT_FLEXPWM4_MOD1_TRIG
 	bool "Enable trigger generation"
@@ -1032,9 +1162,19 @@ config IMXRT_FLEXPWM4_MOD2
 
 if IMXRT_FLEXPWM4_MOD2
 
+config IMXRT_FLEXPWM4_MOD2_OUTPUT_A
+	bool "Use output A"
+	default y
+
+config IMXRT_FLEXPWM4_MOD2_OUTPUT_B
+	bool "Use output B"
+	default n
+
 config IMXRT_FLEXPWM4_MOD2_COMP
 	bool "Use complementary output"
 	default n
+	select IMXRT_FLEXPWM4_MOD2_OUTPUT_A
+	select IMXRT_FLEXPWM4_MOD2_OUTPUT_B
 
 config IMXRT_FLEXPWM4_MOD2_TRIG
 	bool "Enable trigger generation"
@@ -1065,9 +1205,19 @@ config IMXRT_FLEXPWM4_MOD3
 
 if IMXRT_FLEXPWM4_MOD3
 
+config IMXRT_FLEXPWM4_MOD3_OUTPUT_A
+	bool "Use output A"
+	default y
+
+config IMXRT_FLEXPWM4_MOD3_OUTPUT_B
+	bool "Use output B"
+	default n
+
 config IMXRT_FLEXPWM4_MOD3_COMP
 	bool "Use complementary output"
 	default n
+	select IMXRT_FLEXPWM4_MOD3_OUTPUT_A
+	select IMXRT_FLEXPWM4_MOD3_OUTPUT_B
 
 config IMXRT_FLEXPWM4_MOD3_TRIG
 	bool "Enable trigger generation"
@@ -1098,9 +1248,19 @@ config IMXRT_FLEXPWM4_MOD4
 
 if IMXRT_FLEXPWM4_MOD4
 
+config IMXRT_FLEXPWM4_MOD4_OUTPUT_A
+	bool "Use output A"
+	default y
+
+config IMXRT_FLEXPWM4_MOD4_OUTPUT_B
+	bool "Use output B"
+	default n
+
 config IMXRT_FLEXPWM4_MOD4_COMP
 	bool "Use complementary output"
 	default n
+	select IMXRT_FLEXPWM4_MOD4_OUTPUT_A
+	select IMXRT_FLEXPWM4_MOD4_OUTPUT_B
 
 config IMXRT_FLEXPWM4_MOD4_TRIG
 	bool "Enable trigger generation"

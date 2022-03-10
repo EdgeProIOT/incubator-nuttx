@@ -47,12 +47,8 @@
 /* There is RGB LED indicator located on the EdegPro1 Board.
  */
 
-#define GPIO_LED_RED    (GPIO_OUTPUT | IOMUX_LED_DEFAULT | \
-                          GPIO_OUTPUT_ZERO | GPIO_PORT2 | GPIO_PIN11)  /* BO_11 */
-#define GPIO_LED_GREEN  (GPIO_OUTPUT | IOMUX_LED_DEFAULT | \
-                          GPIO_OUTPUT_ZERO | GPIO_PORT2 | GPIO_PIN16)  /* B1_00 */
-#define GPIO_LED_BLUE   (GPIO_OUTPUT | IOMUX_LED_DEFAULT | \
-                          GPIO_OUTPUT_ZERO | GPIO_PORT2 | GPIO_PIN17)  /* B1_01 */
+#define GPIO_LED        (GPIO_OUTPUT | IOMUX_LED_DEFAULT | \
+                         GPIO_OUTPUT_ZERO | GPIO_PORT2 | GPIO_PIN11)  /* BO_11 */
 
 #define LED_DRIVER_PATH "/dev/userleds"
 
