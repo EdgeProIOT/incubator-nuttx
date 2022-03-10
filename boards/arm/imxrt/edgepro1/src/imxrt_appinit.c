@@ -64,17 +64,6 @@
 
 int board_app_initialize(uintptr_t arg)
 {
-#if !defined(CONFIG_ARCH_LEDS) && defined(CONFIG_USERLED_LOWER)
-  /* Register the LED driver */
-
-  int ret;
-  ret = userled_lower_initialize(LED_DRIVER_PATH);
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "ERROR: userled_lower_initialize() failed: %d\n", ret);
-      return ret;
-    }
-#endif
 
 #ifndef CONFIG_BOARD_LATE_INITIALIZE
   /* Perform board initialization */

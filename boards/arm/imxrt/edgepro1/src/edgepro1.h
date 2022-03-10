@@ -40,18 +40,7 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* EdgePro1 GPIO Pin Definitions ****************************************/
-
-/* LEDs */
-
-/* There is RGB LED indicator located on the EdegPro1 Board.
- */
-
-#define GPIO_LED        (GPIO_OUTPUT | IOMUX_LED_DEFAULT | \
-                         GPIO_OUTPUT_ZERO | GPIO_PORT2 | GPIO_PIN11)  /* BO_11 */
-
-#define LED_DRIVER_PATH "/dev/userleds"
-
+/* EdgePro1 GPIO Pin Definitions ********************************************/
 
 /****************************************************************************
  * Public Types
@@ -73,25 +62,6 @@
 
 #if defined(CONFIG_BOARDCTL) || defined(CONFIG_BOARD_LATE_INITIALIZE)
 int imxrt_bringup(void);
-#endif
-
-
-/****************************************************************************
- * Name: imxrt_autoled_initialize
- *
- * Description:
- *   Initialize NuttX-controlled LED logic
- *
- * Input Parameters:
- *   None
- *
- * Returned Value:
- *   None
- *
- ****************************************************************************/
-
-#ifdef CONFIG_ARCH_LEDS
-void imxrt_autoled_initialize(void);
 #endif
 
 /****************************************************************************

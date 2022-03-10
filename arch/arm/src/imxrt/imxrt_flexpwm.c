@@ -678,7 +678,11 @@ static int pwm_change_freq(struct pwm_lowerhalf_s *dev,
 {
   struct imxrt_flexpwm_s *priv = (struct imxrt_flexpwm_s *)dev;
 #ifdef CONFIG_PWM_MULTICHAN
+#ifdef CONFIG_IMXRT_FLEXPWM_DUAL_CHANNEL
+  uint8_t shift = (info->channels[channel].channel >> 1) - 1;
+#else
   uint8_t shift = info->channels[channel].channel - 1;
+#endif
 #else
   uint8_t shift = priv->modules[0].module - 1;
 #endif
@@ -760,7 +764,12 @@ static int pwm_set_output(struct pwm_lowerhalf_s *dev, uint8_t channel,
   uint16_t period;
   uint16_t width;
   uint16_t regval;
-  uint8_t shift = channel - 1;  /* Shift submodle offset addresses */
+  double duty_pct;
+#ifdef CONFIG_IMXRT_FLEXPWM_DUAL_CHANNEL
+  uint8_t shift = (channel >> 1) - 1; /* Shift submodule offset addresses */
+#else
+  uint8_t shift = channel - 1;  /* Shift submodule offset addresses */
+#endif
 
   /* Get the period value */
 
@@ -777,22 +786,29 @@ static int pwm_set_output(struct pwm_lowerhalf_s *dev, uint8_t channel,
   regval |= MCTRL_CLDOK(1 << shift);
   putreg16(regval, priv->base + IMXRT_FLEXPWM_MCTRL_OFFSET);
 
-  /* Write width to value register 3 and enable output A */
-
-  putreg16(width, priv->base + IMXRT_FLEXPWM_SM0VAL3_OFFSET
-                             + MODULE_OFFSET * shift);
-
-  regval = getreg16(priv->base + IMXRT_FLEXPWM_OUTEN_OFFSET);
-  regval |= OUTEN_PWMA_EN(1 << shift);
-  putreg16(regval, priv->base + IMXRT_FLEXPWM_OUTEN_OFFSET);
-
-  /* Enable output B if complementary option is turn on */
-
-  if (priv->modules[shift].complementary)
+  if (channel % 2)
     {
-      regval = getreg16(priv->base + IMXRT_FLEXPWM_OUTEN_OFFSET);
-      regval |= OUTEN_PWMB_EN(1 << shift);
-      putreg16(regval, priv->base + IMXRT_FLEXPWM_OUTEN_OFFSET);
+      /* Write width to value register 5 and enable output B */
+      putreg16(width, priv->base + IMXRT_FLEXPWM_SM0VAL5_OFFSET
+                             + MODULE_OFFSET * shift);
+      if (priv->modules[shift].out_b.used)
+        {
+          regval = getreg16(priv->base + IMXRT_FLEXPWM_OUTEN_OFFSET);
+          regval |= OUTEN_PWMB_EN(1 << shift);
+          putreg16(regval, priv->base + IMXRT_FLEXPWM_OUTEN_OFFSET);
+        }  
+    }
+  else
+    {
+      /* Write width to value register 3 and enable output A */
+      putreg16(width, priv->base + IMXRT_FLEXPWM_SM0VAL3_OFFSET
+                             + MODULE_OFFSET * shift);
+      if (priv->modules[shift].out_a.used)
+        {
+          regval = getreg16(priv->base + IMXRT_FLEXPWM_OUTEN_OFFSET);
+          regval |= OUTEN_PWMA_EN(1 << shift);
+          putreg16(regval, priv->base + IMXRT_FLEXPWM_OUTEN_OFFSET);
+        }
     }
 
   return OK;
