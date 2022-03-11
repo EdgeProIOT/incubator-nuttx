@@ -60,8 +60,14 @@ void weak_function imxrt_spidev_initialize(void)
 #ifdef CONFIG_IMXRT_LPSPI1
   imxrt_config_gpio(GPIO_LPSPI1_CS); /* LPSPI1 chip select */
 #endif
+#ifdef CONFIG_IMXRT_LPSPI2
+  imxrt_config_gpio(GPIO_LPSPI2_CS); /* LPSPI2 chip select */
+#endif
 #ifdef CONFIG_IMXRT_LPSPI3
   imxrt_config_gpio(GPIO_LPSPI3_CS); /* LPSPI3 chip select */
+#endif
+#ifdef CONFIG_IMXRT_LPSPI4
+  imxrt_config_gpio(GPIO_LPSPI4_CS); /* LPSPI4 chip select */
 #endif
 }
 
