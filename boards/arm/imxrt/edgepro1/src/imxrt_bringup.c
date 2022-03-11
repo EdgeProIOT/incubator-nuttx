@@ -99,13 +99,12 @@ int imxrt_bringup(void)
     }
 #endif
 
-#if defined(CONFIG_I2C_DRIVER) && defined(CONFIG_IMXRT_LPI2C1)
-  imxrt_i2c_register(1);
+#if defined(CONFIG_I2C_DRIVER) && defined(CONFIG_IMXRT_LPI2C3)
+  imxrt_i2c_register(3);
 #endif
 
 #ifdef CONFIG_DEV_GPIO
   /* Initialize the GPIO driver */
-
   ret = imxrt_gpio_initialize();
   if (ret < 0)
     {
@@ -116,7 +115,6 @@ int imxrt_bringup(void)
 
 #ifdef CONFIG_IMXRT_ADC
   /* Initialize ADC and register the ADC driver. */
-
   ret = imxrt_adc_initialize();
   if (ret < 0)
     {
@@ -135,7 +133,6 @@ int imxrt_bringup(void)
 
 #ifdef CONFIG_RGBLED
   /* Configure and initialize the RGB LED. */
-
   ret = imxrt_rgbled_setup();
   if (ret < 0)
     {
