@@ -715,12 +715,12 @@ int imxrt_flexspi_nor_initialize(void)
 
   /* Mount the LittleFS file system */
 
-  ret = nx_mount("/dev/nor", "/mnt/lfs", "littlefs", 0,
+  ret = nx_mount("/dev/nor", "/home", "littlefs", 0,
                  "autoformat");
   if (ret < 0)
     {
       syslog(LOG_ERR,
-             "ERROR: Failed to mount LittleFS at /mnt/lfs: %d\n",
+             "ERROR: Failed to mount LittleFS at /home: %d\n",
              ret);
     }
 #endif
