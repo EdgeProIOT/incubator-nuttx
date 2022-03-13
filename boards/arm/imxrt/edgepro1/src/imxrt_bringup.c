@@ -30,6 +30,7 @@
 #include <syslog.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/i2c/i2c_master.h>
+#include <nuttx/spi/spi_transfer.h>
 #include <imxrt_lpi2c.h>
 #include <imxrt_lpspi.h>
 #include "edgepro1.h"
@@ -62,6 +63,29 @@ static void imxrt_i2c_register(int bus)
         {
           serr("ERROR: Failed to register I2C%d driver: %d\n", bus, ret);
           imxrt_i2cbus_uninitialize(i2c);
+        }
+    }
+}
+#endif
+
+#if defined(CONFIG_SPI_DRIVER) && (defined(CONFIG_IMXRT_LPSPI4) || \
+    defined(CONFIG_IMXRT_LPSPI1))
+static void imxrt_spi_register(int bus)
+{
+  FAR struct spi_dev_s *spi;
+  int ret;
+
+  spi = imxrt_lpspibus_initialize(bus);
+  if (spi == NULL)
+    {
+      serr("ERROR: Failed to get SPI%d interface\n", bus);
+    }
+  else
+    {
+      ret = spi_register(spi, bus);
+      if (ret < 0)
+        {
+          serr("ERROR: Failed to register spi%d: %d\n", bus, ret);
         }
     }
 }
@@ -101,6 +125,13 @@ int imxrt_bringup(void)
 
 #if defined(CONFIG_I2C_DRIVER) && defined(CONFIG_IMXRT_LPI2C3)
   imxrt_i2c_register(3);
+#endif
+
+#if defined(CONFIG_SPI_DRIVER) && (defined(CONFIG_IMXRT_LPSPI4) || \
+    defined(CONFIG_IMXRT_LPSPI1))
+  imxrt_spidev_initialize();
+  imxrt_spi_register(1);
+  imxrt_spi_register(4);
 #endif
 
 #ifdef CONFIG_DEV_GPIO
