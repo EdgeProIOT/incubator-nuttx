@@ -42,19 +42,58 @@
 
 /* EdgePro1 GPIO Pin Definitions ********************************************/
 
-/* LPSPI1 CS:  GPIO_AD_B0_15 */
-#define IOMUX_LPSPI1_CS       (IOMUX_SLEW_FAST | IOMUX_DRIVE_50OHM | \
-                               IOMUX_SPEED_MEDIUM | IOMUX_PULL_UP_100K | \
-                               _IOMUX_PULL_ENABLE)
-#define GPIO_LPSPI1_CS        (GPIO_OUTPUT | GPIO_OUTPUT_ONE | \
-                               GPIO_PORT1 | GPIO_PIN15 | IOMUX_LPSPI1_CS)
+#define BOARD_NGPIO 20 /* Number of GPIO pins */
 
-/* LPSPI4 CS:  GPIO_B0_00 */
-#define IOMUX_LPSPI4_CS       (IOMUX_SLEW_FAST | IOMUX_DRIVE_50OHM | \
-                               IOMUX_SPEED_MEDIUM | IOMUX_PULL_UP_100K | \
-                               _IOMUX_PULL_ENABLE)
-#define GPIO_LPSPI4_CS        (GPIO_OUTPUT | GPIO_OUTPUT_ONE | \
-                               GPIO_PORT2 | GPIO_PIN0 | IOMUX_LPSPI4_CS)
+#define GPIO_1      (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
+                     GPIO_PIN2 | GPIO_PORT2)
+
+#define GPIO_2      (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
+                     GPIO_PIN3 | GPIO_PORT2)
+
+#define GPIO_3      (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
+                     GPIO_PIN0 | GPIO_PORT2)
+
+#define GPIO_4      (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
+                     GPIO_PIN1 | GPIO_PORT2)
+
+#define GPIO_5      (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
+                     GPIO_PIN13 | GPIO_PORT4)
+
+#define GPIO_6      (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
+                     GPIO_PIN14 | GPIO_PORT4)
+
+#define GPIO_7      (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
+                     GPIO_PIN16 | GPIO_PORT4)
+
+#define GPIO_8      (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
+                     GPIO_PIN15 | GPIO_PORT4)
+
+#define GPIO_9      (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
+                     GPIO_PIN23 | GPIO_PORT1)
+
+#define GPIO_10     (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
+                     GPIO_PIN22 | GPIO_PORT1)
+
+#define GPIO_11     (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
+                     GPIO_PIN10 | GPIO_PORT1)
+
+#define GPIO_12     (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
+                     GPIO_PIN5 | GPIO_PORT1)
+
+#define GPIO_13     (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
+                     GPIO_PIN8 | GPIO_PORT1)
+
+#define GPIO_14     (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
+                     GPIO_PIN9 | GPIO_PORT1)
+
+#define GPIO_15     (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
+                     GPIO_PIN6 | GPIO_PORT1)
+
+#define GPIO_16     (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
+                     GPIO_PIN7 | GPIO_PORT1)
+
+#define GPIO_17     (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
+                     GPIO_PIN4 | GPIO_PORT1)
 
 /* NINA NRST:  GPIO_AD_B0_00 */
 #define IOMUX_NINA_NRST       (IOMUX_SLEW_FAST | IOMUX_DRIVE_50OHM | \
@@ -64,7 +103,7 @@
                                GPIO_PORT1 | GPIO_PIN0 | IOMUX_NINA_NRST)
 
 /* NINA BOOT:  GPIO_AD_B0_02 */
-#define IOMUX_NINA_NRST       (IOMUX_SLEW_FAST | IOMUX_DRIVE_50OHM | \
+#define IOMUX_NINA_BOOT       (IOMUX_SLEW_FAST | IOMUX_DRIVE_50OHM | \
                                IOMUX_SPEED_MEDIUM | IOMUX_PULL_UP_100K | \
                                _IOMUX_PULL_ENABLE)
 #define GPIO_NINA_BOOT        (GPIO_OUTPUT | GPIO_OUTPUT_ONE | \
@@ -76,6 +115,20 @@
                                _IOMUX_PULL_ENABLE)
 #define GPIO_NINA_GPIO        (GPIO_OUTPUT | GPIO_OUTPUT_ONE | \
                                GPIO_PORT3 | GPIO_PIN4 | IOMUX_NINA_GPIO)
+
+/* NINA CS:  GPIO_AD_B0_15 */
+#define IOMUX_LPSPI1_CS       (IOMUX_SLEW_FAST | IOMUX_DRIVE_50OHM | \
+                               IOMUX_SPEED_MEDIUM | IOMUX_PULL_UP_100K | \
+                               _IOMUX_PULL_ENABLE)
+#define GPIO_LPSPI1_CS        (GPIO_OUTPUT | GPIO_OUTPUT_ONE | \
+                               GPIO_PORT1 | GPIO_PIN15 | IOMUX_LPSPI1_CS)
+
+/* NINA CS:  GPIO_B0_00 */
+#define IOMUX_LPSPI4_CS       (IOMUX_SLEW_FAST | IOMUX_DRIVE_50OHM | \
+                               IOMUX_SPEED_MEDIUM | IOMUX_PULL_UP_100K | \
+                               _IOMUX_PULL_ENABLE)
+#define GPIO_LPSPI4_CS        (GPIO_OUTPUT | GPIO_OUTPUT_ONE | \
+                               GPIO_PORT2 | GPIO_PIN0 | IOMUX_LPSPI4_CS)
 
 
 /****************************************************************************

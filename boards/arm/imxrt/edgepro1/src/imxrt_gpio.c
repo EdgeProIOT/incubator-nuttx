@@ -55,104 +55,76 @@ struct imxrtgpio_dev_s
  * Private Function Prototypes
  ****************************************************************************/
 
-#if BOARD_NGPIOIN > 0
-static int gpin_read(FAR struct gpio_dev_s *dev, FAR bool *value);
-#endif
-
-#if BOARD_NGPIOOUT > 0
-static int gpout_read(FAR struct gpio_dev_s *dev, FAR bool *value);
-static int gpout_write(FAR struct gpio_dev_s *dev, bool value);
-#endif
+static int gpio_read(FAR struct gpio_dev_s *dev, FAR bool *value);
+static int gpio_write(FAR struct gpio_dev_s *dev, bool value);
 
 /****************************************************************************
  * Private Data
  ****************************************************************************/
 
- #if BOARD_NGPIOIN > 0
-static const struct gpio_operations_s gpin_ops =
+static const struct gpio_operations_s gpio_ops =
 {
-  .go_read   = gpin_read,
-  .go_write  = NULL,
+  .go_read   = gpio_read,
+  .go_write  = gpio_write,
   .go_attach = NULL,
   .go_enable = NULL,
 };
 
-/* This array maps the GPIO pins used as INPUT */
+/* This array maps the GPIO pins */
 
-static const uint32_t g_gpioinputs[BOARD_NGPIOIN] =
+static const uint32_t g_gpiopins[BOARD_NGPIO] =
 {
-  GPIO_IN1,
+  GPIO_1,
+  GPIO_2,
+  GPIO_3,
+  GPIO_4,
+  GPIO_5,
+  GPIO_6,
+  GPIO_7,
+  GPIO_8,
+  GPIO_9,
+  GPIO_10,
+  GPIO_11,
+  GPIO_12,
+  GPIO_13,
+  GPIO_14,
+  GPIO_15,
+  GPIO_16,
+  GPIO_17,
+  GPIO_NINA_NRST,
+  GPIO_NINA_BOOT,
+  GPIO_NINA_GPIO
 };
 
-static struct imxrtgpio_dev_s g_gpin[BOARD_NGPIOIN];
-#endif
-
-#if BOARD_NGPIOOUT > 0
-
-static const struct gpio_operations_s gpout_ops =
-{
-  .go_read   = gpout_read,
-  .go_write  = gpout_write,
-  .go_attach = NULL,
-  .go_enable = NULL,
-};
-
-/* This array maps the GPIO pins used as OUTPUT */
-
-static const uint32_t g_gpiooutputs[BOARD_NGPIOOUT] =
-{
-  GPIO_GOUT1,
-  GPIO_GOUT2,
-  GPIO_GOUT3,
-  GPIO_GOUT4,
-};
-
-static struct imxrtgpio_dev_s g_gpout[BOARD_NGPIOOUT];
-#endif
+static struct imxrtgpio_dev_s g_gpio[BOARD_NGPIO];
 
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
 
-#if BOARD_NGPIOIN > 0
-static int gpin_read(FAR struct gpio_dev_s *dev, FAR bool *value)
+static int gpio_read(FAR struct gpio_dev_s *dev, FAR bool *value)
 {
   FAR struct imxrtgpio_dev_s *imxrtgpio = (FAR struct imxrtgpio_dev_s *)dev;
 
   DEBUGASSERT(imxrtgpio != NULL && value != NULL);
-  DEBUGASSERT(imxrtgpio->id < BOARD_NGPIOIN);
+  DEBUGASSERT(imxrtgpio->id < BOARD_NGPIO);
   gpioinfo("Reading...\n");
 
-  *value = imxrt_gpio_read(g_gpioinputs[imxrtgpio->id]);
-  return OK;
-}
-#endif
-
-#if BOARD_NGPIOOUT > 0
-static int gpout_read(FAR struct gpio_dev_s *dev, FAR bool *value)
-{
-  FAR struct imxrtgpio_dev_s *imxrtgpio = (FAR struct imxrtgpio_dev_s *)dev;
-
-  DEBUGASSERT(imxrtgpio != NULL && value != NULL);
-  DEBUGASSERT(imxrtgpio->id < BOARD_NGPIOOUT);
-  gpioinfo("Reading...\n");
-
-  *value = imxrt_gpio_read(g_gpiooutputs[imxrtgpio->id]);
+  *value = imxrt_gpio_read(g_gpiopins[imxrtgpio->id]);
   return OK;
 }
 
-static int gpout_write(FAR struct gpio_dev_s *dev, bool value)
+static int gpio_write(FAR struct gpio_dev_s *dev, bool value)
 {
   FAR struct imxrtgpio_dev_s *imxrtgpio = (FAR struct imxrtgpio_dev_s *)dev;
 
   DEBUGASSERT(imxrtgpio != NULL);
-  DEBUGASSERT(imxrtgpio->id < BOARD_NGPIOOUT);
+  DEBUGASSERT(imxrtgpio->id < BOARD_NGPIO);
   gpioinfo("Writing %d\n", (int)value);
 
-  imxrt_gpio_write(g_gpiooutputs[imxrtgpio->id], value);
+  imxrt_gpio_write(g_gpiopins[imxrtgpio->id], value);
   return OK;
 }
-#endif
 
 /****************************************************************************
  * Public Functions
@@ -171,44 +143,23 @@ int imxrt_gpio_initialize(void)
   int pincount = 0;
   int i;
 
-#if BOARD_NGPIOIN > 0
-  for (i = 0; i < BOARD_NGPIOIN; i++)
+  for (i = 0; i < BOARD_NGPIO; i++)
     {
       /* Setup and register the GPIO pin */
 
-      g_gpin[i].gpio.gp_pintype = GPIO_INPUT_PIN;
-      g_gpin[i].gpio.gp_ops     = &gpin_ops;
-      g_gpin[i].id              = i;
+      g_gpio[i].gpio.gp_pintype = GPIO_OUTPUT_PIN;
+      g_gpio[i].gpio.gp_ops     = &gpio_ops;
+      g_gpio[i].id              = i;
 
-      gpio_pin_register(&g_gpin[i].gpio, pincount);
-
-      /* Configure the pin that will be used as input */
-
-      imxrt_config_gpio(g_gpioinputs[i]);
-
-      pincount++;
-    }
-#endif
-
-#if BOARD_NGPIOOUT > 0
-  for (i = 0; i < BOARD_NGPIOOUT; i++)
-    {
-      /* Setup and register the GPIO pin */
-
-      g_gpout[i].gpio.gp_pintype = GPIO_OUTPUT_PIN;
-      g_gpout[i].gpio.gp_ops     = &gpout_ops;
-      g_gpout[i].id              = i;
-
-      gpio_pin_register(&g_gpout[i].gpio, pincount);
+      gpio_pin_register(&g_gpio[i].gpio, pincount);
 
       /* Configure the pin that will be used as output */
 
-      imxrt_gpio_write(g_gpiooutputs[i], 0);
-      imxrt_config_gpio(g_gpiooutputs[i]);
+      imxrt_gpio_write(g_gpiopins[i], 0);
+      imxrt_config_gpio(g_gpiopins[i]);
 
       pincount++;
     }
-#endif
 
   return 0;
 }

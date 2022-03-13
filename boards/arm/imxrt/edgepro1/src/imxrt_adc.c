@@ -44,8 +44,8 @@
 
 /* Configuration ************************************************************/
 
-#define ADC1_NCHANNELS 3
-#define ADC2_NCHANNELS 3
+#define ADC1_NCHANNELS 2
+#define ADC2_NCHANNELS 2
 
 /****************************************************************************
  * Private Data
@@ -53,20 +53,16 @@
 
 static const uint8_t g_chanlist1[ADC1_NCHANNELS] =
   {
-    /* Arduino Interface pins A0 to A2 */
-
-    15,
-    0,
-    9,
+    /* GPIO_AD_B1_06, GPIO_AD_B1_07 */
+    11,
+    12,
   };
 
 static const uint8_t g_chanlist2[ADC2_NCHANNELS] =
   {
-    /* Arduino Interface pins A3 to A5 */
-
-    10,
-    6,
-    5
+    /* GPIO_AD_B1_06, GPIO_AD_B1_07 */
+    11,
+    12,
   };
 
 /****************************************************************************
