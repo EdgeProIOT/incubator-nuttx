@@ -63,6 +63,9 @@
 #elif defined CONFIG_MEMLCD_LS013B7DH03
 #  define MEMLCD_XRES        128
 #  define MEMLCD_YRES        128
+#elif defined CONFIG_MEMLCD_LS027B7DH01A
+#  define MEMLCD_XRES        400
+#  define MEMLCD_YRES        240
 #else
 #  error "This Memory LCD model is not supported yet."
 #endif

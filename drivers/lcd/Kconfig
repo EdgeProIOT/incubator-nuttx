@@ -1027,7 +1027,7 @@ if LCD_SHARP_MEMLCD
 
 choice
 	prompt "Memory LCD Model"
-	default MEMLCD_LS013B7DH03
+	default MEMLCD_LS027B7DH01A
 
 config MEMLCD_LS013B7DH01
 	bool "LS013B7DH01"
@@ -1038,6 +1038,11 @@ config MEMLCD_LS013B7DH03
 	bool "LS013B7DH03"
 	---help---
 		Selects the LS013B7DH03 model
+
+config MEMLCD_LS027B7DH01A
+	bool "LS027B7DH01A"
+	---help---
+		Selects the LS027B7DH01A model
 
 endchoice
 
