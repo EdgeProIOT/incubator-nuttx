@@ -43,7 +43,7 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* This format is used to construct the /dev/kbd[n] device driver path.  It
+/* This format is used to construct the /dev/kbd[n] device driver path. It is
  * defined here so that it will be used consistently in all places.
  */
 
@@ -51,59 +51,6 @@
 #define DEV_NAMELEN         11
 
 
-/* Registers */
-
-#define EDGEPROMXKBD_VER  0x01
-#define EDGEPROMXKBD_CFG  0x02
-#define EDGEPROMXKBD_INT  0x03
-#define EDGEPROMXKBD_KEY  0x04
-#define EDGEPROMXKBD_BKL  0x05
-#define EDGEPROMXKBD_DEB  0x06
-#define EDGEPROMXKBD_FRQ  0x07
-#define EDGEPROMXKBD_RST  0x08
-#define EDGEPROMXKBD_FIF  0x09
-
-/* VER */
-
-#define EDGEPROMXKBD_VER_MAJOR_SHIFT    4
-#define EDGEPROMXKBD_VER_MAJOR_MASK     (0xf << EDGEPROMXKBD_VER_MAJOR_SHIFT)
-#define EDGEPROMXKBD_VER_MINOR_SHIFT    0
-#define EDGEPROMXKBD_VER_MINOR_MASK     (0xf << EDGEPROMXKBD_VER_MINOR_SHIFT)
-
-#define EDGEPROMXKBD_VER_00_02          0x0002
-
-/* CFG */
-
-#define EDGEPROMXKBD_CFG_OVERFLOW_ON    (1 << 0)
-#define EDGEPROMXKBD_CFG_OVERFLOW_INT   (1 << 1)
-#define EDGEPROMXKBD_CFG_CAPSLOCK_INT   (1 << 2)
-#define EDGEPROMXKBD_CFG_NUMLOCK_INT    (1 << 3)
-#define EDGEPROMXKBD_CFG_KEY_INT        (1 << 4)
-#define EDGEPROMXKBD_CFG_PANIC_INT      (1 << 5)
-#define EDGEPROMXKBD_CFG_REPORT_MODS    (1 << 6)
-#define EDGEPROMXKBD_CFG_USE_MODS       (1 << 7)
-
-/* INT */
-
-#define EDGEPROMXKBD_INT_OVERFLOW       (1 << 0)
-#define EDGEPROMXKBD_INT_CAPSLOCK       (1 << 1)
-#define EDGEPROMXKBD_INT_NUMLOCK        (1 << 2)
-#define EDGEPROMXKBD_INT_KEY            (1 << 3)
-#define EDGEPROMXKBD_INT_PANIC          (1 << 4)
-
-/* KEY */
-
-#define EDGEPROMXKBD_KEY_COUNT_SHIFT    0
-#define EDGEPROMXKBD_KEY_COUNT_MASK     (0xf << EDGEPROMXKBD_KEY_COUNT_SHIFT)
-#define EDGEPROMXKBD_KEY_CAPSLOCK       (1 << 5)
-#define EDGEPROMXKBD_KEY_NUMLOCK        (1 << 6)
-
-/* FIF */
-
-#define EDGEPROMXKBD_FIF_STATE_SHIFT    0
-#define EDGEPROMXKBD_FIF_STATE_MASK     (0xff << EDGEPROMXKBD_FIF_STATE_SHIFT)
-#define EDGEPROMXKBD_FIF_KEY_SHIFT      8
-#define EDGEPROMXKBD_FIF_KEY_MASK       (0xff << EDGEPROMXKBD_FIF_KEY_SHIFT)
 
 #define KEY_PRESS       0x01
 #define KEY_PRESS_HOLD  0x02
@@ -112,19 +59,13 @@
 /* Special Key Encodings */
 
 #define KEY_BUTTON_FIRST 0x01  /* Start of the button region */
-#define KEY_JOY_UP       0x01
-#define KEY_JOY_DOWN     0x02
-#define KEY_JOY_LEFT     0x03
-#define KEY_JOY_RIGHT    0x04
-#define KEY_JOY_CENTER   0x05
-#define KEY_BTN_LEFT1    0x06
-#define KEY_BTN_RIGHT1   0x07
-#define KEY_BACKSPACE    0x08  /* Normal ASCII */
-#define KEY_TAB          0x09  /* Normal ASCII */
-#define KEY_NL           0x0a  /* Normal ASCII */
-#define KEY_BTN_LEFT2    0x11
-#define KEY_BTN_RIGHT2   0x12
-#define KEY_BUTTON_LAST  0x12  /* End of the button region */
+#define KEY_ROT_SWITCH   0x01
+#define KEY_BTN_LEFT1    0x02
+#define KEY_BTN_RIGHT1   0x03
+#define KEY_BACKSPACE    0x04  /* Normal ASCII */
+#define KEY_TAB          0x05  /* Normal ASCII */
+#define KEY_NL           0x06  /* Normal ASCII */
+#define KEY_BUTTON_LAST  0x06  /* End of the button region */
 
 
 /****************************************************************************
@@ -134,7 +75,7 @@
 struct edgepromxkbd_dev_s
 {
   FAR const struct edgepromxkbd_config_s *config;  /* Board configuration data */
-  FAR struct i2c_master_s            *i2c;     /* Saved I2C driver instance */
+  FAR struct i2c_master_s *i2c; /* Saved I2C driver instance */
 
   sem_t  exclsem;      /* Exclusive access to dev */
   sem_t  waitsem;      /* Signal waiting thread */

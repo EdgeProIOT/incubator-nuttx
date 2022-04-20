@@ -627,7 +627,7 @@ static int pwm_change_freq(struct pwm_lowerhalf_s *dev,
   struct imxrt_flexpwm_s *priv = (struct imxrt_flexpwm_s *)dev;
 #ifdef CONFIG_PWM_MULTICHAN
 #ifdef CONFIG_IMXRT_FLEXPWM_DUAL_CHANNEL
-  uint8_t shift = (info->channels[channel].channel >> 1) - 1;
+  uint8_t shift = (info->channels[channel].channel >> 1);
 #else
   uint8_t shift = info->channels[channel].channel - 1;
 #endif
@@ -714,7 +714,7 @@ static int pwm_set_output(struct pwm_lowerhalf_s *dev, uint8_t channel,
   uint16_t regval;
   double duty_pct;
 #ifdef CONFIG_IMXRT_FLEXPWM_DUAL_CHANNEL
-  uint8_t shift = (channel >> 1) - 1; /* Shift submodule offset addresses */
+  uint8_t shift = (channel >> 1); /* Shift submodule offset addresses */
 #else
   uint8_t shift = channel - 1;  /* Shift submodule offset addresses */
 #endif
@@ -739,7 +739,7 @@ static int pwm_set_output(struct pwm_lowerhalf_s *dev, uint8_t channel,
       /* Write width to value register 5 and enable output B */
       putreg16(width, priv->base + IMXRT_FLEXPWM_SM0VAL5_OFFSET
                              + MODULE_OFFSET * shift);
-      if (priv->modules[shift].out_b.used)
+      if (priv->modules[0].out_b.used)
         {
           regval = getreg16(priv->base + IMXRT_FLEXPWM_OUTEN_OFFSET);
           regval |= OUTEN_PWMB_EN(1 << shift);
@@ -751,7 +751,7 @@ static int pwm_set_output(struct pwm_lowerhalf_s *dev, uint8_t channel,
       /* Write width to value register 3 and enable output A */
       putreg16(width, priv->base + IMXRT_FLEXPWM_SM0VAL3_OFFSET
                              + MODULE_OFFSET * shift);
-      if (priv->modules[shift].out_a.used)
+      if (priv->modules[0].out_a.used)
         {
           regval = getreg16(priv->base + IMXRT_FLEXPWM_OUTEN_OFFSET);
           regval |= OUTEN_PWMA_EN(1 << shift);
@@ -1008,8 +1008,11 @@ static int pwm_start(struct pwm_lowerhalf_s *dev,
                                     info->channels[i].duty);
 
           /* Remember the channel number in bitmap */
-
+#ifdef CONFIG_IMXRT_FLEXPWM_DUAL_CHANNEL
+          ldok_map |= 1 << (info->channels[i].channel >> 1);
+#else
           ldok_map |= 1 << (info->channels[i].channel - 1);
+#endif
         }
     }
 #else

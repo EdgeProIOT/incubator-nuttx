@@ -42,58 +42,14 @@
 
 /* EdgePro1 GPIO Pin Definitions ********************************************/
 
-#define BOARD_NGPIO 20 /* Number of GPIO pins */
+#define BOARD_NGPIO 3 /* Number of GPIO pins */
 
-#define GPIO_1      (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
-                     GPIO_PIN2 | GPIO_PORT2)
-
-#define GPIO_2      (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
-                     GPIO_PIN3 | GPIO_PORT2)
-
-#define GPIO_3      (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
-                     GPIO_PIN0 | GPIO_PORT2)
-
-#define GPIO_4      (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
-                     GPIO_PIN1 | GPIO_PORT2)
-
-#define GPIO_5      (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
-                     GPIO_PIN13 | GPIO_PORT4)
-
-#define GPIO_6      (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
-                     GPIO_PIN14 | GPIO_PORT4)
-
-#define GPIO_7      (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
-                     GPIO_PIN16 | GPIO_PORT4)
-
-#define GPIO_8      (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
-                     GPIO_PIN15 | GPIO_PORT4)
-
-#define GPIO_9      (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
-                     GPIO_PIN23 | GPIO_PORT1)
-
-#define GPIO_10     (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
-                     GPIO_PIN22 | GPIO_PORT1)
-
-#define GPIO_11     (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
-                     GPIO_PIN10 | GPIO_PORT1)
-
-#define GPIO_12     (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
-                     GPIO_PIN5 | GPIO_PORT1)
-
-#define GPIO_13     (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
-                     GPIO_PIN8 | GPIO_PORT1)
-
-#define GPIO_14     (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
-                     GPIO_PIN9 | GPIO_PORT1)
-
-#define GPIO_15     (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
-                     GPIO_PIN6 | GPIO_PORT1)
-
-#define GPIO_16     (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
-                     GPIO_PIN7 | GPIO_PORT1)
-
-#define GPIO_17     (GPIO_OUTPUT | GPIO_OUTPUT_ZERO | IOMUX_GOUT_DEFAULT | \
-                     GPIO_PIN4 | GPIO_PORT1)
+#define GPIO_LED_RED          (GPIO_OUTPUT | IOMUX_LED_DEFAULT | \
+                               GPIO_OUTPUT_ZERO | GPIO_PORT2 | GPIO_PIN11)
+#define GPIO_LED_GREEN        (GPIO_OUTPUT | IOMUX_LED_DEFAULT | \
+                               GPIO_OUTPUT_ZERO | GPIO_PORT2 | GPIO_PIN16)
+#define GPIO_LED_BLUE         (GPIO_OUTPUT | IOMUX_LED_DEFAULT | \
+                               GPIO_OUTPUT_ZERO | GPIO_PORT2 | GPIO_PIN17)
 
 /* NINA NRST:  GPIO_AD_B0_00 */
 #define IOMUX_NINA_NRST       (IOMUX_SLEW_FAST | IOMUX_DRIVE_50OHM | \
