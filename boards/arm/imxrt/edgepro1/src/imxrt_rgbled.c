@@ -136,7 +136,7 @@ int imxrt_rgbled_setup(void)
 
       /* Initialize led off */
 
-      file_write(&file, "#000000", 8);
+      file_write(&file, "#FFFFFF", 8);
       file_close(&file);
 
       /* Now we are initialized */
