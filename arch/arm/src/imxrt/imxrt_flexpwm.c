@@ -726,7 +726,8 @@ static int pwm_set_output(struct pwm_lowerhalf_s *dev, uint8_t channel,
 
   /* Compute PWM width (count value to set PWM low) */
 
-  width = b16toi(duty * period + b16HALF);
+  duty_pct = (duty / 65535.0) * 100;
+  width = (uint16_t)(((uint16_t)duty_pct * period) / 100);
 
   /* Clear corresponding MCTRL[LDOK] bit  */
 
