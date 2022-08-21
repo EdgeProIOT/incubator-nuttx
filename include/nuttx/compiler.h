@@ -397,7 +397,7 @@
 
 /* Indicate that a local variable is not used */
 
-#  define UNUSED(a) ((void)(1 || &(a)))
+#  define UNUSED(a) ((void)(1 || (a)))
 
 #  if defined(__clang__)
 #    define no_builtin(n) __attribute__((no_builtin(n)))
@@ -499,7 +499,7 @@
 
 /* Indicate that a local variable is not used */
 
-#  define UNUSED(a) ((void)(1 || &(a)))
+#  define UNUSED(a) ((void)(1 || (a)))
 
 /* It is assumed that the system is build using the small
  * data model with storage defaulting to internal RAM.
@@ -670,7 +670,7 @@
 
 /* Indicate that a local variable is not used */
 
-#  define UNUSED(a) ((void)(1 || &(a)))
+#  define UNUSED(a) ((void)(1 || (a)))
 
 /* Older Zilog compilers support both types double and long long, but the
  * size is 32-bits (same as long and single precision) so it is safer to say
@@ -739,7 +739,7 @@
 
 /* Indicate that a local variable is not used */
 
-#  define UNUSED(a) ((void)(1 || &(a)))
+#  define UNUSED(a) ((void)(1 || (a)))
 
 #  define CONFIG_CPP_HAVE_VARARGS 1 /* Supports variable argument macros */
 #  define CONFIG_HAVE_FILENAME 1    /* Has __FILE__ */
@@ -872,7 +872,7 @@
 #  undef  CONFIG_HAVE_DOUBLE
 #  undef  CONFIG_HAVE_LONG_DOUBLE
 
-#  define UNUSED(a) ((void)(1 || &(a)))
+#  define UNUSED(a) ((void)(1 || (a)))
 
 #  define offsetof(a, b) ((size_t)(&(((a *)(0))->b)))
 
