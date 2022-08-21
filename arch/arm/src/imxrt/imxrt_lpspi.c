@@ -186,7 +186,7 @@ static void imxrt_lpspi_setmode(struct spi_dev_s *dev,
 static void imxrt_lpspi_setbits(struct spi_dev_s *dev, int nbits);
 #ifdef CONFIG_SPI_HWFEATURES
 static int imxrt_lpspi_hwfeatures(struct spi_dev_s *dev,
-                                  imxrt_lpspi_hwfeatures_t features);
+                                  spi_hwfeatures_t features);
 #endif
 static uint32_t imxrt_lpspi_send(struct spi_dev_s *dev, uint32_t wd);
 static void imxrt_lpspi_exchange(struct spi_dev_s *dev,
@@ -1095,7 +1095,7 @@ static void imxrt_lpspi_setbits(struct spi_dev_s *dev, int nbits)
 
 #ifdef CONFIG_SPI_HWFEATURES
 static int imxrt_lpspi_hwfeatures(struct spi_dev_s *dev,
-                                  imxrt_lpspi_hwfeatures_t features)
+                                  spi_hwfeatures_t features)
 {
 #ifdef CONFIG_SPI_BITORDER
   struct imxrt_lpspidev_s *priv = (struct imxrt_lpspidev_s *)dev;
