@@ -711,7 +711,7 @@ int imxrt_flexspi_nor_initialize(void)
              ret);
     }
 
-  /* mtd_dev->ioctl(mtd_dev, MTDIOC_BULKERASE, 0); */
+  //mtd_dev->ioctl(mtd_dev, MTDIOC_BULKERASE, 0);
 
   /* Mount the LittleFS file system */
 

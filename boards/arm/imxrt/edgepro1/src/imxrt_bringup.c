@@ -171,6 +171,10 @@ int imxrt_bringup(void)
     }
 #endif
 
+#ifdef CONFIG_LCD_SHARP_MEMLCD
+  board_lcd_initialize();
+#endif
+
   UNUSED(ret);
   return OK;
 }

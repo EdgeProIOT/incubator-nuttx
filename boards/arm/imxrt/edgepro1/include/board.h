@@ -140,6 +140,13 @@
 
 /* PIO Disambiguation *******************************************************/
 
+/* LPUART1
+ */
+#define GPIO_LPUART1_RX      (GPIO_LPUART1_RX_1|IOMUX_UART_DEFAULT) /* GPIO_AD_B0_13 */
+#define GPIO_LPUART1_TX      (GPIO_LPUART1_TX_1|IOMUX_UART_DEFAULT) /* GPIO_AD_B0_12 */
+#define GPIO_LPUART3_RX      (GPIO_LPUART3_RX_1|IOMUX_UART_DEFAULT) /* GPIO_AD_B1_07 */
+#define GPIO_LPUART3_TX      (GPIO_LPUART3_TX_1|IOMUX_UART_DEFAULT) /* GPIO_AD_B1_06 */
+
 /* NINA UART
  */
 #define GPIO_LPUART2_RX     (GPIO_LPUART2_RX_1|IOMUX_UART_DEFAULT)
