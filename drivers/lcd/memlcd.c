@@ -73,8 +73,14 @@
 /* lcd command */
 
 #define MEMLCD_CMD_UPDATE    (0x01)
+#define MEMLCD_CMD_VCOM      (0x02)
 #define MEMLCD_CMD_ALL_CLEAR (0x04)
 #define MEMLCD_CONTROL_BYTES (0)
+
+#define TOGGLE_VCOM \
+  do { \
+    g_sharpmem_vcom = g_sharpmem_vcom ? 0x00 : MEMLCD_CMD_VCOM; \
+  } while (0);
 
 /* Dolor depth and format */
 
@@ -167,6 +173,8 @@ static int memlcd_setcontrast(struct lcd_dev_s *dev, unsigned int contrast);
 /****************************************************************************
  * Private Data
  ****************************************************************************/
+
+static uint8_t g_sharpmem_vcom;
 
 static uint8_t g_runbuffer[MEMLCD_BPP * MEMLCD_XRES / 8];
 
@@ -332,7 +340,8 @@ static void memlcd_deselect(FAR struct spi_dev_s *spi)
 
 static inline void memlcd_clear(FAR struct memlcd_dev_s *mlcd)
 {
-  uint16_t cmd = MEMLCD_CMD_ALL_CLEAR;
+  uint16_t cmd = g_sharpmem_vcom | MEMLCD_CMD_ALL_CLEAR;
+  TOGGLE_VCOM;
 
   lcdinfo("Clear display\n");
   memlcd_select(mlcd->spi);
@@ -371,7 +380,8 @@ static int memlcd_extcominisr(int irq, FAR void *context, void *arg)
   static bool pol = 0;
   struct memlcd_dev_s *mlcd = &g_memlcddev;
 #ifdef CONFIG_MEMLCD_EXTCOMIN_MODE_HW
-#  error "CONFIG_MEMLCD_EXTCOMIN_MODE_HW unsupported yet!"
+#  warning CONFIG_MEMLCD_EXTCOMIN_MODE_HW unsupported yet!. Commands \
+              must be sent to the display at least once per second!
   /* Start a worker thread, do it in bottom half? */
 
 #else
@@ -463,7 +473,8 @@ static int memlcd_putrun(FAR struct lcd_dev_s *dev,
 
   /* XXX Ensure 6us here */
 
-  cmd = MEMLCD_CMD_UPDATE | row << 8;
+  cmd = g_sharpmem_vcom | MEMLCD_CMD_UPDATE | row << 8;
+  TOGGLE_VCOM;
   SPI_SNDBLOCK(mlcd->spi, &cmd, 2);
   SPI_SNDBLOCK(mlcd->spi, pfb, MEMLCD_YRES / 8 + MEMLCD_CONTROL_BYTES);
   cmd = 0xffff;
@@ -723,6 +734,8 @@ FAR struct lcd_dev_s *memlcd_initialize(FAR struct spi_dev_s *spi,
   mlcd->spi = spi;
 
   mlcd->priv->attachirq(memlcd_extcominisr, mlcd);
+
+  g_sharpmem_vcom = MEMLCD_CMD_VCOM;
 
   lcdinfo("done\n");
   return &mlcd->dev;

@@ -48,4 +48,8 @@ ifeq ($(CONFIG_RGBLED),y)
 CSRCS += imxrt_rgbled.c
 endif
 
+ifeq ($(CONFIG_LCD_SHARP_MEMLCD),y)
+CSRCS += imxrt_memlcd.c
+endif
+
 include $(TOPDIR)/boards/Board.mk
