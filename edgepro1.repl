@@ -1,0 +1,12 @@
+using "platforms/cpus/imxrt1064.repl"
+
+flex_spi: @ sysbus 0x402A8000
+
+flash_mem: Memory.MappedMemory @ sysbus 0x70000000
+    size: 0x400000
+
+nor_flash: SPI.Micron_MT25Q @ flex_spi
+    underlyingMemory: flash2_mem
+
+flash2_mem: Memory.MappedMemory
+    size: 0x00800000

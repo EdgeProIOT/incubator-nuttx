@@ -241,7 +241,7 @@ void imxrt_boardinitialize(void)
   itcm_heap = mm_initialize("itcm", (FAR void *)&_sitcm, 
     CONFIG_IMXRT_ITCM*1024);
 
-  ocram_heap = mm_initialize("ocram", (FAR void *)&_socram, 
+  ocram_heap = mm_initialize("ocram2", (FAR void *)&_socram, 
     (0x00100000 - CONFIG_IMXRT_ITCM*1024 - CONFIG_IMXRT_DTCM*1024));
 }
 
