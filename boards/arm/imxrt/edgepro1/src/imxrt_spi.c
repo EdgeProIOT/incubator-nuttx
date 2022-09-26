@@ -153,7 +153,7 @@ void imxrt_lpspi4select(FAR struct spi_dev_s *dev, uint32_t devid,
   spiinfo("devid: %d CS: %s\n", (int)devid,
           selected ? "assert" : "de-assert");
 
-  imxrt_gpio_write(GPIO_LPSPI4_CS, !selected);
+  imxrt_gpio_write(GPIO_LPSPI4_CS, selected);
 }
 
 uint8_t imxrt_lpspi4status(FAR struct spi_dev_s *dev, uint32_t devid)

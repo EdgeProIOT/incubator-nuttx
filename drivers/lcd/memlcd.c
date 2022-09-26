@@ -33,6 +33,8 @@
 #include <debug.h>
 
 #include <nuttx/arch.h>
+#include <nuttx/wqueue.h>
+#include <nuttx/clock.h>
 #include <nuttx/spi/spi.h>
 #include <nuttx/lcd/lcd.h>
 #include <nuttx/lcd/memlcd.h>
@@ -77,11 +79,6 @@
 #define MEMLCD_CMD_ALL_CLEAR (0x04)
 #define MEMLCD_CONTROL_BYTES (0)
 
-#define TOGGLE_VCOM \
-  do { \
-    g_sharpmem_vcom = g_sharpmem_vcom ? 0x00 : MEMLCD_CMD_VCOM; \
-  } while (0);
-
 /* Dolor depth and format */
 
 #define MEMLCD_BPP           1
@@ -112,6 +109,13 @@
 #define LS_BIT               (1 << 0)
 #define MS_BIT               (1 << 7)
 
+#define MEMLCD_WORK_PERIOD   MSEC2TICK(500)
+
+#define TOGGLE_VCOM                                                          \
+  do {                                                                       \
+    _sharpmem_vcom = _sharpmem_vcom ? 0x00 : MEMLCD_CMD_VCOM;                \
+  } while (0);
+
 /****************************************************************************
  * Private Type Definition
  ****************************************************************************/
@@ -128,7 +132,9 @@ struct memlcd_dev_s
   FAR struct memlcd_priv_s *priv; /* Board specific structure */
   uint8_t contrast;               /* Current contrast setting */
   uint8_t power;                  /* Current power setting */
-
+#ifdef CONFIG_MEMLCD_EXTCOMIN_MODE_HW
+  struct work_s work;
+#endif
   /* The memlcds does not support reading the display memory in SPI mode.
    * Since there is 1 BPP and is byte access, it is necessary to keep a
    * shadow copy of the framebuffer. At 128x128, it amounts to 2KB.
@@ -174,8 +180,7 @@ static int memlcd_setcontrast(struct lcd_dev_s *dev, unsigned int contrast);
  * Private Data
  ****************************************************************************/
 
-static uint8_t g_sharpmem_vcom;
-
+static uint8_t _sharpmem_vcom;
 static uint8_t g_runbuffer[MEMLCD_BPP * MEMLCD_XRES / 8];
 
 /* This structure describes the overall lcd video controller */
@@ -261,6 +266,43 @@ static inline int __test_bit(int nr, const volatile uint8_t * addr)
 }
 
 /****************************************************************************
+ * Name: memlcd_worker
+ *
+ * Description:
+ *   Toggle VCOM bit
+ *
+ * Input Parameters:
+ *   arg  - Reference to the memlcd_dev_s structure
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+#ifdef CONFIG_MEMLCD_EXTCOMIN_MODE_HW
+static void memlcd_worker(FAR void *arg)
+{
+  FAR struct memlcd_dev_s *mlcd = arg;
+  uint16_t cmd = (uint16_t)_sharpmem_vcom;
+
+  TOGGLE_VCOM;
+
+  memlcd_select(mlcd->spi);
+
+  /* XXX Ensure 2us here */
+  up_udelay(2);
+
+  SPI_SNDBLOCK(mlcd->spi, &cmd, 2);
+
+  /* XXX Ensure 6us here */
+  up_udelay(1);
+
+  memlcd_deselect(mlcd->spi);
+
+  work_queue(LPWORK, &mlcd->work, memlcd_worker, mlcd, MEMLCD_WORK_PERIOD);
+}
+#endif
+
+/****************************************************************************
  * Name: memlcd_select
  *
  * Description:
@@ -340,17 +382,18 @@ static void memlcd_deselect(FAR struct spi_dev_s *spi)
 
 static inline void memlcd_clear(FAR struct memlcd_dev_s *mlcd)
 {
-  uint16_t cmd = g_sharpmem_vcom | MEMLCD_CMD_ALL_CLEAR;
-  TOGGLE_VCOM;
+  uint16_t cmd = MEMLCD_CMD_VCOM | MEMLCD_CMD_ALL_CLEAR;
 
   lcdinfo("Clear display\n");
   memlcd_select(mlcd->spi);
 
   /* XXX Ensure 2us here */
+  up_udelay(2);
 
   SPI_SNDBLOCK(mlcd->spi, &cmd, 2);
 
   /* XXX Ensure 6us here */
+  up_udelay(1);
 
   memlcd_deselect(mlcd->spi);
 }
@@ -380,10 +423,7 @@ static int memlcd_extcominisr(int irq, FAR void *context, void *arg)
   static bool pol = 0;
   struct memlcd_dev_s *mlcd = &g_memlcddev;
 #ifdef CONFIG_MEMLCD_EXTCOMIN_MODE_HW
-#  warning CONFIG_MEMLCD_EXTCOMIN_MODE_HW unsupported yet!. Commands \
-              must be sent to the display at least once per second!
   /* Start a worker thread, do it in bottom half? */
-
 #else
   pol = !pol;
   mlcd->priv->setpolarity(pol);
@@ -472,15 +512,16 @@ static int memlcd_putrun(FAR struct lcd_dev_s *dev,
   memlcd_select(mlcd->spi);
 
   /* XXX Ensure 6us here */
+  up_udelay(2);
 
-  cmd = g_sharpmem_vcom | MEMLCD_CMD_UPDATE | row << 8;
-  TOGGLE_VCOM;
+  cmd = MEMLCD_CMD_UPDATE | row << 8;
   SPI_SNDBLOCK(mlcd->spi, &cmd, 2);
-  SPI_SNDBLOCK(mlcd->spi, pfb, MEMLCD_YRES / 8 + MEMLCD_CONTROL_BYTES);
-  cmd = 0xffff;
+  SPI_SNDBLOCK(mlcd->spi, pfb, MEMLCD_XRES / 8 + MEMLCD_CONTROL_BYTES);
+  cmd = 0x0000;
   SPI_SNDBLOCK(mlcd->spi, &cmd, 2);
 
   /* XXX Ensure 2us here */
+  up_udelay(1);
 
   memlcd_deselect(mlcd->spi);
 
@@ -735,7 +776,8 @@ FAR struct lcd_dev_s *memlcd_initialize(FAR struct spi_dev_s *spi,
 
   mlcd->priv->attachirq(memlcd_extcominisr, mlcd);
 
-  g_sharpmem_vcom = MEMLCD_CMD_VCOM;
+  _sharpmem_vcom = MEMLCD_CMD_VCOM;
+  work_queue(LPWORK, &mlcd->work, memlcd_worker, mlcd, MEMLCD_WORK_PERIOD);
 
   lcdinfo("done\n");
   return &mlcd->dev;
