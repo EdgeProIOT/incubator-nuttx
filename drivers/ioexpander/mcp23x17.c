@@ -754,7 +754,7 @@ static FAR void *mcp23x17_attach(FAR struct ioexpander_dev_s *dev,
   ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
-      return ret;
+      return NULL;
     }
 
   /* Find and available in entry in the callback table */
@@ -806,7 +806,7 @@ static int mcp23x17_detach(FAR struct ioexpander_dev_s *dev,
   DEBUGASSERT(priv != NULL && cb != NULL);
   DEBUGASSERT((uintptr_t)cb >= (uintptr_t)&priv->cb[0] &&
               (uintptr_t)cb <=
-              (uintptr_t)&priv->cb[CONFIG_TCA64XX_INT_NCALLBACKS - 1]);
+              (uintptr_t)&priv->cb[CONFIG_MCP23X17_INT_NCALLBACKS - 1]);
   UNUSED(priv);
 
   cb->pinset = 0;

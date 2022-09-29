@@ -31,6 +31,7 @@
 #include <nuttx/fs/fs.h>
 #include <nuttx/i2c/i2c_master.h>
 #include <nuttx/spi/spi_transfer.h>
+#include <nuttx/lcd/lcd_dev.h>
 #include <imxrt_lpi2c.h>
 #include <imxrt_lpspi.h>
 #include "edgepro1.h"
@@ -182,6 +183,14 @@ int imxrt_bringup(void)
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: lcddev_register() failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_INPUT_MXKBD
+  ret = mxkbd_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: mxkbd_initialize() failed: %d\n", ret);
     }
 #endif
 

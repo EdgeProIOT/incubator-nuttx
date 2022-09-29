@@ -86,6 +86,18 @@
 #define GPIO_LPSPI4_CS        (GPIO_OUTPUT | GPIO_OUTPUT_ONE | \
                                GPIO_PORT2 | GPIO_PIN0 | IOMUX_LPSPI4_CS)
 
+/* MCP23X17 Interrupt: GPIO_EMC_16 */
+#define GPIO_MCP23X17_INT1    (GPIO_INTERRUPT | GPIO_INT_FALLINGEDGE | \
+                               IOMUX_SLEW_FAST | IOMUX_DRIVE_50OHM | \
+                               GPIO_PORT4 | GPIO_PIN16)    /* EMC_16 */
+#define GPIO_MCP23X17_IRQ1    IMXRT_IRQ_GPIO4_16
+
+/* MCP23X17 Interrupt: GPIO_EMC_16 */
+#define GPIO_MCP23X17_INT2    (GPIO_INTERRUPT | GPIO_INT_FALLINGEDGE | \
+                               IOMUX_SLEW_FAST | IOMUX_DRIVE_50OHM | \
+                               GPIO_PORT4 | GPIO_PIN15)    /* EMC_16 */
+#define GPIO_MCP23X17_IRQ2    IMXRT_IRQ_GPIO4_15
+
 
 /****************************************************************************
  * Public Types
@@ -167,6 +179,15 @@ int imxrt_flexspi_nor_initialize(void);
 
 #ifdef CONFIG_RGBLED
 int imxrt_rgbled_setup(void);
+#endif
+
+#ifdef CONFIG_LCD_DEV
+int board_lcd_initialize(void);
+
+#endif
+
+#ifdef CONFIG_INPUT_MXKBD
+int mxkbd_initialize(void);
 #endif
 
 #endif /* __ASSEMBLY__ */
