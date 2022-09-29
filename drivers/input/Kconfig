@@ -619,7 +619,7 @@ config SPQ10KBD_NPOLLWAITERS
 
 endif # INPUT_SPQ10KBD
 
-config INPUT_EDGEPROMXKBD
+config INPUT_MXKBD
 	bool "EdgeProMX Keyboard"
 	default n
 	select I2C
@@ -629,16 +629,16 @@ config INPUT_EDGEPROMXKBD
 		This keyboard exists both as a standalone module and integrated
 		into the EdgePro1.
 
-if INPUT_EDGEPROMXKBD
+if INPUT_MXKBD
 
-config EDGEPROMXKBD_BUFSIZE
+config MXKBD_BUFSIZE
 	int "Keyboard Buffer Size"
 	default 10
 
-config EDGEPROMXKBD_NPOLLWAITERS
+config MXKBD_NPOLLWAITERS
 	int "Max Number of Poll Waiters"
 	default 2
 
-endif # INPUT_EDGEPROMXKBD
+endif # INPUT_MXKBD
 
 endif # INPUT

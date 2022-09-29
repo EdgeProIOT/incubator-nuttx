@@ -1,5 +1,5 @@
 /****************************************************************************
- * include/nuttx/input/edgepromx.h
+ * include/nuttx/input/mxkbd.h
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -23,17 +23,16 @@
  * device driver path.
  */
 
-#ifndef __INCLUDE_NUTTX_INPUT_EDGEPROMX_H
-#define __INCLUDE_NUTTX_INPUT_EDGEPROMX_H
+#ifndef __INCLUDE_NUTTX_INPUT_MXKBD_H
+#define __INCLUDE_NUTTX_INPUT_MXKBD_H
 
 /****************************************************************************
  * Included Files
  ****************************************************************************/
 
 #include <nuttx/config.h>
-#include <nuttx/i2c/i2c_master.h>
+#include <nuttx/ioexpander/ioexpander.h>
 #include <stdbool.h>
-#include <nuttx/irq.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -43,33 +42,6 @@
  * Public Types
  ****************************************************************************/
 
-/* A reference to a structure of this type must be passed to the
- * EdgeProMX Keyboard driver.  This structure provides information
- * about the configuration and provides some board-specific hooks.
- */
-
-struct edgepromxkbd_config_s
-{
-  /* Device characterization */
-
-  uint32_t frequency;  /* I2C frequency */
-  uint8_t  address;    /* I2C 7-bit device address */
-
-  /* IRQ/GPIO access callbacks.  These operations all hidden behind
-   * callbacks to isolate the EdgeProMX Keyboard driver from differences in 
-   * GPIO interrupt handling by varying boards and MCUs.
-   *
-   * attach  - Attach the EdgeProMX kbd interrupt handler to the GPIO 
-   *           interrupt
-   * enable  - Enable or disable the GPIO interrupt
-   * clear   - Acknowledge/clear any pending GPIO interrupt
-   */
-
-  int  (*attach)(FAR const struct edgepromxkbd_config_s *state, xcpt_t isr,
-                 FAR void *arg);
-  void (*enable)(FAR const struct edgepromxkbd_config_s *state, bool enable);
-  void (*clear)(FAR const struct edgepromxkbd_config_s *state);
-};
 
 /****************************************************************************
  * Public Data
@@ -88,16 +60,15 @@ extern "C"
  ****************************************************************************/
 
 /****************************************************************************
- * Name: edgepromxkbd_register
+ * Name: mxkbd_register
  *
  * Description:
- *   Configure the EdgeProMX Keyboard to use the provided I2C device
- *   instance.  This will register the driver as /dev/kbdN where N is the
+ *   Configure the EdgeProMX Keyboard to use the provided IO Expander device
+ *   instance. This will register the driver as /dev/kbdN where N is the
  *   minor device number
  *
  * Input Parameters:
- *   i2c         - An I2C driver instance
- *   config      - Persistent board configuration data
+ *   dev         - An IO Expander driver instance
  *   kbdminor    - The keyboard input device minor number
  *
  * Returned Value:
@@ -106,13 +77,11 @@ extern "C"
  *
  ****************************************************************************/
 
-int edgepromxkbd_register(FAR struct i2c_master_s *i2c,
-                      FAR const struct edgepromxkbd_config_s *config,
-                      char kbdminor);
+int mxkbd_register(FAR struct ioexpander_dev_s *dev, char kbdminor);
 
 #undef EXTERN
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* __INCLUDE_NUTTX_INPUT_EDGEPROMX_H */
+#endif /* __INCLUDE_NUTTX_INPUT_MXKBD_H */

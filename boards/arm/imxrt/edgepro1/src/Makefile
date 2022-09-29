@@ -52,4 +52,8 @@ ifeq ($(CONFIG_LCD_SHARP_MEMLCD),y)
 CSRCS += imxrt_memlcd.c
 endif
 
+ifeq ($(CONFIG_INPUT_MXKBD),y)
+CSRCS += imxrt_mxkbd.c
+endif
+
 include $(TOPDIR)/boards/Board.mk
