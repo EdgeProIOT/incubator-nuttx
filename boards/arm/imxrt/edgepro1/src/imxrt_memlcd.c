@@ -56,41 +56,14 @@ static struct lcd_dev_s *g_lcd = NULL;
  * Private Functions
  ****************************************************************************/
 
-static int up_lcdextcominisr(int irq, void *context, void *arg)
-{
-  return OK;
-}
-
-static int up_lcdirqattach(xcpt_t isr, void * arg)
-{
-  return OK;
-}
-
-static void up_lcddispcontrol(bool on)
-{
-  
-}
-
-#ifndef CONFIG_MEMLCD_EXTCOMIN_MODE_HW
-static void up_lcdsetpolarity(bool pol)
-{
-
-}
-#endif
-
-static void up_lcdsetvcomfreq(unsigned int freq)
-{
-  
-}
-
 static struct memlcd_priv_s memlcd_priv =
 {
-  .attachirq   = up_lcdirqattach,
-  .dispcontrol = up_lcddispcontrol,
+  .attachirq   = NULL,
+  .dispcontrol = NULL,
 #ifndef CONFIG_MEMLCD_EXTCOMIN_MODE_HW
-  .setpolarity = up_lcdsetpolarity,
+  .setpolarity = NULL,
 #endif
-  .setvcomfreq = up_lcdsetvcomfreq,
+  .setvcomfreq = NULL,
 };
 
 /****************************************************************************
