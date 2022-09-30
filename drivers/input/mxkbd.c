@@ -108,6 +108,12 @@ static ssize_t mxkbd_write(FAR struct file *filep,
 static int  mxkbd_poll(FAR struct file *filep, FAR struct pollfd *fds,
                          bool setup);
 
+
+#ifdef CONFIG_IOEXPANDER_INT_ENABLE
+static int mxkbd_interrupt_handler(FAR struct ioexpander_dev_s *ioe,
+                                     ioe_pinset_t pinset, FAR void *arg);
+#endif
+
 /****************************************************************************
  * Private Data
  ****************************************************************************/
@@ -403,7 +409,7 @@ errout:
  *   None
  *
  ****************************************************************************/
-
+#if 0
 static void mxkbd_putbuffer(FAR struct mxkbd_dev_s *priv,
                                uint8_t keycode)
 {
@@ -445,21 +451,22 @@ static void mxkbd_putbuffer(FAR struct mxkbd_dev_s *priv,
 
   priv->headndx = head;
 }
-
-
+#endif
 /****************************************************************************
- * Name: mxkbd_reset
+ * Name: mxkbd_interrupt_handler
  *
  * Description:
- *   Reset the MX Keyboard Controller
+ *   
  *
  ****************************************************************************/
 
-static int mxkbd_reset(FAR struct mxkbd_dev_s *priv)
+#ifdef CONFIG_IOEXPANDER_INT_ENABLE
+static int mxkbd_interrupt_handler(FAR struct ioexpander_dev_s *ioe,
+                                     ioe_pinset_t pinset, FAR void *arg)
 {
   return OK;
 }
-
+#endif
 
 
 /****************************************************************************
@@ -519,7 +526,26 @@ int mxkbd_register(FAR struct ioexpander_dev_s *dev, char kbdminor)
 
   nxsem_set_protocol(&priv->waitsem, SEM_PRIO_NONE);
 
-  mxkbd_reset(priv);
+  /* Listen on COL0 ÷ COL7 */
+  IOEP_ATTACH(priv->dev, 0xFF00, mxkbd_interrupt_handler, priv);
+
+  IOEXP_SETDIRECTION(priv->dev, 0, IOEXPANDER_DIRECTION_OUT);
+  IOEXP_SETDIRECTION(priv->dev, 1, IOEXPANDER_DIRECTION_OUT);
+  IOEXP_SETDIRECTION(priv->dev, 2, IOEXPANDER_DIRECTION_OUT);
+  IOEXP_SETDIRECTION(priv->dev, 3, IOEXPANDER_DIRECTION_OUT);
+  IOEXP_SETDIRECTION(priv->dev, 4, IOEXPANDER_DIRECTION_OUT);
+  IOEXP_SETDIRECTION(priv->dev, 5, IOEXPANDER_DIRECTION_OUT);
+  IOEXP_SETDIRECTION(priv->dev, 6, IOEXPANDER_DIRECTION_OUT);
+  IOEXP_SETDIRECTION(priv->dev, 7, IOEXPANDER_DIRECTION_OUT);
+
+  IOEXP_SETDIRECTION(priv->dev, 8, IOEXPANDER_DIRECTION_IN_PULLUP);
+  IOEXP_SETDIRECTION(priv->dev, 9, IOEXPANDER_DIRECTION_IN_PULLUP);
+  IOEXP_SETDIRECTION(priv->dev, 10, IOEXPANDER_DIRECTION_IN_PULLUP);
+  IOEXP_SETDIRECTION(priv->dev, 11, IOEXPANDER_DIRECTION_IN_PULLUP);
+  IOEXP_SETDIRECTION(priv->dev, 12, IOEXPANDER_DIRECTION_IN_PULLUP);
+  IOEXP_SETDIRECTION(priv->dev, 13, IOEXPANDER_DIRECTION_IN_PULLUP);
+  IOEXP_SETDIRECTION(priv->dev, 14, IOEXPANDER_DIRECTION_IN_PULLUP);
+  IOEXP_SETDIRECTION(priv->dev, 15, IOEXPANDER_DIRECTION_IN_PULLUP);
 
   snprintf(kbddevname, DEV_NAMELEN, DEV_FORMAT, kbdminor);
   iinfo("Registering %s\n", kbddevname);

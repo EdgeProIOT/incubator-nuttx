@@ -111,7 +111,7 @@ static void mcp23x17_enable(struct mcp23x17_config_s *state, bool enable)
     {
       /* Enable MCP23X17 interrupts.
        * NOTE: The pin interrupt is enabled from worker thread
-       * logic after completion of processing of the touchscreen interrupt.
+       * logic after completion of processing of the interrupt.
        */
 
       up_enable_irq(GPIO_MCP23X17_IRQ1);
@@ -165,8 +165,8 @@ int mxkbd_initialize(void)
       ierr("ERROR: Failed to get I2C interface\n");
       return -ENODEV;
     }
-  /* Get an instance of the I/O expander */
 
+  /* Get an instance of the I/O expander */
   ioe = mcp23x17_initialize(i2c, &g_mcp23x17_info);
   if (ioe == NULL)
     {
