@@ -327,6 +327,7 @@ static int mcp23x17_direction(FAR struct ioexpander_dev_s *dev, uint8_t pin,
   int ret;
 
   if (direction != IOEXPANDER_DIRECTION_IN &&
+      direction != IOEXPANDER_DIRECTION_IN_PULLUP &&
       direction != IOEXPANDER_DIRECTION_OUT)
     {
       return -EINVAL;
@@ -341,7 +342,16 @@ static int mcp23x17_direction(FAR struct ioexpander_dev_s *dev, uint8_t pin,
     }
 
   ret = mcp23x17_setbit(priv, MCP23X17_IODIRA, pin,
-                        (direction == IOEXPANDER_DIRECTION_IN));
+                        (direction == IOEXPANDER_DIRECTION_IN) ||
+                        (direction == IOEXPANDER_DIRECTION_IN_PULLUP));
+  if (ret < 0)
+    {
+      mcp23x17_unlock(priv);
+      return ret;
+    }
+  ret = mcp23x17_setbit(priv, MCP23X17_GPPUA, pin,
+                        (direction == IOEXPANDER_DIRECTION_IN_PULLUP)); 
+
   mcp23x17_unlock(priv);
   return ret;
 }
@@ -761,6 +771,8 @@ static FAR void *mcp23x17_attach(FAR struct ioexpander_dev_s *dev,
 {
   FAR struct mcp23x17_dev_s *priv = (FAR struct mcp23x17_dev_s *)dev;
   FAR void *handle = NULL;
+  uint8_t addr = MCP23X17_GPINTENA;
+  uint8_t buf[3];
   int i;
   int ret;
 
@@ -769,6 +781,24 @@ static FAR void *mcp23x17_attach(FAR struct ioexpander_dev_s *dev,
   ret = mcp23x17_lock(priv);
   if (ret < 0)
     {
+      return NULL;
+    }
+
+  ret = mcp23x17_writeread(priv, &addr, 1, &buf[1], 2);
+  if (ret < 0)
+    {
+      mcp23x17_unlock(priv);
+      return NULL;
+    }
+  
+  buf[0] = addr;
+  buf[1] |= (uint8_t)(pinset & 0x00FF);
+  buf[2] |= (uint8_t)((pinset & 0xFF00) >> 8);
+  
+  ret = mcp23x17_write(priv, buf, 3);
+  if (ret < 0)
+    {
+      mcp23x17_unlock(priv);
       return NULL;
     }
 
@@ -842,26 +872,20 @@ static int mcp23x17_detach(FAR struct ioexpander_dev_s *dev,
 static void mcp23x17_irqworker(void *arg)
 {
   FAR struct mcp23x17_dev_s *priv = (FAR struct mcp23x17_dev_s *)arg;
-  uint8_t addr = MCP23X17_GPIOA;
+  uint8_t addr = MCP23X17_INTFA;
   uint8_t buf[2];
   ioe_pinset_t pinset;
   int ret;
   int i;
 
-  /* Read inputs */
+  /* Read interrupt flags */
 
   ret = mcp23x17_writeread(priv, &addr, 1, buf, 2);
   if (ret == OK)
     {
-#ifdef CONFIG_MCP23X17_SHADOW_MODE
-      /* Don't forget to update the shadow registers at this point */
-
-      priv->sreg[addr]     = buf[0];
-      priv->sreg[addr + 1] = buf[1];
-#endif
       /* Create a 16-bit pinset */
 
-      pinset = ((unsigned int)buf[0] << 8) | buf[1];
+      pinset = ((unsigned int)buf[1] << 8) | buf[0];
 
       /* Perform pin interrupt callbacks */
 
@@ -885,6 +909,19 @@ static void mcp23x17_irqworker(void *arg)
                 }
             }
         }
+        
+        /* Read GPIOs to clear interrupt condition */
+
+        addr = MCP23X17_INTCAPA;
+
+        mcp23x17_writeread(priv, &addr, 1, buf, 2);
+
+#ifdef CONFIG_MCP23X17_SHADOW_MODE
+        /* Don't forget to update the shadow registers at this point */
+
+        priv->sreg[addr]     = buf[0];
+        priv->sreg[addr + 1] = buf[1];
+#endif
     }
 
   /* Re-enable interrupts */
@@ -949,6 +986,9 @@ FAR struct ioexpander_dev_s *mcp23x17_initialize(
                               FAR struct mcp23x17_config_s *config)
 {
   FAR struct mcp23x17_dev_s *priv;
+#ifdef CONFIG_MCP23X17_INT_MIRROR
+  uint8_t buf[3];
+#endif
 
   DEBUGASSERT(i2cdev != NULL && config != NULL);
 
@@ -982,6 +1022,14 @@ FAR struct ioexpander_dev_s *mcp23x17_initialize(
   priv->config  = config;
 
 #ifdef CONFIG_MCP23X17_INT_ENABLE
+
+#ifdef CONFIG_MCP23X17_INT_MIRROR
+  buf[0] = MCP23X17_IOCON;
+  buf[1] = 0x40;
+  buf[2] = 0x40;
+  mcp23x17_write(priv, buf, 3);
+#endif
+
   priv->config->attach(priv->config, mcp23x17_interrupt, priv);
   priv->config->enable(priv->config, TRUE);
 #endif

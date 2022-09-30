@@ -149,12 +149,13 @@ struct mcp23x17_callback_s
 
 struct mcp23x17_dev_s
 {
-#ifdef CONFIG_MCP23X17_MULTIPLE
-  FAR struct mcp23x17_dev_s *flink;     /* Supports a singly linked list of drivers */
-#endif
   struct ioexpander_dev_s dev;          /* Nested structure to allow casting
                                          * as public gpio expander.
                                          */
+#ifdef CONFIG_MCP23X17_MULTIPLE
+  FAR struct mcp23x17_dev_s *flink;     /* Supports a singly linked list of drivers */
+#endif
+  
   FAR struct mcp23x17_config_s *config; /* Board configuration data */
   FAR struct i2c_master_s *i2c;         /* Saved I2C driver instance */
   sem_t exclsem;                        /* Mutual exclusion */
