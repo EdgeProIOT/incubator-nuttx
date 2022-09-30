@@ -420,11 +420,10 @@ static inline void memlcd_clear(FAR struct memlcd_dev_s *mlcd)
 
 static int memlcd_extcominisr(int irq, FAR void *context, void *arg)
 {
-  static bool pol = 0;
-  struct memlcd_dev_s *mlcd = &g_memlcddev;
 #ifdef CONFIG_MEMLCD_EXTCOMIN_MODE_HW
   /* Start a worker thread, do it in bottom half? */
 #else
+  static bool pol = 0;
   pol = !pol;
   mlcd->priv->setpolarity(pol);
 #endif
@@ -774,7 +773,7 @@ FAR struct lcd_dev_s *memlcd_initialize(FAR struct spi_dev_s *spi,
   mlcd->priv = priv;
   mlcd->spi = spi;
 
-  mlcd->priv->attachirq(memlcd_extcominisr, mlcd);
+  //mlcd->priv->attachirq(memlcd_extcominisr, mlcd);
 
   _sharpmem_vcom = MEMLCD_CMD_VCOM;
   work_queue(LPWORK, &mlcd->work, memlcd_worker, mlcd, MEMLCD_WORK_PERIOD);
