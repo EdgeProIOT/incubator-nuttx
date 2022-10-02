@@ -736,6 +736,7 @@ static int pwm_set_output(struct pwm_lowerhalf_s *dev, uint8_t channel,
   if (channel % 2)
     {
       /* Write width to value register 5 and enable output B */
+
       putreg16(width, priv->base + IMXRT_FLEXPWM_SM0VAL5_OFFSET
                              + MODULE_OFFSET * shift);
       if (priv->modules[0].out_b.used)
@@ -743,11 +744,12 @@ static int pwm_set_output(struct pwm_lowerhalf_s *dev, uint8_t channel,
           regval = getreg16(priv->base + IMXRT_FLEXPWM_OUTEN_OFFSET);
           regval |= OUTEN_PWMB_EN(1 << shift);
           putreg16(regval, priv->base + IMXRT_FLEXPWM_OUTEN_OFFSET);
-        }  
+        }
     }
   else
     {
       /* Write width to value register 3 and enable output A */
+
       putreg16(width, priv->base + IMXRT_FLEXPWM_SM0VAL3_OFFSET
                              + MODULE_OFFSET * shift);
       if (priv->modules[0].out_a.used)
@@ -806,7 +808,6 @@ static int pwm_setup(struct pwm_lowerhalf_s *dev)
             }
         }
 
-      
       if (priv->modules[i].out_b.used)
         {
           pin = priv->modules[i].out_b.pin;
