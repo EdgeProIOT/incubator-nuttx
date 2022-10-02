@@ -288,12 +288,10 @@ static void memlcd_worker(FAR void *arg)
 
   memlcd_select(mlcd->spi);
 
-  /* XXX Ensure 2us here */
   up_udelay(2);
 
   SPI_SNDBLOCK(mlcd->spi, &cmd, 2);
 
-  /* XXX Ensure 6us here */
   up_udelay(1);
 
   memlcd_deselect(mlcd->spi);
@@ -387,12 +385,10 @@ static inline void memlcd_clear(FAR struct memlcd_dev_s *mlcd)
   lcdinfo("Clear display\n");
   memlcd_select(mlcd->spi);
 
-  /* XXX Ensure 2us here */
   up_udelay(2);
 
   SPI_SNDBLOCK(mlcd->spi, &cmd, 2);
 
-  /* XXX Ensure 6us here */
   up_udelay(1);
 
   memlcd_deselect(mlcd->spi);
@@ -510,7 +506,6 @@ static int memlcd_putrun(FAR struct lcd_dev_s *dev,
 
   memlcd_select(mlcd->spi);
 
-  /* XXX Ensure 6us here */
   up_udelay(2);
 
   cmd = MEMLCD_CMD_UPDATE | row << 8;
@@ -519,7 +514,6 @@ static int memlcd_putrun(FAR struct lcd_dev_s *dev,
   cmd = 0x0000;
   SPI_SNDBLOCK(mlcd->spi, &cmd, 2);
 
-  /* XXX Ensure 2us here */
   up_udelay(1);
 
   memlcd_deselect(mlcd->spi);
