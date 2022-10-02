@@ -92,7 +92,6 @@ static void imxrt_spi_register(int bus)
 }
 #endif
 
-
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -137,6 +136,7 @@ int imxrt_bringup(void)
 
 #ifdef CONFIG_DEV_GPIO
   /* Initialize the GPIO driver */
+
   ret = imxrt_gpio_initialize();
   if (ret < 0)
     {
@@ -147,6 +147,7 @@ int imxrt_bringup(void)
 
 #ifdef CONFIG_IMXRT_ADC
   /* Initialize ADC and register the ADC driver. */
+
   ret = imxrt_adc_initialize();
   if (ret < 0)
     {
@@ -165,6 +166,7 @@ int imxrt_bringup(void)
 
 #ifdef CONFIG_RGBLED
   /* Configure and initialize the RGB LED. */
+
   ret = imxrt_rgbled_setup();
   if (ret < 0)
     {

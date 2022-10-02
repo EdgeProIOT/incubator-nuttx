@@ -130,13 +130,11 @@
 #define GPIO_FLEXPWM1_MOD4_A  (GPIO_FLEXPWM1_PWMA03_5|IOMUX_PWM_DEFAULT) /* G LED */
 #define GPIO_FLEXPWM1_MOD4_B  (GPIO_FLEXPWM1_PWMB03_5|IOMUX_PWM_DEFAULT) /* B LED */
 
-
 #define RGBLED_PWM1         1
 #define RGBLED_PWM2         2
 #define RGBLED_RPWMCHANNEL  5
 #define RGBLED_GPWMCHANNEL  6
 #define RGBLED_BPWMCHANNEL  7
-
 
 /* PIO Disambiguation *******************************************************/
 
@@ -195,7 +193,6 @@
 #define GPIO_FLEXSPI_IO2    (GPIO_FLEXSPIA_DATA02_2|IOMUX_FLEXSPI_DEFAULT)
 #define GPIO_FLEXSPI_IO3    (GPIO_FLEXSPIA_DATA03_2|IOMUX_FLEXSPI_DEFAULT)
 #define GPIO_FLEXSPI_SCK    (GPIO_FLEXSPIA_SCLK_2|IOMUX_FLEXSPI_DEFAULT)
-
 
 /****************************************************************************
  * Public Types

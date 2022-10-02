@@ -162,5 +162,4 @@ uint8_t imxrt_lpspi4status(FAR struct spi_dev_s *dev, uint32_t devid)
 }
 #endif
 
-
 #endif /* CONFIG_IMXRT_LPSPI1 || CONFIG_IMXRT_LPSPI2 */

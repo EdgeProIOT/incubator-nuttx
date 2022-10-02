@@ -54,6 +54,7 @@
 static const uint8_t g_chanlist1[ADC1_NCHANNELS] =
   {
     /* GPIO_AD_B1_06, GPIO_AD_B1_07 */
+
     11,
     12,
   };
@@ -61,6 +62,7 @@ static const uint8_t g_chanlist1[ADC1_NCHANNELS] =
 static const uint8_t g_chanlist2[ADC2_NCHANNELS] =
   {
     /* GPIO_AD_B1_06, GPIO_AD_B1_07 */
+
     11,
     12,
   };
