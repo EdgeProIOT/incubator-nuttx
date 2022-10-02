@@ -161,7 +161,9 @@
 #  define HAVE_LPUART_CONSOLE 1
 #else
 #  ifdef CONFIG_DEV_CONSOLE
-#    warning "No valid CONFIG_[LP]LPUART[n]_SERIAL_CONSOLE Setting"
+#    if !defined(CONFIG_CDCACM_CONSOLE)
+#      warning "No valid CONFIG_[LP]LPUART[n]_SERIAL_CONSOLE Setting"
+#    endif
 #  endif
 #  undef CONFIG_LPUART1_SERIAL_CONSOLE
 #  undef CONFIG_LPUART2_SERIAL_CONSOLE
