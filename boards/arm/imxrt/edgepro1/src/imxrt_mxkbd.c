@@ -49,7 +49,6 @@
 #define MCP23X17_ADDRESS    0x20
 #define MCP23X17_FREQUENCY  400000 
 
-
 /****************************************************************************
  * Private Function Prototypes
  ****************************************************************************/
@@ -84,10 +83,10 @@ static struct mcp23x17_config_s g_mcp23x17_info =
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
- 
- /* IRQ/GPIO access callbacks.  These operations all hidden behind
+
+/* IRQ/GPIO access callbacks. These operations all hidden behind
  * callbacks to isolate the MCP23X17 driver from differences in GPIO
- * interrupt handling by varying boards and MCUs.  If possible,
+ * interrupt handling by varying boards and MCUs. If possible,
  * interrupts should be configured on both rising and falling edges
  * so that contact and loss-of-contact events can be detected.
  *
@@ -127,7 +126,7 @@ static void mcp23x17_enable(struct mcp23x17_config_s *state, bool enable)
     }
 }
 
- /****************************************************************************
+/****************************************************************************
  * Public Functions
  ****************************************************************************/
 
@@ -156,6 +155,7 @@ int mxkbd_initialize(void)
 
 #ifdef CONFIG_IMXRT_GPIO4_16_31_IRQ
   /* Configure the MCP23X17 interrupt pin */
+
   imxrt_config_gpio(GPIO_MCP23X17_INT1);
 #endif
 
@@ -167,6 +167,7 @@ int mxkbd_initialize(void)
     }
 
   /* Get an instance of the I/O expander */
+
   ioe = mcp23x17_initialize(i2c, &g_mcp23x17_info);
   if (ioe == NULL)
     {
@@ -183,6 +184,5 @@ int mxkbd_initialize(void)
 
   return OK;
 }
-
 
 #endif /* CONFIG_INPUT_MXKBD */

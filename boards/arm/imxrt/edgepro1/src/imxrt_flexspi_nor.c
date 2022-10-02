@@ -581,7 +581,7 @@ static int imxrt_flexspi_nor_ioctl(FAR struct mtd_dev_s *dev,
 
               geo->blocksize    = (NOR_PAGE_SIZE);
               geo->erasesize    = (NOR_SECTOR_SIZE);
-              geo->neraseblocks = ((CONFIG_FLEXSPI_FLASH_SIZE*1024U)/
+              geo->neraseblocks = ((CONFIG_FLEXSPI_FLASH_SIZE * 1024U) /
                                     NOR_SECTOR_SIZE);
 
               ret               = OK;
@@ -598,7 +598,7 @@ static int imxrt_flexspi_nor_ioctl(FAR struct mtd_dev_s *dev,
             (FAR struct partition_info_s *)arg;
           if (info != NULL)
             {
-              info->numsectors  = ((CONFIG_FLEXSPI_FLASH_SIZE*1024U)/
+              info->numsectors  = ((CONFIG_FLEXSPI_FLASH_SIZE * 1024U) /
                                     NOR_PAGE_SIZE);
               info->sectorsize  = NOR_PAGE_SIZE;
               info->startsector = 0;
@@ -711,7 +711,7 @@ int imxrt_flexspi_nor_initialize(void)
              ret);
     }
 
-  //mtd_dev->ioctl(mtd_dev, MTDIOC_BULKERASE, 0);
+  /* mtd_dev->ioctl(mtd_dev, MTDIOC_BULKERASE, 0); */
 
   /* Mount the LittleFS file system */
 

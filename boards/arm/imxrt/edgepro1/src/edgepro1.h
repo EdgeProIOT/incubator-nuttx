@@ -98,7 +98,6 @@
                                GPIO_PORT4 | GPIO_PIN15)    /* EMC_16 */
 #define GPIO_MCP23X17_IRQ2    IMXRT_IRQ_GPIO4_15
 
-
 /****************************************************************************
  * Public Types
  ****************************************************************************/
@@ -155,11 +154,9 @@ int imxrt_gpio_initialize(void);
 int imxrt_adc_initialize(void);
 #endif
 
-
 #ifdef CONFIG_IMXRT_FLEXSPI
 int imxrt_flexspi_nor_initialize(void);
 #endif
-
 
 /****************************************************************************
  * Name: imxrt_rgbled_setup

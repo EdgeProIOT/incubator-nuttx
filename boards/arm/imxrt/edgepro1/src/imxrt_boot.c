@@ -33,7 +33,6 @@
 #include "arm_internal.h"
 #include "imxrt_flexspi_nor_boot.h"
 
-
 #define CONFIG_ITCM_USED 0
 #if defined(CONFIG_IMXRT_ITCM)
 #  if (CONFIG_IMXRT_ITCM % 32) != 0
@@ -59,6 +58,7 @@
 /****************************************************************************
  * Public Data
  ****************************************************************************/
+
 struct mm_heap_s *itcm_heap;
 struct mm_heap_s *ocram_heap;
 
@@ -68,77 +68,85 @@ struct mm_heap_s *ocram_heap;
 
 static uint8_t map_tcm_size(uint8_t tcm_bank_num)
 {
-    uint8_t tcm_size_config;
-    uint32_t total_tcm_size;
+  uint8_t tcm_size_config;
+  uint32_t total_tcm_size;
 
-    tcm_size_config = 0U;
-    total_tcm_size = 0U;
-    /* if bank number is a odd value, use a new bank number which bigger 
-       than target */
-    do 
-      {
-        if ((tcm_bank_num & (tcm_bank_num - 1U)) == 0U)
-          {
-            break;
-          }
-      }
-    while (++tcm_bank_num < 16);
+  tcm_size_config = 0U;
+  total_tcm_size = 0U;
 
-    total_tcm_size = tcm_bank_num * (32768 >> 10U);
-    /* get bit '1' position */
-    while (total_tcm_size)
-      {
-        if ((total_tcm_size & 1U) == 0U)
-          {
-            tcm_size_config++;
-          }
-        else
-          {
-            break;
-          }
-        total_tcm_size >>= 1U;
-      }
+  /* if bank number is a odd value, use a new bank number which bigger
+   * than target
+   */
 
-    return tcm_size_config + 1U;
+  do
+    {
+      if ((tcm_bank_num & (tcm_bank_num - 1U)) == 0U)
+        {
+          break;
+        }
+    }
+  while (++tcm_bank_num < 16);
+
+  total_tcm_size = tcm_bank_num * (32768 >> 10U);
+
+  /* get bit '1' position */
+
+  while (total_tcm_size)
+    {
+      if ((total_tcm_size & 1U) == 0U)
+        {
+          tcm_size_config++;
+        }
+      else
+        {
+          break;
+        }
+
+      total_tcm_size >>= 1U;
+    }
+
+  return tcm_size_config + 1U;
 }
 
 static void set_tcm_size(uint8_t itcm_bank_num, uint8_t dtcm_bank_num)
 {
-    uint32_t regval;
+  uint32_t regval;
 
-    /* dtcm configuration */
-    if (dtcm_bank_num != 0U)
-      {
-        regval = getreg32(IMXRT_IOMUXC_GPR_GPR14);
-        regval &= ~GPR_GPR14_CM7_CFGDTCMSZ_MASK;
-        putreg32(regval | 
-          map_tcm_size(dtcm_bank_num) << GPR_GPR14_CM7_CFGDTCMSZ_SHIFT,
-          IMXRT_IOMUXC_GPR_GPR14);
-        regval = getreg32(IMXRT_IOMUXC_GPR_GPR16);
-        putreg32(regval | GPR_GPR16_INIT_DTCM_EN, IMXRT_IOMUXC_GPR_GPR16);
-      }
-    else
-      {
-        regval = getreg32(IMXRT_IOMUXC_GPR_GPR16);
-        putreg32(regval & ~GPR_GPR16_INIT_DTCM_EN, IMXRT_IOMUXC_GPR_GPR16);
-      }
+  /* dtcm configuration */
 
-    /* itcm configuration */
-    if (itcm_bank_num != 0U)
-      {
-        regval = getreg32(IMXRT_IOMUXC_GPR_GPR14);
-        regval &= ~GPR_GPR14_CM7_CFGITCMSZ_MASK;
-        putreg32(regval |
-          map_tcm_size(itcm_bank_num) << GPR_GPR14_CM7_CFGITCMSZ_SHIFT,
-          IMXRT_IOMUXC_GPR_GPR14);
-        regval = getreg32(IMXRT_IOMUXC_GPR_GPR16);
-        putreg32(regval | GPR_GPR16_INIT_ITCM_EN, IMXRT_IOMUXC_GPR_GPR16);
-      }
-    else
-      {
-        regval = getreg32(IMXRT_IOMUXC_GPR_GPR16);
-        putreg32(regval & ~GPR_GPR16_INIT_ITCM_EN, IMXRT_IOMUXC_GPR_GPR16);
-      }
+  if (dtcm_bank_num != 0U)
+    {
+      regval = getreg32(IMXRT_IOMUXC_GPR_GPR14);
+      regval &= ~GPR_GPR14_CM7_CFGDTCMSZ_MASK;
+      putreg32(regval |
+        map_tcm_size(dtcm_bank_num) << GPR_GPR14_CM7_CFGDTCMSZ_SHIFT,
+        IMXRT_IOMUXC_GPR_GPR14);
+      regval = getreg32(IMXRT_IOMUXC_GPR_GPR16);
+      putreg32(regval | GPR_GPR16_INIT_DTCM_EN, IMXRT_IOMUXC_GPR_GPR16);
+    }
+  else
+    {
+      regval = getreg32(IMXRT_IOMUXC_GPR_GPR16);
+      putreg32(regval & ~GPR_GPR16_INIT_DTCM_EN, IMXRT_IOMUXC_GPR_GPR16);
+    }
+
+  /* itcm configuration */
+
+  if (itcm_bank_num != 0U)
+    {
+      regval = getreg32(IMXRT_IOMUXC_GPR_GPR14);
+      regval &= ~GPR_GPR14_CM7_CFGITCMSZ_MASK;
+      putreg32(regval |
+        map_tcm_size(itcm_bank_num) << GPR_GPR14_CM7_CFGITCMSZ_SHIFT,
+        IMXRT_IOMUXC_GPR_GPR14);
+      regval = getreg32(IMXRT_IOMUXC_GPR_GPR16);
+      putreg32(regval | GPR_GPR16_INIT_ITCM_EN, IMXRT_IOMUXC_GPR_GPR16);
+    }
+  else
+    {
+      regval = getreg32(IMXRT_IOMUXC_GPR_GPR16);
+      putreg32(regval & ~GPR_GPR16_INIT_ITCM_EN, IMXRT_IOMUXC_GPR_GPR16);
+    }
 }
 
 /****************************************************************************
@@ -160,7 +168,8 @@ void imxrt_ocram_initialize(void)
   uint8_t dtcm_bank_num;
   uint8_t itcm_bank_num;
   uint8_t ocram_bank_num;
-  uint32_t bank_cfg, i;
+  uint32_t bank_cfg;
+  uint32_t i;
 #ifdef CONFIG_BOOT_RUNFROMISRAM
   const uint32_t *src;
   uint32_t *dest;
@@ -168,37 +177,39 @@ void imxrt_ocram_initialize(void)
 
   dtcm_bank_num = (CONFIG_IMXRT_DTCM / 32);
   itcm_bank_num = (CONFIG_IMXRT_ITCM / 32);
-  ocram_bank_num = ((512-CONFIG_IMXRT_DTCM-CONFIG_IMXRT_ITCM) / 32);
-  bank_cfg = 0U; 
+  ocram_bank_num = ((512 - CONFIG_IMXRT_DTCM - CONFIG_IMXRT_ITCM) / 32);
+  bank_cfg = 0U;
 
   /* check the arguments */
+
   if (16 < (dtcm_bank_num + itcm_bank_num + ocram_bank_num))
     {
       return;
     }
-  
+
   /* flexram bank config value */
+
   for (i = 0U; i < 16; i++)
     {
       if (i < ocram_bank_num)
-      {
+        {
           bank_cfg |= ((uint32_t)1U) << (i * 2);
           continue;
-      }
+        }
 
       if (i < (dtcm_bank_num + ocram_bank_num))
-      {
+        {
           bank_cfg |= ((uint32_t)2U) << (i * 2);
           continue;
-      }
+        }
 
       if (i < (dtcm_bank_num + ocram_bank_num + itcm_bank_num))
-      {
+        {
           bank_cfg |= ((uint32_t)3U) << (i * 2);
           continue;
-      }
+        }
     }
-  
+
   putreg32(bank_cfg, IMXRT_IOMUXC_GPR_GPR17);
   set_tcm_size(itcm_bank_num, dtcm_bank_num);
   regval = getreg32(IMXRT_IOMUXC_GPR_GPR16);
@@ -214,7 +225,6 @@ void imxrt_ocram_initialize(void)
     }
 #endif
 }
-
 
 /****************************************************************************
  * Name: imxrt_boardinitialize
@@ -238,11 +248,11 @@ void imxrt_boardinitialize(void)
   imxrt_autoled_initialize();
 #endif
 
-  itcm_heap = mm_initialize("itcm", (FAR void *)&_sitcm, 
-    CONFIG_IMXRT_ITCM*1024);
+  itcm_heap = mm_initialize("itcm", (FAR void *)&_sitcm,
+    CONFIG_IMXRT_ITCM * 1024);
 
-  ocram_heap = mm_initialize("ocram2", (FAR void *)&_socram, 
-    (0x00100000 - CONFIG_IMXRT_ITCM*1024 - CONFIG_IMXRT_DTCM*1024));
+  ocram_heap = mm_initialize("ocram2", (FAR void *)&_socram,
+    (0x00100000 - CONFIG_IMXRT_ITCM * 1024 - CONFIG_IMXRT_DTCM * 1024));
 }
 
 /****************************************************************************
