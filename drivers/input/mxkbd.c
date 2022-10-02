@@ -50,8 +50,6 @@
 #define DEV_FORMAT        "/dev/kbd%c"
 #define DEV_NAMELEN       11
 
-
-
 #define KEY_PRESS         0x01
 #define KEY_PRESS_HOLD    0x02
 #define KEY_RELEASE       0x03
@@ -66,7 +64,6 @@
 #define KEY_TAB           0x05  /* Normal ASCII */
 #define KEY_NL            0x06  /* Normal ASCII */
 #define KEY_BUTTON_LAST   0x06  /* End of the button region */
-
 
 /****************************************************************************
  * Private Types
@@ -84,9 +81,11 @@ struct mxkbd_dev_s
    * driver events. The 'struct pollfd' reference for each open is also
    * retained in the f_priv field of the 'struct file'.
    */
+
   struct pollfd *fds[CONFIG_MXKBD_NPOLLWAITERS];
 
   /* Buffer used to collect and buffer incoming keyboard characters */
+
   uint16_t  headndx;      /* Buffer head index */
   uint16_t  tailndx;      /* Buffer tail index */
   uint8_t   kbdbuffer[CONFIG_MXKBD_BUFSIZE];
@@ -107,7 +106,6 @@ static ssize_t mxkbd_write(FAR struct file *filep,
                              FAR const char *buffer, size_t len);
 static int  mxkbd_poll(FAR struct file *filep, FAR struct pollfd *fds,
                          bool setup);
-
 
 #ifdef CONFIG_IOEXPANDER_INT_ENABLE
 static int mxkbd_interrupt_handler(FAR struct ioexpander_dev_s *ioe,
@@ -135,7 +133,6 @@ static const struct file_operations g_hidkbd_fops =
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
-
 
 /****************************************************************************
  * Name: mxkbd_pollnotify
@@ -452,11 +449,11 @@ static void mxkbd_putbuffer(FAR struct mxkbd_dev_s *priv,
   priv->headndx = head;
 }
 #endif
+
 /****************************************************************************
  * Name: mxkbd_interrupt_handler
  *
  * Description:
- *   
  *
  ****************************************************************************/
 
@@ -467,7 +464,6 @@ static int mxkbd_interrupt_handler(FAR struct ioexpander_dev_s *ioe,
   return OK;
 }
 #endif
-
 
 /****************************************************************************
  * Public Functions
@@ -527,7 +523,8 @@ int mxkbd_register(FAR struct ioexpander_dev_s *dev, char kbdminor)
   nxsem_set_protocol(&priv->waitsem, SEM_PRIO_NONE);
 
   /* Listen on COL0 ÷ COL7 */
-  IOEP_ATTACH(priv->dev, 0xFF00, mxkbd_interrupt_handler, priv);
+
+  IOEP_ATTACH(priv->dev, 0xff00, mxkbd_interrupt_handler, priv);
 
   IOEXP_SETDIRECTION(priv->dev, 0, IOEXPANDER_DIRECTION_OUT);
   IOEXP_SETDIRECTION(priv->dev, 1, IOEXPANDER_DIRECTION_OUT);
@@ -555,6 +552,7 @@ int mxkbd_register(FAR struct ioexpander_dev_s *dev, char kbdminor)
       ierr("ERROR: Failed to register driver\n");
       goto errout_with_priv;
     }
+
   return OK;
 
 errout_with_priv:
