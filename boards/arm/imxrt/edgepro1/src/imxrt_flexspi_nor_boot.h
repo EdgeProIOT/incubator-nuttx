@@ -92,7 +92,7 @@
 
 /* Located in Destination Memory */
 
-#define IMAGE_ENTRY_ADDRESS        ((uint32_t)&_vectors)
+#define IMAGE_ENTRY_ADDRESS        ((uint32_t)_vectors)
 #define IMAG_VECTOR_TABLE           LOCATE_IN_DEST(&g_image_vector_table)
 
 /****************************************************************************
@@ -157,7 +157,5 @@ struct boot_data_s
  ****************************************************************************/
 
 extern const struct boot_data_s g_boot_data;
-
-extern  const uint32_t  _vectors[];
 
 #endif /* __BOARDS_ARM__IMXRT_EDGEPRO1_FLEXSPI_NOR_BOOT_H */
