@@ -81,8 +81,130 @@ struct esp_private
   uint8_t                 if_num;
 };
 
+typedef struct
+{
+  volatile int counter;
+} atomic_t;
+
+/* stdio.h Wrapper End */
+
+static int uxcriticalnesting = 0;
+
+/* Critical Operation Start */
+
+inline void save_and_cli(void)
+{
+  enter_critical_section();
+  uxcriticalnesting++;
+}
+
+inline void restore_flags(void)
+{
+  ASSERT(uxcriticalnesting);
+  uxcriticalnesting--;
+  if (uxcriticalnesting == 0)
+    {
+      leave_critical_section(0);
+    }
+}
+
+inline void atomic_set(atomic_t *v, int i)
+{
+  v->counter = i;
+}
+
+inline int atomic_read(atomic_t *v)
+{
+  return v->counter;
+}
+
+inline void atomic_add(atomic_t *v, int i)
+{
+  save_and_cli();
+  v->counter += i;
+  restore_flags();
+}
+
+inline void atomic_sub(atomic_t *v, int i)
+{
+  save_and_cli();
+  v->counter -= i;
+  restore_flags();
+}
+
+inline void atomic_inc(atomic_t *v)
+{
+  atomic_add(v, 1);
+}
+
+inline void atomic_dec(atomic_t *v)
+{
+  atomic_sub(v, 1);
+}
+
+inline int atomic_add_return(atomic_t *v, int i)
+{
+  int temp;
+  save_and_cli();
+  temp = v->counter;
+  temp += i;
+  v->counter = temp;
+  restore_flags();
+  return temp;
+}
+
+inline int atomic_sub_return(atomic_t *v, int i)
+{
+  int temp;
+  save_and_cli();
+  temp = v->counter;
+  temp -= i;
+  v->counter = temp;
+  restore_flags();
+  return temp;
+}
+
+inline int atomic_inc_return(atomic_t *v)
+{
+  return atomic_add_return(v, 1);
+}
+
+inline int atomic_dec_return(atomic_t *v)
+{
+  return atomic_sub_return(v, 1);
+}
+
+inline int atomic_dec_and_test(atomic_t *v)
+{
+  return atomic_dec_return(v) == 0;
+}
+
 struct esp_skb_cb
 {
   struct esp_private      *priv;
 };
+
+struct sk_buff_head
+{
+  struct list_head        *next;
+  struct list_head        *prev;
+  unsigned int            qlen;
+};
+
+struct sk_buff
+{
+  struct sk_buff          *next;
+  struct sk_buff          *prev;
+  struct sk_buff_head     *list;
+  unsigned char           *head;
+  unsigned char           *data;
+  unsigned char           *tail;
+  unsigned char           *end;
+  void                    *dev;
+  unsigned int            len;
+  int                     dyalloc_flag;
+};
+
+unsigned char *skb_put(struct sk_buff *skb, unsigned int len);
+unsigned char *skb_pull(struct sk_buff *skb, unsigned int len);
 #endif

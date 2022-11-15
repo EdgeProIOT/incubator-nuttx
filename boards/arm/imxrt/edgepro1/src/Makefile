@@ -56,4 +56,8 @@ ifeq ($(CONFIG_INPUT_MXKBD),y)
 CSRCS += imxrt_mxkbd.c
 endif
 
+ifeq ($(CONFIG_IEEE80211_ESP_HOSTED_FG),y)
+CSRCS += imxrt_esp_hosted_fg.c
+endif
+
 include $(TOPDIR)/boards/Board.mk
