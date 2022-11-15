@@ -130,7 +130,6 @@ int imxrt_bringup(void)
 #if defined(CONFIG_SPI_DRIVER) && (defined(CONFIG_IMXRT_LPSPI4) || \
     defined(CONFIG_IMXRT_LPSPI1))
   imxrt_spidev_initialize();
-  imxrt_spi_register(1);
   imxrt_spi_register(4);
 #endif
 

@@ -26,14 +26,14 @@ int esp_add_card(struct esp_adapter *adapter);
 int esp_remove_card(struct esp_adapter *adapter);
 void esp_process_new_packet_intr(struct esp_adapter *adapter);
 struct esp_adapter * esp_get_adapter(void);
-struct sk_buff * esp_alloc_skb(u32 len);
+struct sk_buff * esp_alloc_skb(uint32_t len);
 int esp_send_packet(struct esp_adapter *adapter, struct sk_buff *skb);
-u8 esp_is_bt_supported_over_sdio(u32 cap);
+uint8_t esp_is_bt_supported_over_sdio(uint32_t cap);
 int esp_is_tx_queue_paused(void);
 void esp_tx_pause(void);
 void esp_tx_resume(void);
-int process_init_event(u8 *evt_buf, u8 len);
-void process_capabilities(u8 cap);
-void process_test_capabilities(u8 cap);
+int process_init_event(uint8_t *evt_buf, uint8_t len);
+void process_capabilities(uint8_t cap);
+void process_test_capabilities(uint8_t cap);
 
 #endif
