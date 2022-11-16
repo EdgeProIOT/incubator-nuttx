@@ -1,35 +1,38 @@
-/*
- * Espressif Systems Wireless LAN device driver
+/****************************************************************************
+ * drivers/wireless/ieee80211/esp_hosted_fg/esp_if.h
  *
- * Copyright (C) 2015-2021 Espressif Systems (Shanghai) PTE LTD
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.  The
+ * ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
  *
- * This software file (the "File") is distributed by Espressif Systems (Shanghai)
- * PTE LTD under the terms of the GNU General Public License Version 2, June 1991
- * (the "License").  You may use, redistribute and/or modify this File in
- * accordance with the terms and conditions of the License, a copy of which
- * is available by writing to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
- * worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
- * ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
- * this warranty disclaimer.
- */
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ *
+ ****************************************************************************/
 
 #ifndef __ESP_IF__H_
 #define __ESP_IF__H_
 
 #include "esp.h"
 
-struct esp_if_ops {
+struct esp_if_ops
+{
   int (*init)(struct esp_adapter *adapter);
   struct sk_buff* (*read)(struct esp_adapter *adapter);
   int (*write)(struct esp_adapter *adapter, struct sk_buff *skb);
   int (*deinit)(struct esp_adapter *adapter);
 };
 
-int esp_init_interface_layer(struct esp_adapter *adapter);
+int esp_init_interface_layer(struct spi_dev_s *spi,
+                             struct esp_adapter *adapter);
 void esp_deinit_interface_layer(void);
 
 #endif

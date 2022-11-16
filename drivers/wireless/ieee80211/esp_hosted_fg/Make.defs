@@ -20,4 +20,13 @@
 
 # Include esp_hosted_fg drivers into the build
 
+ifeq ($(CONFIG_IEEE80211_ESP_HOSTED_FG),y)
+  CSRCS += main.c
+  CSRCS += esp_spi.c
+# Include BCM43xxx build support
 
+DEPPATH += --dep-path wireless$(DELIM)ieee80211$(DELIM)esp_hosted_fg
+VPATH += :wireless$(DELIM)ieee80211$(DELIM)esp_hosted_fg
+CFLAGS += ${shell $(INCDIR) "$(CC)" $(TOPDIR)$(DELIM)drivers$(DELIM)wireless$(DELIM)ieee80211$(DELIM)esp_hosted_fg}
+
+endif # CONFIG_IEEE80211_ESP_HOSTED_FG

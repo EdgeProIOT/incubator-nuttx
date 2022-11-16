@@ -1,5 +1,22 @@
-// Copyright 2015-2021 Espressif Systems (Shanghai) PTE LTD
-/* SPDX-License-Identifier: GPL-2.0 OR Apache-2.0 */
+/****************************************************************************
+ * drivers/wireless/ieee80211/esp_hosted_fg/adapter.h
+ *
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.  The
+ * ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ *
+ ****************************************************************************/
 
 #ifndef __ESP_NETWORK_ADAPTER__H
 #define __ESP_NETWORK_ADAPTER__H
@@ -10,13 +27,16 @@
 #define MAX_PRIORITY_QUEUES                       3
 
 /* ESP Payload Header Flags */
+
 #define MORE_FRAGMENT                             (1 << 0)
 
 /* Serial interface */
+
 #define SERIAL_IF_FILE                            "/dev/esps0"
 
 /* Protobuf related info */
 /* Endpoints registered must have same string length */
+
 #define CTRL_EP_NAME_RESP                         "ctrlResp"
 #define CTRL_EP_NAME_EVENT                        "ctrlEvnt"
 
@@ -30,14 +50,18 @@ struct esp_payload_header
   uint16_t       checksum;
   uint16_t       seq_num;
   uint8_t        reserved2;
+
   /* Position of union field has to always be last,
   * this is required for hci_pkt_type */
+
   union {
     uint8_t      reserved3;
     uint8_t      hci_pkt_type;  /* Packet type for HCI interface */
     uint8_t      priv_pkt_type; /* Packet type for priv interface */
   };
+
   /* Do no add anything here */
+
 } __attribute__((packed));
 
 typedef enum
@@ -82,7 +106,8 @@ typedef enum
   ESP_PACKET_TYPE_EVENT,
 } ESP_PRIV_PACKET_TYPE;
 
-typedef enum {
+typedef enum
+{
   ESP_PRIV_EVENT_INIT,
 } ESP_PRIV_EVENT_TYPE;
 
@@ -99,7 +124,7 @@ struct esp_priv_event
   uint8_t      event_type;
   uint8_t      event_len;
   uint8_t      event_data[0];
-}__attribute__((packed));
+} __attribute__((packed));
 
 
 static inline uint16_t compute_checksum(uint8_t *buf, uint16_t len)

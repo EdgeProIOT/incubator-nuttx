@@ -1,31 +1,32 @@
-/*
- * Copyright (C) 2015-2021 Espressif Systems (Shanghai) PTE LTD
+/****************************************************************************
+ * drivers/wireless/ieee80211/esp_hosted_fg/esp_spi.h
  *
- * This software file (the "File") is distributed by Espressif Systems (Shanghai)
- * PTE LTD under the terms of the GNU General Public License Version 2, June 1991
- * (the "License").  You may use, redistribute and/or modify this File in
- * accordance with the terms and conditions of the License, a copy of which
- * is available by writing to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
- * worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.  The
+ * ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
  *
- * THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
- * ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
- * this warranty disclaimer.
- */
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ *
+ ****************************************************************************/
+
 #ifndef _ESP_SPI_H_
 #define _ESP_SPI_H_
 
 #include "esp.h"
 
-#define HANDSHAKE_PIN           22
-#define SPI_IRQ                 gpio_to_irq(HANDSHAKE_PIN)
-#define SPI_DATA_READY_PIN      27
-#define SPI_DATA_READY_IRQ      gpio_to_irq(SPI_DATA_READY_PIN)
 #define SPI_BUF_SIZE            1600
 
-struct esp_spi_context {
+struct esp_spi_context
+{
   struct esp_adapter            *adapter;
   struct spi_dev_s              *esp_spi_dev;
   struct sk_buff_head           tx_q[MAX_PRIORITY_QUEUES];

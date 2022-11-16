@@ -1,21 +1,22 @@
-/*
- * Espressif Systems Wireless LAN device driver
+/****************************************************************************
+ * drivers/wireless/ieee80211/esp_hosted_fg/esp.h
  *
- * Copyright (C) 2015-2021 Espressif Systems (Shanghai) PTE LTD
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.  The
+ * ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
  *
- * This software file (the "File") is distributed by Espressif Systems (Shanghai)
- * PTE LTD under the terms of the GNU General Public License Version 2, June 1991
- * (the "License").  You may use, redistribute and/or modify this File in
- * accordance with the terms and conditions of the License, a copy of which
- * is available by writing to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
- * worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
- * ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
- * this warranty disclaimer.
- */
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ *
+ ****************************************************************************/
 
 #ifndef __esp__h_
 #define __esp__h_
@@ -37,6 +38,7 @@
 #define ESP_MAX_INTERFACE       2
 
 #define ESP_PAYLOAD_HEADER      8
+
 struct esp_private;
 struct esp_adapter;
 
@@ -45,6 +47,20 @@ struct esp_adapter;
 
 #define SKB_DATA_ADDR_ALIGNMENT 4
 #define INTERFACE_HEADER_PADDING (SKB_DATA_ADDR_ALIGNMENT*3)
+
+enum esp_irq
+{
+  ESP_IRQ_HANDSHAKE = 0,
+  ESP_IRQ_DATA_READY
+};
+
+struct esp_hosted_fg_lower_s
+{
+  int  (*attach)(int irq, xcpt_t handler, FAR void *arg);
+  void (*enable)(int irq);
+  void (*disable)(int irq);
+  void (*reset)(bool);
+};
 
 struct esp_adapter
 {
@@ -67,6 +83,8 @@ struct esp_adapter
   /* Process TX work */
   struct work_s           *tx_workqueue;
   worker_t                 tx_work;
+
+  struct esp_hosted_fg_lower_s *lower;
 };
 
 
@@ -74,7 +92,6 @@ struct esp_private
 {
   struct esp_adapter      *adapter;
   struct net_driver_s     *ndev;
-  //struct net_device_stats stats;
   uint8_t                 link_state;
   uint8_t                 mac_address[6];
   uint8_t                 if_type;
@@ -207,4 +224,7 @@ struct sk_buff
 
 unsigned char *skb_put(struct sk_buff *skb, unsigned int len);
 unsigned char *skb_pull(struct sk_buff *skb, unsigned int len);
+
+FAR int esp_hosted_fg_register(FAR struct spi_dev_s *dev,
+                        FAR const struct esp_hosted_fg_lower_s *lower);
 #endif

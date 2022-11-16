@@ -127,8 +127,7 @@ int imxrt_bringup(void)
   imxrt_i2c_register(3);
 #endif
 
-#if defined(CONFIG_SPI_DRIVER) && (defined(CONFIG_IMXRT_LPSPI4) || \
-    defined(CONFIG_IMXRT_LPSPI1))
+#if defined(CONFIG_SPI_DRIVER) && (defined(CONFIG_IMXRT_LPSPI4)
   imxrt_spidev_initialize();
   imxrt_spi_register(4);
 #endif
@@ -162,6 +161,15 @@ int imxrt_bringup(void)
               "ERROR: imxrt_flexspi_nor_initialize failed: %d\n", ret);
     }
 #endif /* CONFIG_IMXRT_FLEXSPI */
+
+#ifdef CONFIG_IEEE80211_ESP_HOSTED_FG
+  ret = board_esp_hosted_fg_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR,
+              "ERROR: Failed to initialize esp_hosted_fg.\n");
+    }
+#endif
 
 #ifdef CONFIG_RGBLED
   /* Configure and initialize the RGB LED. */
