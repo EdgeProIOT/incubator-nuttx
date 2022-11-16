@@ -22,19 +22,17 @@
  * Included Files
  ****************************************************************************/
 
+#include <stdio.h>
+#include <stdbool.h>
+#include <assert.h>
 #include <debug.h>
-#include <inttypes.h>
-
+#include <errno.h>
 #include <nuttx/arch.h>
 #include <nuttx/config.h>
 #include <nuttx/board.h>
 #include <nuttx/spi/spi.h>
 #include <nuttx/irq.h>
 #include <nuttx/wireless/esp.h>
-
-#include <arch/chip/pin.h>
-
-#include "arm_internal.h"
 
 #include "imxrt_config.h"
 #include "imxrt_lpspi.h"
@@ -46,9 +44,9 @@
  * Private Function Prototypes
  ****************************************************************************/
 
-static int  esp_hosted_fg_irq_attach(xcpt_t, void *);
-static void esp_hosted_fg_irq_enable(void);
-static void esp_hosted_fg_irq_disable(void);
+static int  esp_hosted_fg_irq_attach(int, xcpt_t, void *);
+static void esp_hosted_fg_irq_enable(int);
+static void esp_hosted_fg_irq_disable(int);
 static void esp_hosted_fg_reset(bool);
 
 /****************************************************************************
@@ -63,104 +61,101 @@ static const struct esp_hosted_fg_lower_s g_esp_hosted_fg_lower =
   .reset   = esp_hosted_fg_reset
 };
 
-static void *g_devhandle = NULL;
-static volatile int32_t  _enable_count = 0;
-
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
 
-/****************************************************************************
- * Name: gesp_hosted_fg_irq_attach
- ****************************************************************************/
-
-static int esp_hosted_fg_irq_attach(xcpt_t handler, void *arg)
+static int esp_hosted_fg_irq_attach(int irq, xcpt_t handler, void *arg)
 {
-  
+  switch (irq)
+    {
+    case ESP_IRQ_HANDSHAKE:
+      imxrt_config_gpio(GPIO_HANDSHAKE_INT);
+      irq_attach(GPIO_HANDSHAKE_IRQ, handler, arg);
+      break;
+    case ESP_IRQ_DATA_READY:
+      imxrt_config_gpio(GPIO_DATAREADY_INT);
+      irq_attach(GPIO_DATAREADY_IRQ, handler, arg);
+      break;
+    default:
+      break;
+    }
+
   return 0;
 }
 
-/****************************************************************************
- * Name: gesp_hosted_fg_irq_enable
- ****************************************************************************/
-
-static void esp_hosted_fg_irq_enable(void)
+static void esp_hosted_fg_irq_enable(int irq)
 {
   irqstate_t flags = enter_critical_section();
 
-  if (0 == _enable_count)
+  switch (irq)
     {
-      
-    }
-
-  _enable_count++;
-
-  leave_critical_section(flags);
-}
-
-/****************************************************************************
- * Name: esp_hosted_fg_irq_disable
- ****************************************************************************/
-
-static void esp_hosted_fg_irq_disable(void)
-{
-  irqstate_t flags = enter_critical_section();
-
-  _enable_count--;
-
-  if (0 == _enable_count)
-    {
-      
+    case ESP_IRQ_HANDSHAKE:
+      up_enable_irq(GPIO_HANDSHAKE_IRQ);
+      break;
+    case ESP_IRQ_DATA_READY:
+      up_enable_irq(GPIO_DATAREADY_IRQ);
+      break;
+    default:
+      break;
     }
 
   leave_critical_section(flags);
 }
 
+static void esp_hosted_fg_irq_disable(int irq)
+{
+  irqstate_t flags = enter_critical_section();
 
-/****************************************************************************
- * Name: esp_hosted_fg_reset
- ****************************************************************************/
+  switch (irq)
+    {
+    case ESP_IRQ_HANDSHAKE:
+      up_disable_irq(GPIO_HANDSHAKE_IRQ);
+      break;
+    case ESP_IRQ_DATA_READY:
+      up_disable_irq(GPIO_DATAREADY_IRQ);
+      break;
+    default:
+      break;
+    }
+
+  leave_critical_section(flags);
+}
 
 static void esp_hosted_fg_reset(bool reset)
 {
-  cxd56_gpio_write(GPIO_NINA_NRST, !reset);
+  imxrt_gpio_write(GPIO_NINA_NRST, !reset);
 }
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
 
-/****************************************************************************
- * Name: board_esp_hosted_fg_initialize
- ****************************************************************************/
-
-int board_esp_hosted_fg_initialize(const char *devpath, int bus)
+int board_esp_hosted_fg_initialize(void)
 {
   struct spi_dev_s *spi;
+  int ret;
 
   wlinfo("Initializing esp_hosted_fg\n");
 
-  if (!g_devhandle)
+  imxrt_config_gpio(GPIO_NINA_NRST);
+  imxrt_config_gpio(GPIO_NINA_BOOT);
+  imxrt_config_gpio(GPIO_NINA_GPIO);
+
+  /* Initialize spi device */
+  
+  spi = imxrt_lpspibus_initialize(1);
+  if (spi == NULL)
     {
-      imxrt_config_gpio(GPIO_NINA_NRST);
-      imxrt_config_gpio(GPIO_NINA_BOOT);
-      imxrt_config_gpio(GPIO_NINA_GPIO);
+      serr("ERROR: Failed to initialize spi%d\n", bus);
+    }
 
-      /* Initialize spi device */
-      
-      spi = imxrt_lpspibus_initialize(bus);
-      if (spi == NULL)
-        {
-          serr("ERROR: Failed to initialize spi%d\n", bus);
-        }
+  ret = esp_hosted_fg_register(spi, &g_esp_hosted_fg_lower);
 
-      g_devhandle = esp_hosted_fg_register(devpath, spi, &g_esp_hosted_fg_lower);
-
-      if (!g_devhandle)
-        {
-          wlerr("ERROR: Failed to register esp_hosted_fg driver.\n");
-          return -ENODEV;
-        }
+  if (!ret)
+    {
+      wlerr("ERROR: Failed to register esp_hosted_fg driver.\n");
+      return -ENODEV;
     }
 
   return OK;
