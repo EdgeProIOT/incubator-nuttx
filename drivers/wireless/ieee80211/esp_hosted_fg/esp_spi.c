@@ -328,16 +328,16 @@ static int process_rx_buf(struct sk_buff *skb)
 
 static void esp_spi_work(void *arg)
 {
-  struct spi_transfer trans;
-  struct sk_buff *tx_skb = NULL, *rx_skb = NULL;
+  uint8_t *tx_buf;
   uint8_t *rx_buf;
+  struct sk_buff *tx_skb = NULL, *rx_skb = NULL;
   int ret = 0;
   volatile int trans_ready, rx_pending;
 
   nxmutex_lock(&spi_lock);
 
-  trans_ready = gpio_get_value(HANDSHAKE_PIN);
-  rx_pending = gpio_get_value(SPI_DATA_READY_PIN);
+  trans_ready = spi_context.adapter->lower->read(ESP_IRQ_HANDSHAKE);
+  rx_pending = spi_context.adapter->lower->read(ESP_IRQ_DATA_READY);
 
   if (trans_ready)
     {
@@ -370,8 +370,6 @@ static void esp_spi_work(void *arg)
 
       if (rx_pending || tx_skb)
         {
-          memset(&trans, 0, sizeof(trans));
-
           /* Setup and execute SPI transaction
            *   Tx_buf: Check if tx_q has valid buffer for transmission,
            *     else keep it blank
@@ -385,13 +383,13 @@ static void esp_spi_work(void *arg)
 
           if (tx_skb)
             {
-              trans.tx_buf = tx_skb->data;
+              tx_buf = tx_skb->data;
             } 
             else
             {
               tx_skb = esp_alloc_skb(SPI_BUF_SIZE);
-              trans.tx_buf = skb_put(tx_skb, SPI_BUF_SIZE);
-              memset((void*)trans.tx_buf, 0, SPI_BUF_SIZE);
+              tx_buf = skb_put(tx_skb, SPI_BUF_SIZE);
+              memset((void*)tx_buf, 0, SPI_BUF_SIZE);
             }
 
           /* Configure RX buffer */
@@ -401,34 +399,19 @@ static void esp_spi_work(void *arg)
 
           memset(rx_buf, 0, SPI_BUF_SIZE);
 
-          trans.rx_buf = rx_buf;
-          trans.len = SPI_BUF_SIZE;
+          SPI_SELECT(spi_context.esp_spi_dev, SPIDEV_WIRELESS(0), TRUE);
+          SPI_EXCHANGE(spi_context.esp_spi_dev, reg, val, 2);
+          SPI_SELECT(spi_context.esp_spi_dev, SPIDEV_WIRELESS(0), FALSE);
 
-          if (hardware_type == ESP_PRIV_FIRMWARE_CHIP_ESP32)
+          /* Free rx_skb if received data is not valid */
+          if (process_rx_buf(rx_skb))
             {
-              trans.cs_change = 1;
-            }           
-
-          ret = spi_sync_transfer(spi_context.esp_spi_dev, &trans, 1);
-          if (ret)
-            {
-              wlerr("SPI Transaction failed: %d", ret);
               dev_kfree_skb(rx_skb);
-              dev_kfree_skb(tx_skb);
             }
-          else
+
+          if (tx_skb)
             {
-
-              /* Free rx_skb if received data is not valid */
-              if (process_rx_buf(rx_skb))
-                {
-                  dev_kfree_skb(rx_skb);
-                }
-
-              if (tx_skb)
-                {
-                  dev_kfree_skb(tx_skb);
-                }
+              dev_kfree_skb(tx_skb);
             }
         }
     }
