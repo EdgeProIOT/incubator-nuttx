@@ -56,7 +56,6 @@ volatile uint8_t stop_data = 0;
 
 #define ACTION_DROP 1
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0))
 /**
  * ether_addr_copy - Copy an Ethernet address
  * @dst: Pointer to a six-byte array Ethernet address destination
@@ -78,7 +77,6 @@ static inline void ether_addr_copy(uint8_t *dst, const uint8_t *src)
   a[2] = b[2];
 #endif
 }
-#endif
 
 static int esp_open(struct net_device *ndev);
 static int esp_stop(struct net_device *ndev);
@@ -457,11 +455,7 @@ static void process_rx_packet(struct sk_buff *skb)
       hci_skb_pkt_type(skb) = *type;
       skb_pull(skb, 1);
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0))
       if (hci_recv_frame(hdev, skb)) {
-#else
-      if (hci_recv_frame(skb)) {
-#endif
         hdev->stat.err_rx++;
       } else {
         esp_hci_update_rx_counter(hdev, *type, skb->len);
@@ -631,13 +625,8 @@ static int esp_add_interface(struct esp_adapter *adapter, uint8_t if_type, uint8
   struct esp_private *priv = NULL;
   int ret = 0;
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0))
   ndev = alloc_netdev_mqs(sizeof(struct esp_private), name,
       NET_NAME_ENUM, ether_setup, 1, 1);
-#else
-  ndev = alloc_netdev_mqs(sizeof(struct esp_private), name,
-      ether_setup, 1, 1);
-#endif
 
   if (!ndev) {
     wlerr( "%s: alloc failed\n", __func__);

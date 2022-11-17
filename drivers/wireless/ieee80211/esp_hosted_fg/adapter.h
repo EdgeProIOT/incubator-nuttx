@@ -97,12 +97,6 @@ typedef enum
 
 typedef enum
 {
-  ESP_TEST_RAW_TP = (1 << 0),
-  ESP_TEST_RAW_TP__ESP_TO_HOST = (1 << 1)
-} ESP_RAW_TP_MEASUREMENT;
-
-typedef enum
-{
   ESP_PACKET_TYPE_EVENT,
 } ESP_PRIV_PACKET_TYPE;
 
@@ -115,8 +109,7 @@ typedef enum
 {
   ESP_PRIV_CAPABILITY,
   ESP_PRIV_SPI_CLK_MHZ,
-  ESP_PRIV_FIRMWARE_CHIP_ID,
-  ESP_PRIV_TEST_RAW_TP
+  ESP_PRIV_FIRMWARE_CHIP_ID
 } ESP_PRIV_TAG_TYPE;
 
 struct esp_priv_event
