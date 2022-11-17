@@ -233,10 +233,6 @@ int process_init_event(uint8_t *evt_buf, uint8_t len)
         {
           hardware_type = *(pos+2);
         }
-      else if (*pos == ESP_PRIV_TEST_RAW_TP)
-        {
-          process_test_capabilities(*(pos + 2));
-        }
       else
         {
           wlwarn("Unsupported tag in event");
@@ -277,7 +273,7 @@ static int process_rx_buf(struct sk_buff *skb)
       return -EINVAL;
     }
 
-  offset = le16_to_cpu(header->offset);
+  offset = header->offset;
 
   /* Validate received SKB. Check len and offset fields */
   
@@ -286,7 +282,7 @@ static int process_rx_buf(struct sk_buff *skb)
       return -EINVAL;
     }
 
-  len = le16_to_cpu(header->len);
+  len = header->len;
   if (!len)
     {
       return -EINVAL;
@@ -398,21 +394,20 @@ static void esp_spi_work(void *arg)
               memset((void*)trans.tx_buf, 0, SPI_BUF_SIZE);
             }
 
-            /* Configure RX buffer */
-            rx_skb = esp_alloc_skb(SPI_BUF_SIZE);
-            rx_buf = skb_put(rx_skb, SPI_BUF_SIZE);
+          /* Configure RX buffer */
 
-            memset(rx_buf, 0, SPI_BUF_SIZE);
+          rx_skb = esp_alloc_skb(SPI_BUF_SIZE);
+          rx_buf = skb_put(rx_skb, SPI_BUF_SIZE);
 
-            trans.rx_buf = rx_buf;
-            trans.len = SPI_BUF_SIZE;
+          memset(rx_buf, 0, SPI_BUF_SIZE);
 
-    #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 15, 0))
-            if (hardware_type == ESP_PRIV_FIRMWARE_CHIP_ESP32)
-              {
-                trans.cs_change = 1;
-              }
-    #endif
+          trans.rx_buf = rx_buf;
+          trans.len = SPI_BUF_SIZE;
+
+          if (hardware_type == ESP_PRIV_FIRMWARE_CHIP_ESP32)
+            {
+              trans.cs_change = 1;
+            }           
 
           ret = spi_sync_transfer(spi_context.esp_spi_dev, &trans, 1);
           if (ret)
