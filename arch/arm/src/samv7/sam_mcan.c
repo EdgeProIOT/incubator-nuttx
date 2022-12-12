@@ -41,6 +41,7 @@
 #include <arch/board/board.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
+#include <nuttx/mutex.h>
 #include <nuttx/semaphore.h>
 #include <nuttx/can/can.h>
 
@@ -383,7 +384,7 @@
      (MCAN0_TXEVENTFIFO_BYTES >> 2)
 
 #  define MCAN0_TXFIFIOQ_BYTES \
-     MCAN_ALIGN_UP(CONFIG_SAMV7_MCAN0_TXFIFOQ_SIZE *  \
+     MCAN_ALIGN_UP(CONFIG_SAMV7_MCAN0_TXFIFOQ_SIZE * \
                    (MCAN0_TXBUFFER_ELEMENT_SIZE + 8))
 #  define MCAN0_TXFIFIOQ_WORDS (MCAN0_TXFIFIOQ_BYTES >> 2)
 
@@ -668,7 +669,7 @@
      (MCAN1_TXEVENTFIFO_BYTES >> 2)
 
 #  define MCAN1_TXFIFIOQ_BYTES \
-     MCAN_ALIGN_UP(CONFIG_SAMV7_MCAN1_TXFIFOQ_SIZE *  \
+     MCAN_ALIGN_UP(CONFIG_SAMV7_MCAN1_TXFIFOQ_SIZE * \
                    (MCAN1_TXBUFFER_ELEMENT_SIZE + 8))
 #  define MCAN1_TXFIFIOQ_WORDS (MCAN1_TXFIFIOQ_BYTES >> 2)
 
@@ -890,7 +891,7 @@ struct sam_mcan_s
   uint8_t nextalloc;        /* Number of allocated extended filters */
 #endif
   uint8_t nstdalloc;        /* Number of allocated standard filters */
-  sem_t locksem;            /* Enforces mutually exclusive access */
+  mutex_t lock;             /* Enforces mutually exclusive access */
   sem_t txfsem;             /* Used to wait for TX FIFO availability */
   uint32_t btp;             /* Current bit timing */
   uint32_t fbtp;            /* Current fast bit timing */
@@ -924,12 +925,6 @@ static void mcan_dumpregs(struct sam_mcan_s *priv, const char *msg);
 #else
 #  define mcan_dumpregs(priv,msg)
 #endif
-
-/* Semaphore helpers */
-
-static int mcan_dev_lock(struct sam_mcan_s *priv);
-static int mcan_dev_lock_noncancelable(struct sam_mcan_s *priv);
-#define mcan_dev_unlock(priv) nxsem_post(&priv->locksem)
 
 static void mcan_buffer_reserve(struct sam_mcan_s *priv);
 static void mcan_buffer_release(struct sam_mcan_s *priv);
@@ -1011,7 +1006,7 @@ static uint32_t g_mcan0_msgram[MCAN0_MSGRAM_WORDS]
 
 /* Constant configuration */
 
-static struct sam_config_s g_mcan0const =
+static const struct sam_config_s g_mcan0const =
 {
   .rxpinset         = GPIO_MCAN0_RX,
   .txpinset         = GPIO_MCAN0_TX,
@@ -1082,8 +1077,18 @@ static struct sam_config_s g_mcan0const =
 
 /* MCAN0 variable driver state */
 
-static struct sam_mcan_s g_mcan0priv;
-static struct can_dev_s g_mcan0dev;
+static struct sam_mcan_s g_mcan0priv =
+{
+  .config           = &g_mcan1const,
+  .lock             = NXMUTEX_INITIALIZER,
+  .txfsem           = SEM_INITIALIZER(CONFIG_SAMV7_MCAN0_TXFIFOQ_SIZE),
+};
+
+static struct can_dev_s g_mcan0dev =
+{
+  .cd_ops           = &g_mcanops,
+  .cd_priv          = &g_mcan0priv,
+};
 
 #endif /* CONFIG_SAMV7_MCAN0 */
 
@@ -1099,7 +1104,7 @@ static uint32_t g_mcan1_msgram[MCAN1_MSGRAM_WORDS]
 
 /* MCAN1 constant configuration */
 
-static struct sam_config_s g_mcan1const =
+static const struct sam_config_s g_mcan1const =
 {
   .rxpinset         = GPIO_MCAN1_RX,
   .txpinset         = GPIO_MCAN1_TX,
@@ -1169,8 +1174,18 @@ static struct sam_config_s g_mcan1const =
 
 /* MCAN0 variable driver state */
 
-static struct sam_mcan_s g_mcan1priv;
-static struct can_dev_s g_mcan1dev;
+static struct sam_mcan_s g_mcan1priv =
+{
+  .config           = &g_mcan1const,
+  .lock             = NXMUTEX_INITIALIZER,
+  .txfsem           = SEM_INITIALIZER(CONFIG_SAMV7_MCAN0_TXFIFOQ_SIZE),
+};
+
+static struct can_dev_s g_mcan1dev =
+{
+  .cd_ops           = &g_mcanops,
+  .cd_priv          = &g_mcan1priv,
+};
 
 #endif /* CONFIG_SAMV7_MCAN1 */
 
@@ -1387,61 +1402,6 @@ static void mcan_dumpregs(struct sam_mcan_s *priv, const char *msg)
           getreg32(config->base + SAM_MCAN_TXEFA_OFFSET));
 }
 #endif
-
-/****************************************************************************
- * Name: mcan_dev_lock
- *
- * Description:
- *   Take the semaphore that enforces mutually exclusive access to device
- *   structures, handling any exceptional conditions
- *
- * Input Parameters:
- *   priv - A reference to the MCAN peripheral state
- *
- * Returned Value:
- *  Normally success (OK) is returned, but the error -ECANCELED may be
- *  return in the event that task has been canceled.
- *
- ****************************************************************************/
-
-static int mcan_dev_lock(struct sam_mcan_s *priv)
-{
-  return nxsem_wait_uninterruptible(&priv->locksem);
-}
-
-/****************************************************************************
- * Name: mcan_dev_lock_noncancelable
- *
- * Description:
- *   This is just a wrapper to handle the annoying behavior of semaphore
- *   waits that return due to the receipt of a signal.  This version also
- *   ignores attempts to cancel the thread.
- *
- ****************************************************************************/
-
-static int mcan_dev_lock_noncancelable(struct sam_mcan_s *priv)
-{
-  int result;
-  int ret = OK;
-
-  do
-    {
-      result = nxsem_wait_uninterruptible(&priv->locksem);
-
-      /* The only expected error is ECANCELED which would occur if the
-       * calling thread were canceled.
-       */
-
-      DEBUGASSERT(result == OK || result == -ECANCELED);
-      if (ret == OK && result < 0)
-        {
-          ret = result;
-        }
-    }
-  while (result < 0);
-
-  return ret;
-}
 
 /****************************************************************************
  * Name: mcan_buffer_reserve
@@ -1810,7 +1770,7 @@ static int mcan_add_extfilter(struct sam_mcan_s *priv,
 
   /* Get exclusive excess to the MCAN hardware */
 
-  ret = mcan_dev_lock(priv);
+  ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
       return ret;
@@ -1919,13 +1879,13 @@ static int mcan_add_extfilter(struct sam_mcan_s *priv,
               mcan_putreg(priv, SAM_MCAN_CCCR_OFFSET, regval);
             }
 
-          mcan_dev_unlock(priv);
+          nxmutex_unlock(&priv->lock);
           return ndx;
         }
     }
 
   DEBUGASSERT(priv->nextalloc == priv->config->nextfilters);
-  mcan_dev_unlock(priv);
+  nxmutex_unlock(&priv->lock);
   return -EAGAIN;
 }
 #endif
@@ -1970,7 +1930,7 @@ static int mcan_del_extfilter(struct sam_mcan_s *priv, int ndx)
 
   /* Get exclusive excess to the MCAN hardware */
 
-  ret = mcan_dev_lock(priv);
+  ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
       return ret;
@@ -1985,7 +1945,7 @@ static int mcan_del_extfilter(struct sam_mcan_s *priv, int ndx)
     {
       /* No, error out */
 
-      mcan_dev_unlock(priv);
+      nxmutex_unlock(&priv->lock);
       return -ENOENT;
     }
 
@@ -2044,7 +2004,7 @@ static int mcan_del_extfilter(struct sam_mcan_s *priv, int ndx)
   *extfilter++ = 0;
   *extfilter   = 0;
 
-  mcan_dev_unlock(priv);
+  nxmutex_unlock(&priv->lock);
   return OK;
 }
 #endif
@@ -2081,7 +2041,7 @@ static int mcan_add_stdfilter(struct sam_mcan_s *priv,
 
   /* Get exclusive excess to the MCAN hardware */
 
-  ret = mcan_dev_lock(priv);
+  ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
       return ret;
@@ -2186,13 +2146,13 @@ static int mcan_add_stdfilter(struct sam_mcan_s *priv,
               mcan_putreg(priv, SAM_MCAN_CCCR_OFFSET, regval);
             }
 
-          mcan_dev_unlock(priv);
+          nxmutex_unlock(&priv->lock);
           return ndx;
         }
     }
 
   DEBUGASSERT(priv->nstdalloc == priv->config->nstdfilters);
-  mcan_dev_unlock(priv);
+  nxmutex_unlock(&priv->lock);
   return -EAGAIN;
 }
 
@@ -2235,7 +2195,7 @@ static int mcan_del_stdfilter(struct sam_mcan_s *priv, int ndx)
 
   /* Get exclusive excess to the MCAN hardware */
 
-  ret = mcan_dev_lock(priv);
+  ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
       return ret;
@@ -2250,7 +2210,7 @@ static int mcan_del_stdfilter(struct sam_mcan_s *priv, int ndx)
     {
       /* No, error out */
 
-      mcan_dev_unlock(priv);
+      nxmutex_unlock(&priv->lock);
       return -ENOENT;
     }
 
@@ -2308,7 +2268,7 @@ static int mcan_del_stdfilter(struct sam_mcan_s *priv, int ndx)
   stdfilter  = config->msgram.stdfilters + ndx;
   *stdfilter = 0;
 
-  mcan_dev_unlock(priv);
+  nxmutex_unlock(&priv->lock);
   return OK;
 }
 
@@ -2351,7 +2311,7 @@ static int mcan_start_busoff_recovery_sequence(struct sam_mcan_s *priv)
 
   /* Get exclusive access to the MCAN peripheral */
 
-  ret = mcan_dev_lock(priv);
+  ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
       return ret;
@@ -2362,7 +2322,7 @@ static int mcan_start_busoff_recovery_sequence(struct sam_mcan_s *priv)
   regval = mcan_getreg(priv, SAM_MCAN_PSR_OFFSET);
   if (!(regval & MCAN_PSR_BO))
     {
-      mcan_dev_unlock(priv);
+      nxmutex_unlock(&priv->lock);
       return -EPERM;
     }
 
@@ -2372,7 +2332,7 @@ static int mcan_start_busoff_recovery_sequence(struct sam_mcan_s *priv)
   regval &= ~MCAN_CCCR_INIT;
   mcan_putreg(priv, SAM_MCAN_CCCR_OFFSET, regval);
 
-  mcan_dev_unlock(priv);
+  nxmutex_unlock(&priv->lock);
   return OK;
 }
 
@@ -2407,27 +2367,22 @@ static void mcan_reset(struct can_dev_s *dev)
 
   /* Get exclusive access to the MCAN peripheral */
 
-  mcan_dev_lock_noncancelable(priv);
+  nxmutex_lock(&priv->lock);
 
   /* Disable all interrupts */
 
   mcan_putreg(priv, SAM_MCAN_IE_OFFSET, 0);
   mcan_putreg(priv, SAM_MCAN_TXBTIE_OFFSET, 0);
 
-  /* Make sure that all buffers are released.
-   *
-   * REVISIT: What if a thread is waiting for a buffer?  The following
-   * will not wake up any waiting threads.
-   */
+  /* Make sure that all buffers are released. */
 
-  nxsem_destroy(&priv->txfsem);
-  nxsem_init(&priv->txfsem, 0, config->ntxfifoq);
+  nxsem_reset(&priv->txfsem, config->ntxfifoq);
 
   /* Disable peripheral clocking to the MCAN controller */
 
   sam_disableperiph1(priv->config->pid);
   priv->state = MCAN_STATE_RESET;
-  mcan_dev_unlock(priv);
+  nxmutex_unlock(&priv->lock);
 }
 
 /****************************************************************************
@@ -2463,7 +2418,7 @@ static int mcan_setup(struct can_dev_s *dev)
 
   /* Get exclusive access to the MCAN peripheral */
 
-  ret = mcan_dev_lock(priv);
+  ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
       return ret;
@@ -2512,7 +2467,7 @@ static int mcan_setup(struct can_dev_s *dev)
 
   up_enable_irq(config->irq0);
   up_enable_irq(config->irq1);
-  mcan_dev_unlock(priv);
+  nxmutex_unlock(&priv->lock);
   return OK;
 }
 
@@ -2546,7 +2501,7 @@ static void mcan_shutdown(struct can_dev_s *dev)
 
   /* Get exclusive access to the MCAN peripheral */
 
-  mcan_dev_lock_noncancelable(priv);
+  nxmutex_lock(&priv->lock);
 
   /* Disable MCAN interrupts at the NVIC */
 
@@ -2566,7 +2521,7 @@ static void mcan_shutdown(struct can_dev_s *dev)
   /* Disable peripheral clocking to the MCAN controller */
 
   sam_disableperiph1(priv->config->pid);
-  mcan_dev_unlock(priv);
+  nxmutex_unlock(&priv->lock);
 }
 
 /****************************************************************************
@@ -3023,7 +2978,7 @@ static int mcan_send(struct can_dev_s *dev, struct can_msg_s *msg)
 
   /* Get exclusive access to the MCAN peripheral */
 
-  ret = mcan_dev_lock(priv);
+  ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
       mcan_buffer_release(priv);
@@ -3125,7 +3080,7 @@ static int mcan_send(struct can_dev_s *dev, struct can_msg_s *msg)
   /* And request to send the packet */
 
   mcan_putreg(priv, SAM_MCAN_TXBAR_OFFSET, (1 << ndx));
-  mcan_dev_unlock(priv);
+  nxmutex_unlock(&priv->lock);
 
   /* Report that the TX transfer is complete to the upper half logic.  Of
    * course, the transfer is not complete, but this early notification
@@ -3166,7 +3121,7 @@ static bool mcan_txready(struct can_dev_s *dev)
 
   /* Get exclusive access to the MCAN peripheral */
 
-  ret = mcan_dev_lock(priv);
+  ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
       return false;
@@ -3191,7 +3146,7 @@ static bool mcan_txready(struct can_dev_s *dev)
               (sval <= priv->config->ntxfifoq));
 #endif
 
-  mcan_dev_unlock(priv);
+  nxmutex_unlock(&priv->lock);
   return notfull;
 }
 
@@ -3229,7 +3184,7 @@ static bool mcan_txempty(struct can_dev_s *dev)
 
   /* Get exclusive access to the MCAN peripheral */
 
-  ret = mcan_dev_lock(priv);
+  ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
       return false;
@@ -3245,7 +3200,7 @@ static bool mcan_txempty(struct can_dev_s *dev)
   regval = mcan_getreg(priv, SAM_MCAN_TXFQS_OFFSET);
   if (((regval & MCAN_TXFQS_TFQF) != 0))
     {
-      mcan_dev_unlock(priv);
+      nxmutex_unlock(&priv->lock);
       return false;
     }
 
@@ -3269,7 +3224,7 @@ static bool mcan_txempty(struct can_dev_s *dev)
   empty = (tffl >= priv->config->ntxfifoq);
 #endif
 
-  mcan_dev_unlock(priv);
+  nxmutex_unlock(&priv->lock);
   return empty;
 }
 
@@ -4273,9 +4228,7 @@ static int mcan_hw_initialize(struct sam_mcan_s *priv)
 
 struct can_dev_s *sam_mcan_initialize(int port)
 {
-  struct can_dev_s *dev;
   struct sam_mcan_s *priv;
-  const struct sam_config_s *config;
   uint32_t regval;
 
   caninfo("MCAN%d\n", port);
@@ -4299,9 +4252,7 @@ struct can_dev_s *sam_mcan_initialize(int port)
     {
       /* Select the MCAN0 device structure */
 
-      dev    = &g_mcan0dev;
-      priv   = &g_mcan0priv;
-      config = &g_mcan0const;
+      priv = &g_mcan0priv;
 
       /* Configure MCAN0 Message RAM Base Address */
 
@@ -4318,9 +4269,7 @@ struct can_dev_s *sam_mcan_initialize(int port)
     {
       /* Select the MCAN1 device structure */
 
-      dev    = &g_mcan1dev;
-      priv   = &g_mcan1priv;
-      config = &g_mcan1const;
+      priv = &g_mcan1priv;
 
       /* Configure MCAN1 Message RAM Base Address */
 
@@ -4343,10 +4292,7 @@ struct can_dev_s *sam_mcan_initialize(int port)
     {
       /* Yes, then perform one time data initialization */
 
-      memset(priv, 0, sizeof(struct sam_mcan_s));
-      priv->config = config;
-
-      /* Get the revision of the chip (A or B ) */
+      /* Get the revision of the chip (A or B) */
 
       regval = getreg32(SAM_CHIPID_CIDR);
       priv->rev = regval & CHIPID_CIDR_VERSION_MASK;
@@ -4359,29 +4305,21 @@ struct can_dev_s *sam_mcan_initialize(int port)
         {
           /* Revision A */
 
-          priv->btp    = config->btp;
-          priv->fbtp   = config->fbtp;
+          priv->btp  = priv->config->btp;
+          priv->fbtp = priv->config->fbtp;
         }
       else if (priv->rev == 1)
         {
           /* Revision B */
 
-          priv->btp    = config->nbtp;
-          priv->fbtp   = config->dbtp;
+          priv->btp  = priv->config->nbtp;
+          priv->fbtp = priv->config->dbtp;
         }
       else
         {
           canerr("ERROR: Incorrect chip revision: %d\n", priv->rev);
           return NULL;
         }
-
-      /* Initialize semaphores */
-
-      nxsem_init(&priv->locksem, 0, 1);
-      nxsem_init(&priv->txfsem, 0, config->ntxfifoq);
-
-      dev->cd_ops  = &g_mcanops;
-      dev->cd_priv = (void *)priv;
 
       /* And put the hardware in the initial state */
 

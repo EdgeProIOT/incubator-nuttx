@@ -35,7 +35,8 @@ struct esp_spi_context
   worker_t                      spi_work;
 };
 
-enum {
+enum
+{
   CLOSE_DATAPATH,
   OPEN_DATAPATH,
 };

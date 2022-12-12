@@ -36,6 +36,7 @@
 #include <fcntl.h>
 
 #include <nuttx/kmalloc.h>
+#include <nuttx/mutex.h>
 #include <nuttx/semaphore.h>
 #include <nuttx/signal.h>
 #include <nuttx/wqueue.h>
@@ -284,11 +285,11 @@ struct sx127x_dev_s
 
   uint8_t  rx_buffer[SX127X_RXFIFO_TOTAL_SIZE];
   sem_t    rx_sem;                /* Wait for availability of received data */
-  sem_t    rx_buffer_sem;         /* Protect access to rx fifo */
+  mutex_t  rx_buffer_lock;        /* Protect access to rx fifo */
 #endif
 
   uint8_t nopens;                 /* Number of times the device has been opened */
-  sem_t   dev_sem;                /* Ensures exclusive access to this structure */
+  mutex_t dev_lock;               /* Ensures exclusive access to this structure */
   FAR struct pollfd *pfd;         /* Polled file descr  (or NULL if any) */
 };
 
@@ -414,10 +415,10 @@ static int sx127x_txfifo_write(FAR struct sx127x_dev_s *dev,
                                FAR const uint8_t *data, size_t datalen);
 #endif
 #ifdef CONFIG_LPWAN_SX127X_RXSUPPORT
-static ssize_t sx127x_rxfifo_get(struct sx127x_dev_s *dev,
+static ssize_t sx127x_rxfifo_get(FAR struct sx127x_dev_s *dev,
                                  FAR uint8_t *buffer, size_t buflen);
-static void sx127x_rxfifo_put(struct sx127x_dev_s *dev, FAR uint8_t *buffer,
-                              size_t buflen);
+static void sx127x_rxfifo_put(FAR struct sx127x_dev_s *dev,
+                              FAR uint8_t *buffer, size_t buflen);
 #endif
 
 /* POSIX API */
@@ -493,7 +494,7 @@ static void sx127x_unlock(FAR struct spi_dev_s *spi)
  * Name: sx127x_select
  ****************************************************************************/
 
-static inline void sx127x_select(struct sx127x_dev_s * dev)
+static inline void sx127x_select(FAR struct sx127x_dev_s *dev)
 {
   SPI_SELECT(dev->spi, SPIDEV_LPWAN(0), true);
 }
@@ -502,7 +503,7 @@ static inline void sx127x_select(struct sx127x_dev_s * dev)
  * Name: sx127x_deselect
  ****************************************************************************/
 
-static inline void sx127x_deselect(struct sx127x_dev_s * dev)
+static inline void sx127x_deselect(FAR struct sx127x_dev_s *dev)
 {
   SPI_SELECT(dev->spi, SPIDEV_LPWAN(0), false);
 }
@@ -746,7 +747,7 @@ static int sx127x_open(FAR struct file *filep)
 
   /* Get exclusive access to the driver data structure */
 
-  ret = nxsem_wait(&dev->dev_sem);
+  ret = nxmutex_lock(&dev->dev_lock);
   if (ret < 0)
     {
       return ret;
@@ -772,7 +773,7 @@ static int sx127x_open(FAR struct file *filep)
   dev->nopens++;
 
 errout:
-  nxsem_post(&dev->dev_sem);
+  nxmutex_unlock(&dev->dev_lock);
   return ret;
 }
 
@@ -800,7 +801,7 @@ static int sx127x_close(FAR struct file *filep)
 
   /* Get exclusive access to the driver data structure */
 
-  ret = nxsem_wait(&dev->dev_sem);
+  ret = nxmutex_lock(&dev->dev_lock);
   if (ret < 0)
     {
       return ret;
@@ -814,7 +815,7 @@ static int sx127x_close(FAR struct file *filep)
 
   dev->nopens--;
 
-  nxsem_post(&dev->dev_sem);
+  nxmutex_unlock(&dev->dev_lock);
   return OK;
 }
 
@@ -842,7 +843,7 @@ static ssize_t sx127x_read(FAR struct file *filep, FAR char *buffer,
   DEBUGASSERT(inode && inode->i_private);
   dev = (FAR struct sx127x_dev_s *)inode->i_private;
 
-  ret = nxsem_wait(&dev->dev_sem);
+  ret = nxmutex_lock(&dev->dev_lock);
   if (ret < 0)
     {
       return ret;
@@ -865,10 +866,9 @@ static ssize_t sx127x_read(FAR struct file *filep, FAR char *buffer,
 
   /* Get RX data from fifo */
 
-  ret = sx127x_rxfifo_get(dev, (uint8_t *)buffer, buflen);
+  ret = sx127x_rxfifo_get(dev, (FAR uint8_t *)buffer, buflen);
 
-  nxsem_post(&dev->dev_sem);
-
+  nxmutex_unlock(&dev->dev_lock);
   return ret;
 #endif
 }
@@ -897,7 +897,7 @@ static ssize_t sx127x_write(FAR struct file *filep, FAR const char *buffer,
   DEBUGASSERT(inode && inode->i_private);
   dev = (FAR struct sx127x_dev_s *)inode->i_private;
 
-  ret = nxsem_wait(&dev->dev_sem);
+  ret = nxmutex_lock(&dev->dev_lock);
   if (ret < 0)
     {
       return ret;
@@ -926,7 +926,7 @@ static ssize_t sx127x_write(FAR struct file *filep, FAR const char *buffer,
 
   /* Call modulation specific send */
 
-  ret = dev->ops.send(dev, (uint8_t *)buffer, buflen);
+  ret = dev->ops.send(dev, (FAR uint8_t *)buffer, buflen);
 
   /* Change mode to TX to start data transfer */
 
@@ -942,7 +942,7 @@ errout:
    */
 
   sx127x_opmode_set(dev, dev->idle);
-  nxsem_post(&dev->dev_sem);
+  nxmutex_unlock(&dev->dev_lock);
 
   return ret;
 #endif
@@ -971,7 +971,7 @@ static int sx127x_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
   /* Get exclusive access to the driver data structure */
 
-  ret = nxsem_wait(&dev->dev_sem);
+  ret = nxmutex_lock(&dev->dev_lock);
   if (ret < 0)
     {
       return ret;
@@ -1154,7 +1154,7 @@ static int sx127x_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
         }
     }
 
-  nxsem_post(&dev->dev_sem);
+  nxmutex_unlock(&dev->dev_lock);
   return ret;
 }
 
@@ -1186,7 +1186,7 @@ static int sx127x_poll(FAR struct file *filep, FAR struct pollfd *fds,
 
   /* Exclusive access */
 
-  ret = nxsem_wait(&dev->dev_sem);
+  ret = nxmutex_lock(&dev->dev_lock);
   if (ret < 0)
     {
       return ret;
@@ -1221,7 +1221,7 @@ static int sx127x_poll(FAR struct file *filep, FAR struct pollfd *fds,
        * don't wait for RX.
        */
 
-      nxsem_wait(&dev->rx_buffer_sem);
+      nxmutex_lock(&dev->rx_buffer_lock);
       if (dev->rx_fifo_len > 0)
         {
           /* Data available for input */
@@ -1229,7 +1229,7 @@ static int sx127x_poll(FAR struct file *filep, FAR struct pollfd *fds,
           poll_notify(&dev->pfd, 1, POLLIN);
         }
 
-      nxsem_post(&dev->rx_buffer_sem);
+      nxmutex_unlock(&dev->rx_buffer_lock);
     }
   else /* Tear it down */
     {
@@ -1237,7 +1237,7 @@ static int sx127x_poll(FAR struct file *filep, FAR struct pollfd *fds,
     }
 
 errout:
-  nxsem_post(&dev->dev_sem);
+  nxmutex_unlock(&dev->dev_lock);
   return ret;
 #endif
 }
@@ -1497,7 +1497,7 @@ static void sx127x_isr0_process(FAR void *arg)
 {
   DEBUGASSERT(arg);
 
-  FAR struct sx127x_dev_s *dev = (struct sx127x_dev_s *)arg;
+  FAR struct sx127x_dev_s *dev = (FAR struct sx127x_dev_s *)arg;
   int ret = OK;
 
   /* Return immediately if isr0_process is not initialized */
@@ -1606,7 +1606,7 @@ static size_t sx127x_fskook_rxhandle(FAR struct sx127x_dev_s *dev)
 
   /* Put data on local fifo */
 
-  sx127x_rxfifo_put(dev, (uint8_t *)&rxdata, len);
+  sx127x_rxfifo_put(dev, (FAR uint8_t *)&rxdata, len);
 
   /* Return total length */
 
@@ -1684,7 +1684,7 @@ static size_t sx127x_lora_rxhandle(FAR struct sx127x_dev_s *dev)
 
   /* Put data on local fifo */
 
-  sx127x_rxfifo_put(dev, (uint8_t *)&rxdata, len);
+  sx127x_rxfifo_put(dev, (FAR uint8_t *)&rxdata, len);
 
   /* Return total length */
 
@@ -1708,7 +1708,7 @@ static ssize_t sx127x_rxfifo_get(FAR struct sx127x_dev_s *dev,
   size_t pktlen = 0;
   size_t ret    = 0;
 
-  ret = nxsem_wait(&dev->rx_buffer_sem);
+  ret = nxmutex_lock(&dev->rx_buffer_lock);
   if (ret < 0)
     {
       return ret;
@@ -1745,7 +1745,7 @@ static ssize_t sx127x_rxfifo_get(FAR struct sx127x_dev_s *dev,
   ret = pktlen;
 
 no_data:
-  nxsem_post(&dev->rx_buffer_sem);
+  nxmutex_unlock(&dev->rx_buffer_lock);
   return ret;
 }
 
@@ -1763,7 +1763,7 @@ static void sx127x_rxfifo_put(FAR struct sx127x_dev_s *dev,
   size_t  i   = 0;
   int     ret = 0;
 
-  ret = nxsem_wait(&dev->rx_buffer_sem);
+  ret = nxmutex_lock(&dev->rx_buffer_lock);
   if (ret < 0)
     {
       return;
@@ -1785,7 +1785,7 @@ static void sx127x_rxfifo_put(FAR struct sx127x_dev_s *dev,
     }
 
   dev->nxt_write = (dev->nxt_write + 1) % CONFIG_LPWAN_SX127X_RXFIFO_LEN;
-  nxsem_post(&dev->rx_buffer_sem);
+  nxmutex_unlock(&dev->rx_buffer_lock);
 }
 
 #endif /* CONFIG_LPWAN_SX127X_RXSUPPORT */
@@ -1863,7 +1863,7 @@ static int sx127x_fskook_send(FAR struct sx127x_dev_s *dev,
     {
       /* First byte is length */
 
-      ret = sx127x_txfifo_write(dev, (uint8_t *)&datalen, 1);
+      ret = sx127x_txfifo_write(dev, (FAR uint8_t *)&datalen, 1);
     }
 
   /* Write payload */
@@ -4518,15 +4518,15 @@ static int sx127x_unregister(FAR struct sx127x_dev_s *dev)
 
   sx127x_attachirq0(dev, NULL, NULL);
 
-  /* Destroy semaphores */
+  /* Destroy mutex & semaphores */
 
-  nxsem_destroy(&dev->dev_sem);
+  nxmutex_destroy(&dev->dev_lock);
 #ifdef CONFIG_LPWAN_SX127X_TXSUPPORT
   nxsem_destroy(&dev->tx_sem);
 #endif
 #ifdef CONFIG_LPWAN_SX127X_RXSUPPORT
   nxsem_destroy(&dev->rx_sem);
-  nxsem_destroy(&dev->rx_buffer_sem);
+  nxmutex_destroy(&dev->rx_buffer_lock);
 #endif
 
   return OK;
@@ -4589,15 +4589,15 @@ int sx127x_register(FAR struct spi_dev_s *spi,
 
   dev->pfd = NULL;
 
-  /* Initialize sem */
+  /* Initialize mutex & sem */
 
-  nxsem_init(&dev->dev_sem, 0, 1);
+  nxmutex_init(&dev->dev_lock);
 #ifdef CONFIG_LPWAN_SX127X_TXSUPPORT
   nxsem_init(&dev->tx_sem, 0, 0);
 #endif
 #ifdef CONFIG_LPWAN_SX127X_RXSUPPORT
   nxsem_init(&dev->rx_sem, 0, 0);
-  nxsem_init(&dev->rx_buffer_sem, 0, 1);
+  nxmutex_init(&dev->rx_buffer_lock);
 #endif
 
   /* Attach irq0 - TXDONE/RXDONE/CADDONE */

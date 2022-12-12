@@ -58,6 +58,7 @@ static const struct esp_hosted_fg_lower_s g_esp_hosted_fg_lower =
   .attach  = esp_hosted_fg_irq_attach,
   .enable  = esp_hosted_fg_irq_enable,
   .disable = esp_hosted_fg_irq_disable,
+  .read    = esp_hosted_fg_read,
   .reset   = esp_hosted_fg_reset
 };
 
@@ -120,6 +121,28 @@ static void esp_hosted_fg_irq_disable(int irq)
     }
 
   leave_critical_section(flags);
+}
+
+static int esp_hosted_fg_read(int irq)
+{
+  int ret;
+  irqstate_t flags = enter_critical_section();
+
+  switch (irq)
+    {
+    case ESP_IRQ_HANDSHAKE:
+      ret = imxrt_gpio_read(GPIO_HANDSHAKE_INT);
+      break;
+    case ESP_IRQ_DATA_READY:
+      ret = imxrt_gpio_read(GPIO_DATAREADY_INT);
+      break;
+    default:
+      break;
+    }
+
+  leave_critical_section(flags);
+
+  return ret;
 }
 
 static void esp_hosted_fg_reset(bool reset)

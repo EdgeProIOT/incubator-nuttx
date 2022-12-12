@@ -29,7 +29,7 @@ CSRCS += sched_setscheduler.c sched_getscheduler.c
 CSRCS += sched_yield.c sched_rrgetinterval.c sched_foreach.c
 CSRCS += sched_lock.c sched_unlock.c sched_lockcount.c
 CSRCS += sched_idletask.c sched_self.c sched_get_stackinfo.c
-CSRCS += sched_sysinfo.c
+CSRCS += sched_sysinfo.c sched_reprioritizertr.c
 
 ifeq ($(CONFIG_PRIORITY_INHERITANCE),y)
 CSRCS += sched_reprioritize.c
@@ -41,7 +41,7 @@ CSRCS += sched_getaffinity.c sched_setaffinity.c
 endif
 
 ifeq ($(CONFIG_SIG_SIGSTOP_ACTION),y)
-CSRCS += sched_suspend.c sched_continue.c
+CSRCS += sched_suspend.c
 endif
 
 ifeq ($(CONFIG_SCHED_WAITPID),y)
@@ -89,17 +89,11 @@ ifeq ($(CONFIG_SMP),y)
 CSRCS += sched_thistask.c
 endif
 
-ifeq ($(CONFIG_SCHED_INSTRUMENTATION),y)
-ifeq ($(CONFIG_SCHED_INSTRUMENTATION_EXTERNAL),)
-CSRCS += sched_note.c
-endif
-endif
-
 ifeq ($(CONFIG_SCHED_CRITMONITOR),y)
 CSRCS += sched_critmonitor.c
 endif
 
-ifeq ($(CONFIG_ARCH_HAVE_BACKTRACE),y)
+ifeq ($(CONFIG_SCHED_BACKTRACE),y)
 CSRCS += sched_backtrace.c
 endif
 

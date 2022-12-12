@@ -1873,6 +1873,39 @@ config DEBUG_VIDEO_INFO
 		Enable video informational output to SYSLOG.
 
 endif # DEBUG_VIDEO
+
+config DEBUG_VIRTIO
+	bool "Virtio Debug Features"
+	default n
+	depends on DRIVERS_VIRTIO
+	---help---
+		Enable virtio debug features.
+
+if DEBUG_VIRTIO
+
+config DEBUG_VIRTIO_ERROR
+	bool "Virtio Error Output"
+	default n
+	depends on DEBUG_ERROR
+	---help---
+		Enable virtio error output to SYSLOG.
+
+config DEBUG_VIRTIO_WARN
+	bool "Virtio Warnings Output"
+	default n
+	depends on DEBUG_WARN
+	---help---
+		Enable virtio warning output to SYSLOG.
+
+config DEBUG_VIRTIO_INFO
+	bool "Virtio Informational Output"
+	default n
+	depends on DEBUG_INFO
+	---help---
+		Enable virtio informational output to SYSLOG.
+
+endif # DEBUG_VIDEO
+
 endif # DEBUG_FEATURES
 
 config DEBUG_TCBINFO
@@ -1998,6 +2031,14 @@ config DEBUG_LINK_MAP
 		when linking NuttX ELF. That file can be useful for verifying
 		and debugging magic section games, and for seeing which
 		pieces of code get eliminated with DEBUG_OPT_UNUSED_SECTIONS.
+
+config CCACHE
+	bool "Use ccache"
+	default n
+	---help---
+		If enabled, ccache will be used during the build.
+		Build artifacts will be cached to a local storage, considerably
+		reducing build times.
 
 endmenu # Build Setup
 

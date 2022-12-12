@@ -352,8 +352,6 @@ struct mpfs_dev_s
 
 /* Low-level helper  ********************************************************/
 
-#define     mpfs_givesem(priv) (nxsem_post(&priv->waitsem))
-
 /* Mutual exclusion */
 
 #if defined(CONFIG_SDIO_MUXBUS)
@@ -466,32 +464,12 @@ struct mpfs_dev_s g_emmcsd_dev =
   .blocksize         = 512,
   .onebit            = false,
   .polltransfer      = true,
+  .waitsem           = SEM_INITIALIZER(0),
 };
 
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
-
-/****************************************************************************
- * Name: mpfs_takesem
- *
- * Description:
- *   Take the wait semaphore (handling false alarm wakeups due to the receipt
- *   of signals).
- *
- * Input Parameters:
- *   priv  - Instance of the EMMCSD private state structure.
- *
- * Returned Value:
- *   Normally OK, but may return -ECANCELED in the rare event that the task
- *   has been canceled.
- *
- ****************************************************************************/
-
-static int mpfs_takesem(struct mpfs_dev_s *priv)
-{
-  return nxsem_wait_uninterruptible(&priv->waitsem);
-}
 
 /****************************************************************************
  * Name: mpfs_reset_lines
@@ -931,7 +909,7 @@ static void mpfs_endwait(struct mpfs_dev_s *priv,
 
   /* Wake up the waiting thread */
 
-  mpfs_givesem(priv);
+  nxsem_post(&priv->waitsem);
 }
 
 /****************************************************************************
@@ -1471,7 +1449,9 @@ static bool mpfs_device_reset(struct sdio_dev_s *dev)
   irqstate_t flags;
   uint32_t regval;
   uint32_t cap;
+#ifdef CONFIG_MPFS_EMMCSD_CD
   uint32_t srs09;
+#endif
   bool retval = true;
   int status = MPFS_EMMCSD_INITIALIZED;
 
@@ -1623,6 +1603,7 @@ static bool mpfs_device_reset(struct sdio_dev_s *dev)
 
   /* Card state stable */
 
+#ifdef CONFIG_MPFS_EMMCSD_CD
   srs09 = getreg32(MPFS_EMMCSD_SRS09);
   DEBUGASSERT(srs09 & MPFS_EMMCSD_SRS09_CSS);
 
@@ -1637,6 +1618,7 @@ static bool mpfs_device_reset(struct sdio_dev_s *dev)
           retval = false;
         }
     }
+#endif
 
   /* Set 1-bit bus mode */
 
@@ -2761,7 +2743,7 @@ static sdio_eventset_t mpfs_eventwait(struct sdio_dev_s *dev)
        * incremented and there will be no wait.
        */
 
-      ret = mpfs_takesem(priv);
+      ret = nxsem_wait_uninterruptible(&priv->waitsem);
       if (ret < 0)
         {
           /* Task canceled.  Cancel the wdog (assuming it was started) and
@@ -2974,16 +2956,6 @@ struct sdio_dev_s *sdio_initialize(int slotno)
 {
   struct mpfs_dev_s *priv = NULL;
   priv = &g_emmcsd_dev;
-
-  /* Initialize semaphores */
-
-  nxsem_init(&priv->waitsem, 0, 0);
-
-  /* The waitsem semaphore is used for signaling and, hence, should not have
-   * priority inheritance enabled.
-   */
-
-  nxsem_set_protocol(&priv->waitsem, SEM_PRIO_NONE);
 
   /* Reset the card and assure that it is in the initial, unconfigured
    * state.

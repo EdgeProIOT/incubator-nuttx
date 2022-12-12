@@ -269,25 +269,23 @@ static int ioe_rpmsg_sendrecv(FAR struct rpmsg_endpoint *ept,
     }
 
   nxsem_init(&cookie.sem, 0, 0);
-  nxsem_set_protocol(&cookie.sem, SEM_PRIO_NONE);
 
   msg->command = command;
   msg->result = -ENXIO;
   msg->cookie = (uintptr_t)&cookie;
 
   ret = rpmsg_send(ept, msg, len);
-  if (ret < 0)
+  if (ret >= 0)
     {
-      return ret;
+      ret = rpmsg_wait(ept, &cookie.sem);
+      if (ret >= 0)
+        {
+          ret = cookie.result;
+        }
     }
 
-  ret = rpmsg_wait(ept, &cookie.sem);
-  if (ret < 0)
-    {
-      return ret;
-    }
-
-  return cookie.result;
+  nxsem_destroy(&cookie.sem);
+  return ret;
 }
 
 static int ioe_rpmsg_direction(FAR struct ioexpander_dev_s *dev, uint8_t pin,

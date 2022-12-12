@@ -42,6 +42,7 @@
 #include <nuttx/fs/fs.h>
 #include <nuttx/wqueue.h>
 #include <nuttx/signal.h>
+#include <nuttx/mutex.h>
 #include <nuttx/semaphore.h>
 
 #include <nuttx/usb/usb.h>
@@ -257,7 +258,7 @@ struct usbhost_state_s
   uint8_t                 buttons;      /* Current state of the mouse buttons */
 #endif
   int16_t                 crefs;        /* Reference count on the driver instance */
-  sem_t                   exclsem;      /* Used to maintain mutual exclusive access */
+  mutex_t                 lock;         /* Used to maintain mutual exclusive access */
   sem_t                   waitsem;      /* Used to wait for mouse data */
   FAR uint8_t            *tbuffer;      /* The allocated transfer buffer */
   b16_t                   xaccum;       /* Current integrated X position */
@@ -285,12 +286,6 @@ struct usbhost_state_s
 /****************************************************************************
  * Private Function Prototypes
  ****************************************************************************/
-
-/* Semaphores */
-
-static int usbhost_takesem(FAR sem_t *sem);
-static void usbhost_forcetake(FAR sem_t *sem);
-#define usbhost_givesem(s) nxsem_post(s);
 
 /* Memory allocation services */
 
@@ -331,11 +326,6 @@ static inline int usbhost_devinit(FAR struct usbhost_state_s *priv);
 /* (Little Endian) Data helpers */
 
 static inline uint16_t usbhost_getle16(const uint8_t *val);
-static inline void usbhost_putle16(uint8_t *dest, uint16_t val);
-static inline uint32_t usbhost_getle32(const uint8_t *val);
-#if 0 /* Not used */
-static void usbhost_putle32(uint8_t *dest, uint32_t val);
-#endif
 
 /* Transfer descriptor memory management */
 
@@ -344,9 +334,9 @@ static inline int usbhost_tdfree(FAR struct usbhost_state_s *priv);
 
 /* struct usbhost_registry_s methods */
 
-static struct usbhost_class_s *
-  usbhost_create(FAR struct usbhost_hubport_s *hport,
-                 FAR const struct usbhost_id_s *id);
+static FAR struct usbhost_class_s *
+usbhost_create(FAR struct usbhost_hubport_s *hport,
+               FAR const struct usbhost_id_s *id);
 
 /* struct usbhost_class_s methods */
 
@@ -409,59 +399,17 @@ static const struct file_operations g_hidmouse_fops =
 
 /* This is a bitmap that is used to allocate device names /dev/mouse0-31. */
 
-static uint32_t                g_devinuse;
+static uint32_t g_devinuse;
 
 /* The following are used to managed the class creation operation */
 
-static sem_t                   g_exclsem; /* For mutually exclusive thread creation */
-static sem_t                   g_syncsem; /* Thread data passing interlock */
-static struct usbhost_state_s *g_priv;    /* Data passed to thread */
+static mutex_t g_lock = NXMUTEX_INITIALIZER;
+static sem_t g_syncsem = SEM_INITIALIZER(0);
+static FAR struct usbhost_state_s *g_priv;
 
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
-
-/****************************************************************************
- * Name: usbhost_takesem
- *
- * Description:
- *   This is just a wrapper to handle the annoying behavior of semaphore
- *   waits that return due to the receipt of a signal.
- *
- ****************************************************************************/
-
-static int usbhost_takesem(FAR sem_t *sem)
-{
-  return nxsem_wait_uninterruptible(sem);
-}
-
-/****************************************************************************
- * Name: usbhost_forcetake
- *
- * Description:
- *   This is just another wrapper but this one continues even if the thread
- *   is canceled.  This must be done in certain conditions where were must
- *   continue in order to clean-up resources.
- *
- ****************************************************************************/
-
-static void usbhost_forcetake(FAR sem_t *sem)
-{
-  int ret;
-
-  do
-    {
-      ret = nxsem_wait_uninterruptible(sem);
-
-      /* The only expected error would -ECANCELED meaning that the
-       * parent thread has been canceled.  We have to continue and
-       * terminate the poll in this case.
-       */
-
-      DEBUGASSERT(ret == OK || ret == -ECANCELED);
-    }
-  while (ret < 0);
-}
 
 /****************************************************************************
  * Name: usbhost_allocclass
@@ -615,9 +563,9 @@ static void usbhost_destroy(FAR void *arg)
 
   usbhost_tdfree(priv);
 
-  /* Destroy the semaphores */
+  /* Destroy the mutex & semaphores */
 
-  nxsem_destroy(&priv->exclsem);
+  nxmutex_destroy(&priv->lock);
   nxsem_destroy(&priv->waitsem);
 
   /* Disconnect the USB host device */
@@ -1025,7 +973,7 @@ static int usbhost_mouse_poll(int argc, char *argv[])
   hport = priv->usbclass.hport;
 
   priv->polling = true;
-  usbhost_givesem(&g_syncsem);
+  nxsem_post(&g_syncsem);
   nxsig_sleep(1);
 
   /* Loop here until the device is disconnected */
@@ -1081,7 +1029,7 @@ static int usbhost_mouse_poll(int argc, char *argv[])
             {
               /* Get exclusive access to the mouse state data */
 
-              ret = usbhost_takesem(&priv->exclsem);
+              ret = nxmutex_lock(&priv->lock);
               if (ret < 0)
                 {
                   /* Break out and disconnect if the thread is canceled. */
@@ -1160,7 +1108,7 @@ static int usbhost_mouse_poll(int argc, char *argv[])
 
               /* Release our lock on the state structure */
 
-              usbhost_givesem(&priv->exclsem);
+              nxmutex_unlock(&priv->lock);
             }
         }
 
@@ -1185,7 +1133,7 @@ static int usbhost_mouse_poll(int argc, char *argv[])
    * trying to interact with the class driver.
    */
 
-  usbhost_forcetake(&priv->exclsem);
+  nxmutex_lock(&priv->lock);
 
   /* Indicate that we are no longer running and decrement the reference
    * count held by this thread.  If there are no other users of the class,
@@ -1227,7 +1175,7 @@ static int usbhost_mouse_poll(int argc, char *argv[])
        * reference is closed
        */
 
-      usbhost_givesem(&priv->exclsem);
+      nxmutex_unlock(&priv->lock);
     }
 
   leave_critical_section(flags);
@@ -1329,7 +1277,7 @@ static int usbhost_waitsample(FAR struct usbhost_state_s *priv,
    * run, but they cannot run yet because pre-emption is disabled.
    */
 
-  nxsem_post(&priv->exclsem);
+  nxmutex_unlock(&priv->lock);
 
   /* Try to get the a sample... if we cannot, then wait on the semaphore
    * that is posted when new sample data is available.
@@ -1366,7 +1314,7 @@ static int usbhost_waitsample(FAR struct usbhost_state_s *priv,
    * sample. Interrupts and pre-emption will be re-enabled while we wait.
    */
 
-  ret = nxsem_wait(&priv->exclsem);
+  ret = nxmutex_lock(&priv->lock);
 
 errout:
   /* Then re-enable interrupts.  We might get interrupt here and there
@@ -1656,7 +1604,7 @@ static inline int usbhost_devinit(FAR struct usbhost_state_s *priv)
    * likelihood of this being used?  About zero, but we protect it anyway).
    */
 
-  ret = usbhost_takesem(&g_exclsem);
+  ret = nxmutex_lock(&g_lock);
   if (ret < 0)
     {
       usbhost_tdfree(priv);
@@ -1666,15 +1614,14 @@ static inline int usbhost_devinit(FAR struct usbhost_state_s *priv)
   g_priv = priv;
 
   ret = kthread_create("mouse", CONFIG_HIDMOUSE_DEFPRIO,
-                       CONFIG_HIDMOUSE_STACKSIZE, (main_t)usbhost_mouse_poll,
-                       (FAR char * const *)NULL);
+                       CONFIG_HIDMOUSE_STACKSIZE, usbhost_mouse_poll, NULL);
   if (ret < 0)
     {
       /* Failed to started the poll thread...
        * probably due to memory resources
        */
 
-      usbhost_givesem(&g_exclsem);
+      nxmutex_unlock(&g_lock);
       goto errout;
     }
 
@@ -1682,8 +1629,8 @@ static inline int usbhost_devinit(FAR struct usbhost_state_s *priv)
 
   /* Now wait for the poll task to get properly initialized */
 
-  ret = usbhost_takesem(&g_syncsem);
-  usbhost_givesem(&g_exclsem);
+  ret = nxsem_wait_uninterruptible(&g_syncsem);
+  nxmutex_unlock(&g_lock);
 
   if (ret < 0)
     {
@@ -1701,9 +1648,9 @@ static inline int usbhost_devinit(FAR struct usbhost_state_s *priv)
    */
 
 errout:
-  usbhost_forcetake(&priv->exclsem);
+  nxmutex_lock(&priv->lock);
   priv->crefs--;
-  usbhost_givesem(&priv->exclsem);
+  nxmutex_unlock(&priv->lock);
 
   return ret;
 }
@@ -1726,75 +1673,6 @@ static inline uint16_t usbhost_getle16(const uint8_t *val)
 {
   return (uint16_t)val[1] << 8 | (uint16_t)val[0];
 }
-
-/****************************************************************************
- * Name: usbhost_putle16
- *
- * Description:
- *   Put a (possibly unaligned) 16-bit little endian value.
- *
- * Input Parameters:
- *   dest - A pointer to the first byte to save the little endian value.
- *   val - The 16-bit value to be saved.
- *
- * Returned Value:
- *   None
- *
- ****************************************************************************/
-
-static void usbhost_putle16(uint8_t *dest, uint16_t val)
-{
-  dest[0] = val & 0xff; /* Little endian means LS byte first in byte stream */
-  dest[1] = val >> 8;
-}
-
-/****************************************************************************
- * Name: usbhost_getle32
- *
- * Description:
- *   Get a (possibly unaligned) 32-bit little endian value.
- *
- * Input Parameters:
- *   dest - A pointer to the first byte to save the big endian value.
- *   val - The 32-bit value to be saved.
- *
- * Returned Value:
- *   None
- *
- ****************************************************************************/
-
-static inline uint32_t usbhost_getle32(const uint8_t *val)
-{
-  /* Little endian means LS halfword first in byte stream */
-
-  return (uint32_t)usbhost_getle16(&val[2]) << 16 |
-         (uint32_t)usbhost_getle16(val);
-}
-
-/****************************************************************************
- * Name: usbhost_putle32
- *
- * Description:
- *   Put a (possibly unaligned) 32-bit little endian value.
- *
- * Input Parameters:
- *   dest - A pointer to the first byte to save the little endian value.
- *   val - The 32-bit value to be saved.
- *
- * Returned Value:
- *   None
- *
- ****************************************************************************/
-
-#if 0 /* Not used */
-static void usbhost_putle32(uint8_t *dest, uint32_t val)
-{
-  /* Little endian means LS halfword first in byte stream */
-
-  usbhost_putle16(dest, (uint16_t)(val & 0xffff));
-  usbhost_putle16(dest + 2, (uint16_t)(val >> 16));
-}
-#endif
 
 /****************************************************************************
  * Name: usbhost_tdalloc
@@ -1886,8 +1764,8 @@ static inline int usbhost_tdfree(FAR struct usbhost_state_s *priv)
  ****************************************************************************/
 
 static FAR struct usbhost_class_s *
-  usbhost_create(FAR struct usbhost_hubport_s *hport,
-                 FAR const struct usbhost_id_s *id)
+usbhost_create(FAR struct usbhost_hubport_s *hport,
+               FAR const struct usbhost_id_s *id)
 {
   FAR struct usbhost_state_s *priv;
 
@@ -1916,16 +1794,10 @@ static FAR struct usbhost_class_s *
 
           priv->crefs = 1;
 
-          /* Initialize semaphores */
+          /* Initialize mutex & semaphores */
 
-          nxsem_init(&priv->exclsem, 0, 1);
+          nxmutex_init(&priv->lock);
           nxsem_init(&priv->waitsem, 0, 0);
-
-          /* The waitsem semaphore is used for signaling and, hence, should
-           * not have priority inheritance enabled.
-           */
-
-          nxsem_set_protocol(&priv->waitsem, SEM_PRIO_NONE);
 
           /* Return the instance of the USB mouse class driver */
 
@@ -2041,7 +1913,7 @@ static int usbhost_connect(FAR struct usbhost_class_s *usbclass,
  *
  ****************************************************************************/
 
-static int usbhost_disconnected(struct usbhost_class_s *usbclass)
+static int usbhost_disconnected(FAR struct usbhost_class_s *usbclass)
 {
   FAR struct usbhost_state_s *priv = (FAR struct usbhost_state_s *)usbclass;
   int i;
@@ -2061,7 +1933,7 @@ static int usbhost_disconnected(struct usbhost_class_s *usbclass)
     {
       /* Yes.. wake them up */
 
-      usbhost_givesem(&priv->waitsem);
+      nxsem_post(&priv->waitsem);
     }
 
   /* Possibilities:
@@ -2125,7 +1997,7 @@ static int usbhost_open(FAR struct file *filep)
   /* Make sure that we have exclusive access to the private data structure */
 
   DEBUGASSERT(priv && priv->crefs > 0 && priv->crefs < USBHOST_MAX_CREFS);
-  ret = usbhost_takesem(&priv->exclsem);
+  ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
       return ret;
@@ -2178,7 +2050,7 @@ static int usbhost_open(FAR struct file *filep)
 
   leave_critical_section(flags);
 
-  usbhost_givesem(&priv->exclsem);
+  nxmutex_unlock(&priv->lock);
   return ret;
 }
 
@@ -2205,7 +2077,7 @@ static int usbhost_close(FAR struct file *filep)
   /* Decrement the reference count on the driver */
 
   DEBUGASSERT(priv->crefs >= 1);
-  ret = usbhost_takesem(&priv->exclsem);
+  ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
       return ret;
@@ -2272,7 +2144,7 @@ static int usbhost_close(FAR struct file *filep)
         }
     }
 
-  usbhost_givesem(&priv->exclsem);
+  nxmutex_unlock(&priv->lock);
   leave_critical_section(flags);
   return OK;
 }
@@ -2306,7 +2178,7 @@ static ssize_t usbhost_read(FAR struct file *filep, FAR char *buffer,
   /* Make sure that we have exclusive access to the private data structure */
 
   DEBUGASSERT(priv && priv->crefs > 0 && priv->crefs < USBHOST_MAX_CREFS);
-  ret = usbhost_takesem(&priv->exclsem);
+  ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
       return ret;
@@ -2423,7 +2295,7 @@ static ssize_t usbhost_read(FAR struct file *filep, FAR char *buffer,
 #endif
 
 errout:
-  usbhost_givesem(&priv->exclsem);
+  nxmutex_unlock(&priv->lock);
   iinfo("Returning: %d\n", ret);
   return (ssize_t)ret;
 }
@@ -2468,7 +2340,7 @@ static int usbhost_poll(FAR struct file *filep, FAR struct pollfd *fds,
   /* Make sure that we have exclusive access to the private data structure */
 
   DEBUGASSERT(priv);
-  ret = usbhost_takesem(&priv->exclsem);
+  ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
       return ret;
@@ -2537,7 +2409,7 @@ static int usbhost_poll(FAR struct file *filep, FAR struct pollfd *fds,
     }
 
 errout:
-  nxsem_post(&priv->exclsem);
+  nxmutex_unlock(&priv->lock);
   return ret;
 }
 
@@ -2564,17 +2436,6 @@ errout:
 
 int usbhost_mouse_init(void)
 {
-  /* Perform any one-time initialization of the class implementation */
-
-  nxsem_init(&g_exclsem, 0, 1);
-  nxsem_init(&g_syncsem, 0, 0);
-
-  /* The g_syncsem semaphore is used for signaling and, hence, should not
-   * have priority inheritance enabled.
-   */
-
-  nxsem_set_protocol(&g_syncsem, SEM_PRIO_NONE);
-
   /* Advertise our availability to support (certain) mouse devices */
 
   return usbhost_registerclass(&g_hidmouse);

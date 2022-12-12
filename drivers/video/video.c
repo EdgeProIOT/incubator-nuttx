@@ -37,6 +37,7 @@
 #include <nuttx/arch.h>
 #include <nuttx/board.h>
 #include <nuttx/kmalloc.h>
+#include <nuttx/mutex.h>
 
 #include <arch/board/board.h>
 
@@ -59,7 +60,7 @@
 #define VIDEO_SCENE_MAX (sizeof(g_video_scene_parameter) / \
                          sizeof(video_scene_params_t))
 
-#define VIDEO_ID(x, y) (((x) << 16) | y)
+#define VIDEO_ID(x, y) (((x) << 16) | (y))
 
 /****************************************************************************
  * Private Types
@@ -113,7 +114,7 @@ typedef struct video_format_s video_format_t;
 
 struct video_type_inf_s
 {
-  sem_t                lock_state;
+  mutex_t              lock_state;
   enum video_state_e   state;
   int32_t              remaining_capnum;
   video_wait_capture_t wait_capture;
@@ -122,6 +123,7 @@ struct video_type_inf_s
   struct v4l2_rect     clip;
   struct v4l2_fract    frame_interval;
   video_framebuff_t    bufinf;
+  FAR uint8_t          *bufheap;   /* for V4L2_MEMORY_MMAP buffers */
 };
 
 typedef struct video_type_inf_s video_type_inf_t;
@@ -129,7 +131,7 @@ typedef struct video_type_inf_s video_type_inf_t;
 struct video_mng_s
 {
   FAR char           *devpath;     /* parameter of video_initialize() */
-  sem_t              lock_open_num;
+  mutex_t            lock_open_num;
   uint8_t            open_num;
   video_type_inf_t   video_inf;
   video_type_inf_t   still_inf;
@@ -199,8 +201,6 @@ static int video_ioctl(FAR struct file *filep, int cmd, unsigned long arg);
 
 /* Common function */
 
-static int video_lock(FAR sem_t *sem);
-static int video_unlock(FAR sem_t *sem);
 static FAR video_type_inf_t *get_video_type_inf
            (FAR video_mng_t *vmng, uint8_t type);
 static enum video_state_e estimate_next_video_state
@@ -220,10 +220,17 @@ static int validate_frame_setting(enum v4l2_buf_type type,
                                   uint8_t nr_fmt,
                                   FAR video_format_t *vfmt,
                                   FAR struct v4l2_fract *interval);
+static size_t get_bufsize(FAR video_format_t *vf);
 
 /* internal function for each cmds of ioctl */
 
+static ssize_t video_read(FAR struct file *filep, FAR char *buffer,
+                          size_t buflen);
+static ssize_t video_write(FAR struct file *filep, FAR const char *buffer,
+                           size_t buflen);
 static int video_querycap(FAR struct v4l2_capability *cap);
+static int video_g_input(FAR int *num);
+static int video_enum_input(FAR struct v4l2_input *input);
 static int video_reqbufs(FAR struct video_mng_s *vmng,
                          FAR struct v4l2_requestbuffers *reqbufs);
 static int video_qbuf(FAR struct video_mng_s *vmng,
@@ -232,8 +239,14 @@ static int video_dqbuf(FAR struct video_mng_s *vmng,
                        FAR struct v4l2_buffer *buf);
 static int video_cancel_dqbuf(FAR struct video_mng_s *vmng,
                               enum v4l2_buf_type type);
+static int video_g_fmt(FAR struct video_mng_s *priv,
+                       FAR struct v4l2_format *fmt);
 static int video_s_fmt(FAR struct video_mng_s *priv,
                        FAR struct v4l2_format *fmt);
+static int video_try_fmt(FAR struct video_mng_s *priv,
+                         FAR struct v4l2_format *v4l2);
+static int video_g_parm(FAR struct video_mng_s *priv,
+                        FAR struct v4l2_streamparm *parm);
 static int video_s_parm(FAR struct video_mng_s *priv,
                         FAR struct v4l2_streamparm *parm);
 static int video_streamon(FAR struct video_mng_s *vmng,
@@ -271,8 +284,8 @@ static const struct file_operations g_video_fops =
 {
   video_open,               /* open */
   video_close,              /* close */
-  NULL,                     /* read */
-  NULL,                     /* write */
+  video_read,               /* read */
+  video_write,              /* write */
   NULL,                     /* seek */
   video_ioctl,              /* ioctl */
   NULL                      /* poll */
@@ -412,26 +425,6 @@ static FAR const struct imgdata_ops_s *g_video_data_ops;
  * Private Functions
  ****************************************************************************/
 
-static int video_lock(FAR sem_t *sem)
-{
-  if (sem == NULL)
-    {
-      return -EINVAL;
-    }
-
-  return nxsem_wait_uninterruptible(sem);
-}
-
-static int video_unlock(FAR sem_t *sem)
-{
-  if (sem == NULL)
-    {
-      return -EINVAL;
-    }
-
-  return nxsem_post(sem);
-}
-
 static FAR video_type_inf_t *get_video_type_inf
 (FAR video_mng_t *vmng, uint8_t type)
 {
@@ -521,19 +514,27 @@ static void convert_to_imgdatafmt(FAR video_format_t *video,
   data->height      = video->height;
   switch (video->pixelformat)
     {
-      case V4L2_PIX_FMT_UYVY :
+      case V4L2_PIX_FMT_YUV420:
+        data->pixelformat = IMGDATA_PIX_FMT_YUV420P;
+        break;
+
+      case V4L2_PIX_FMT_YUYV:
+        data->pixelformat = IMGDATA_PIX_FMT_YUYV;
+        break;
+
+      case V4L2_PIX_FMT_UYVY:
         data->pixelformat = IMGDATA_PIX_FMT_UYVY;
         break;
 
-      case V4L2_PIX_FMT_RGB565 :
+      case V4L2_PIX_FMT_RGB565:
         data->pixelformat = IMGDATA_PIX_FMT_RGB565;
         break;
 
-      case V4L2_PIX_FMT_JPEG :
+      case V4L2_PIX_FMT_JPEG:
         data->pixelformat = IMGDATA_PIX_FMT_JPEG;
         break;
 
-      default : /* V4L2_PIX_FMT_JPEG_WITH_SUBIMG */
+      default: /* V4L2_PIX_FMT_JPEG_WITH_SUBIMG */
         data->pixelformat = IMGDATA_PIX_FMT_JPEG_WITH_SUBIMG;
         break;
     }
@@ -548,19 +549,27 @@ static void convert_to_imgsensorfmt(FAR video_format_t *video,
   sensor->height      = video->height;
   switch (video->pixelformat)
     {
-      case V4L2_PIX_FMT_UYVY :
+      case V4L2_PIX_FMT_YUV420:
+        sensor->pixelformat = IMGSENSOR_PIX_FMT_YUV420P;
+        break;
+
+      case V4L2_PIX_FMT_YUYV:
+        sensor->pixelformat = IMGSENSOR_PIX_FMT_YUYV;
+        break;
+
+      case V4L2_PIX_FMT_UYVY:
         sensor->pixelformat = IMGSENSOR_PIX_FMT_UYVY;
         break;
 
-      case V4L2_PIX_FMT_RGB565 :
+      case V4L2_PIX_FMT_RGB565:
         sensor->pixelformat = IMGSENSOR_PIX_FMT_RGB565;
         break;
 
-      case V4L2_PIX_FMT_JPEG :
+      case V4L2_PIX_FMT_JPEG:
         sensor->pixelformat = IMGSENSOR_PIX_FMT_JPEG;
         break;
 
-      default : /* V4L2_PIX_FMT_JPEG_WITH_SUBIMG */
+      default: /* V4L2_PIX_FMT_JPEG_WITH_SUBIMG */
         sensor->pixelformat = IMGSENSOR_PIX_FMT_JPEG_WITH_SUBIMG;
         break;
     }
@@ -646,7 +655,7 @@ static int start_capture(enum v4l2_buf_type type,
                          FAR video_format_t *fmt,
                          FAR struct v4l2_rect *clip,
                          FAR struct v4l2_fract *interval,
-                         uint32_t bufaddr, uint32_t bufsize)
+                         uintptr_t bufaddr, uint32_t bufsize)
 {
   video_format_t c_fmt[MAX_VIDEO_FMT];
   imgdata_format_t df[MAX_VIDEO_FMT];
@@ -679,7 +688,7 @@ static int start_capture(enum v4l2_buf_type type,
      sf,
      &si);
   g_video_data_ops->start_capture(nr_fmt, df, &di, video_complete_capture);
-  g_video_data_ops->set_buf((uint8_t *)bufaddr, bufsize);
+  g_video_data_ops->set_buf((FAR uint8_t *)bufaddr, bufsize);
 
   return OK;
 }
@@ -721,8 +730,6 @@ static void change_video_state(FAR video_mng_t    *vmng,
     }
 
   vmng->video_inf.state = updated_next_state;
-
-  return;
 }
 
 static bool is_taking_still_picture(FAR video_mng_t *vmng)
@@ -758,14 +765,12 @@ static void initialize_streamresources(FAR video_type_inf_t *type_inf)
 {
   memset(type_inf, 0, sizeof(video_type_inf_t));
   type_inf->remaining_capnum = VIDEO_REMAINING_CAPNUM_INFINITY;
-  nxsem_init(&type_inf->lock_state, 0, 1);
+  nxmutex_init(&type_inf->lock_state);
   nxsem_init(&type_inf->wait_capture.dqbuf_wait_flg, 0, 0);
   initialize_frame_setting(&type_inf->nr_fmt,
                            type_inf->fmt,
                            &type_inf->frame_interval);
   video_framebuff_init(&type_inf->bufinf);
-
-  return;
 }
 
 static int32_t get_default_value(uint32_t id)
@@ -776,7 +781,9 @@ static int32_t get_default_value(uint32_t id)
   if ((g_video_sensor_ops == NULL) ||
       (g_video_sensor_ops->get_supported_value == NULL))
     {
-      return -EINVAL;
+      /* Don't care(unsupported parameter) */
+
+      return 0;
     }
 
   ret = g_video_sensor_ops->get_supported_value(id, &value);
@@ -819,7 +826,7 @@ static int32_t initialize_scene_gamma(uint8_t **gamma)
   if ((g_video_sensor_ops->get_supported_value == NULL) ||
       (g_video_sensor_ops->get_value == NULL))
     {
-      return -ENOTTY;
+      return 0;
     }
 
   ret = g_video_sensor_ops->get_supported_value
@@ -828,7 +835,7 @@ static int32_t initialize_scene_gamma(uint8_t **gamma)
     {
       /* Unsupported parameter */
 
-      return -EINVAL;
+      return 0;
     }
 
   switch (sup_val.type)
@@ -839,7 +846,7 @@ static int32_t initialize_scene_gamma(uint8_t **gamma)
           {
             /* Multiplication overflow */
 
-            return -EINVAL;
+            return 0;
           }
 
         break;
@@ -850,7 +857,7 @@ static int32_t initialize_scene_gamma(uint8_t **gamma)
           {
             /* Multiplication overflow */
 
-            return -EINVAL;
+            return 0;
           }
 
         break;
@@ -861,14 +868,14 @@ static int32_t initialize_scene_gamma(uint8_t **gamma)
           {
             /* Multiplication overflow */
 
-            return -EINVAL;
+            return 0;
           }
 
         break;
     }
 
   *gamma = malloc(sz);
-  val.p_u8 = (uint8_t *)*gamma;
+  val.p_u8 = (FAR uint8_t *)*gamma;
   g_video_sensor_ops->get_value(IMGSENSOR_ID_GAMMA_CURVE, sz, &val);
   return sz;
 }
@@ -928,19 +935,18 @@ static void initialize_resources(FAR video_mng_t *vmng)
   initialize_streamresources(&vmng->video_inf);
   initialize_streamresources(&vmng->still_inf);
   initialize_scenes_parameter();
-
-  return;
 }
 
 static void cleanup_streamresources(FAR video_type_inf_t *type_inf)
 {
   video_framebuff_uninit(&type_inf->bufinf);
   nxsem_destroy(&type_inf->wait_capture.dqbuf_wait_flg);
-  nxsem_destroy(&type_inf->lock_state);
-  memset(type_inf, 0, sizeof(video_type_inf_t));
-  type_inf->remaining_capnum = VIDEO_REMAINING_CAPNUM_INFINITY;
-
-  return;
+  nxmutex_destroy(&type_inf->lock_state);
+  if (type_inf->bufheap != NULL)
+    {
+      kumm_free(type_inf->bufheap);
+      type_inf->bufheap = NULL;
+    }
 }
 
 static void cleanup_scene_parameter(video_scene_params_t *sp)
@@ -979,8 +985,6 @@ static void cleanup_resources(FAR video_mng_t *vmng)
   cleanup_streamresources(&vmng->video_inf);
   cleanup_streamresources(&vmng->still_inf);
   cleanup_scenes_parameter();
-
-  return;
 }
 
 static bool is_sem_waited(FAR sem_t *sem)
@@ -1023,7 +1027,7 @@ static int video_open(FAR struct file *filep)
   FAR video_mng_t  *priv  = (FAR video_mng_t *)inode->i_private;
   int ret = OK;
 
-  video_lock(&priv->lock_open_num);
+  nxmutex_lock(&priv->lock_open_num);
   if (priv->open_num == 0)
     {
       /* Only in first execution, open device */
@@ -1054,8 +1058,7 @@ static int video_open(FAR struct file *filep)
       priv->open_num++;
     }
 
-  video_unlock(&priv->lock_open_num);
-
+  nxmutex_unlock(&priv->lock_open_num);
   return ret;
 }
 
@@ -1065,9 +1068,10 @@ static int video_close(FAR struct file *filep)
   FAR video_mng_t  *priv  = (FAR video_mng_t *)inode->i_private;
   int ret = ERROR;
 
-  video_lock(&priv->lock_open_num);
+  nxmutex_lock(&priv->lock_open_num);
   if (priv->open_num == 0)
     {
+      nxmutex_unlock(&priv->lock_open_num);
       return OK;
     }
 
@@ -1080,9 +1084,20 @@ static int video_close(FAR struct file *filep)
       g_video_data_ops->uninit();
     }
 
-  video_unlock(&priv->lock_open_num);
-
+  nxmutex_unlock(&priv->lock_open_num);
   return ret;
+}
+
+static ssize_t video_read(FAR struct file *filep, FAR char *buffer,
+                          size_t buflen)
+{
+  return -ENOTSUP;
+}
+
+static ssize_t video_write(FAR struct file *filep, FAR const char *buffer,
+                           size_t buflen)
+{
+  return -ENOTSUP;
 }
 
 static int video_querycap(FAR struct v4l2_capability *cap)
@@ -1108,6 +1123,30 @@ static int video_querycap(FAR struct v4l2_capability *cap)
   /* cap->driver needs to be NULL-terminated. */
 
   strlcpy((FAR char *)cap->driver, name, sizeof(cap->driver));
+  cap->capabilities = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING;
+
+  return OK;
+}
+
+static int video_g_input(FAR int *num)
+{
+  *num = 0;
+
+  return OK;
+}
+
+static int video_enum_input(FAR struct v4l2_input *input)
+{
+  FAR const char *name;
+
+  if (input->index > 0)
+    {
+      return -EINVAL;
+    }
+
+  name = g_video_sensor_ops->get_driver_name();
+  strlcpy((FAR char *)input->name, name, sizeof(input->name));
+  input->type = V4L2_INPUT_TYPE_CAMERA;
 
   return OK;
 }
@@ -1140,15 +1179,61 @@ static int video_reqbufs(FAR struct video_mng_s         *vmng,
     }
   else
     {
+      if (reqbufs->count > V4L2_REQBUFS_COUNT_MAX)
+        {
+          reqbufs->count = V4L2_REQBUFS_COUNT_MAX;
+        }
+
       video_framebuff_change_mode(&type_inf->bufinf, reqbufs->mode);
 
       ret = video_framebuff_realloc_container(&type_inf->bufinf,
                                               reqbufs->count);
+      if (ret == OK && reqbufs->memory == V4L2_MEMORY_MMAP)
+        {
+          if (type_inf->bufheap != NULL)
+            {
+              kumm_free(type_inf->bufheap);
+            }
+
+          type_inf->bufheap = kumm_memalign(32, reqbufs->count *
+            get_bufsize(&type_inf->fmt[VIDEO_FMT_MAIN]));
+          if (type_inf->bufheap == NULL)
+            {
+              ret = -ENOMEM;
+            }
+        }
     }
 
   leave_critical_section(flags);
 
   return ret;
+}
+
+static int video_querybuf(FAR struct video_mng_s *vmng,
+                          FAR struct v4l2_buffer *buf)
+{
+  FAR video_type_inf_t *type_inf;
+
+  if ((vmng == NULL) || (buf == NULL) || buf->memory != V4L2_MEMORY_MMAP)
+    {
+      return -EINVAL;
+    }
+
+  type_inf = get_video_type_inf(vmng, buf->type);
+  if (type_inf == NULL)
+    {
+      return -EINVAL;
+    }
+
+  if (buf->index >= type_inf->bufinf.container_size)
+    {
+      return -EINVAL;
+    }
+
+  buf->length = get_bufsize(&type_inf->fmt[VIDEO_FMT_MAIN]);
+  buf->m.offset = buf->length * buf->index;
+
+  return OK;
 }
 
 static int video_qbuf(FAR struct video_mng_s *vmng,
@@ -1182,9 +1267,18 @@ static int video_qbuf(FAR struct video_mng_s *vmng,
     }
 
   memcpy(&container->buf, buf, sizeof(struct v4l2_buffer));
+  if (buf->memory == V4L2_MEMORY_MMAP)
+    {
+      /* only use userptr inside the container */
+
+      container->buf.length = get_bufsize(&type_inf->fmt[VIDEO_FMT_MAIN]);
+      container->buf.m.userptr = (unsigned long)(type_inf->bufheap +
+                                 buf->length * buf->index);
+    }
+
   video_framebuff_queue_container(&type_inf->bufinf, container);
 
-  video_lock(&type_inf->lock_state);
+  nxmutex_lock(&type_inf->lock_state);
   flags = enter_critical_section();
   if (type_inf->state == VIDEO_STATE_STREAMON)
     {
@@ -1192,11 +1286,11 @@ static int video_qbuf(FAR struct video_mng_s *vmng,
 
       if (buf->type == V4L2_BUF_TYPE_VIDEO_CAPTURE)
         {
-          video_lock(&vmng->still_inf.lock_state);
+          nxmutex_lock(&vmng->still_inf.lock_state);
           next_video_state = estimate_next_video_state
                              (vmng, CAUSE_VIDEO_START);
           change_video_state(vmng, next_video_state);
-          video_unlock(&vmng->still_inf.lock_state);
+          nxmutex_unlock(&vmng->still_inf.lock_state);
         }
       else
         {
@@ -1220,8 +1314,7 @@ static int video_qbuf(FAR struct video_mng_s *vmng,
       leave_critical_section(flags);
     }
 
-  video_unlock(&type_inf->lock_state);
-
+  nxmutex_unlock(&type_inf->lock_state);
   return OK;
 }
 
@@ -1479,13 +1572,32 @@ static int validate_frame_setting(enum v4l2_buf_type type,
   convert_to_imgsensorfmt(&vfmt[VIDEO_FMT_SUB], &sf[IMGSENSOR_FMT_SUB]);
   convert_to_imgsensorinterval(interval, &si);
 
-  ret = g_video_sensor_ops->validate_frame_setting(type, nr_fmt, sf, &si);
+  ret = g_video_sensor_ops->validate_frame_setting(
+            type == V4L2_BUF_TYPE_VIDEO_CAPTURE ?
+              IMGSENSOR_STREAM_TYPE_VIDEO : IMGSENSOR_STREAM_TYPE_STILL,
+            nr_fmt, sf, &si);
   if (ret != OK)
     {
       return ret;
     }
 
   return g_video_data_ops->validate_frame_setting(nr_fmt, df, &di);
+}
+
+static size_t get_bufsize(FAR video_format_t *vf)
+{
+  size_t ret = vf->width * vf->height;
+  switch (vf->pixelformat)
+    {
+      case V4L2_PIX_FMT_YUV420:
+        return ret * 3 / 2;
+      case V4L2_PIX_FMT_YUYV:
+      case V4L2_PIX_FMT_UYVY:
+      case V4L2_PIX_FMT_RGB565:
+      case V4L2_PIX_FMT_JPEG:
+      default:
+        return ret * 2;
+    }
 }
 
 static int video_try_fmt(FAR struct video_mng_s *priv,
@@ -1538,6 +1650,8 @@ static int video_try_fmt(FAR struct video_mng_s *priv,
 
         break;
 
+      case V4L2_PIX_FMT_YUV420:
+      case V4L2_PIX_FMT_YUYV:
       case V4L2_PIX_FMT_UYVY:
       case V4L2_PIX_FMT_RGB565:
       case V4L2_PIX_FMT_JPEG:
@@ -1557,6 +1671,25 @@ static int video_try_fmt(FAR struct video_mng_s *priv,
                                 nr_fmt,
                                 vf,
                                 &type_inf->frame_interval);
+}
+
+static int video_g_fmt(FAR struct video_mng_s *priv,
+                       FAR struct v4l2_format *fmt)
+{
+  FAR video_type_inf_t *type_inf;
+
+  type_inf = get_video_type_inf(priv, fmt->type);
+  if (type_inf == NULL)
+    {
+      return -EINVAL;
+    }
+
+  memset(fmt, 0, sizeof(*fmt));
+  fmt->fmt.pix.width = type_inf->fmt[VIDEO_FMT_MAIN].width;
+  fmt->fmt.pix.height = type_inf->fmt[VIDEO_FMT_MAIN].height;
+  fmt->fmt.pix.pixelformat = type_inf->fmt[VIDEO_FMT_MAIN].pixelformat;
+
+  return OK;
 }
 
 static int video_s_fmt(FAR struct video_mng_s *priv,
@@ -1654,6 +1787,47 @@ static int video_s_parm(FAR struct video_mng_s *priv,
   return ret;
 }
 
+static int video_g_parm(FAR struct video_mng_s *vmng,
+                        FAR struct v4l2_streamparm *parm)
+{
+  int ret = -EINVAL;
+  FAR video_type_inf_t *type_inf;
+
+  DEBUGASSERT(vmng && g_video_sensor_ops);
+
+  type_inf = get_video_type_inf(vmng, parm->type);
+  if (type_inf == NULL)
+    {
+      return -EINVAL;
+    }
+
+  if ((type_inf->state == VIDEO_STATE_CAPTURE) &&
+      (g_video_sensor_ops->get_frame_interval != NULL))
+    {
+      /* If capture is started and lower driver has the get_frame_interval(),
+       * query lower driver.
+       */
+
+      memset(&parm->parm, 0, sizeof(parm->parm));
+
+      ret = g_video_sensor_ops->get_frame_interval
+              (parm->type,
+               (imgsensor_interval_t *)&parm->parm.capture.timeperframe);
+    }
+
+  if (ret != OK)
+    {
+      /* In no capture state or error case, return stored value. */
+
+      memcpy(&parm->parm.capture.timeperframe,
+             &type_inf->frame_interval,
+             sizeof(struct v4l2_fract));
+    }
+
+  parm->parm.capture.capability = V4L2_CAP_TIMEPERFRAME;
+  return OK;
+}
+
 static int video_streamon(FAR struct video_mng_s *vmng,
                           FAR enum v4l2_buf_type *type)
 {
@@ -1679,7 +1853,7 @@ static int video_streamon(FAR struct video_mng_s *vmng,
       return OK;
     }
 
-  video_lock(&type_inf->lock_state);
+  nxmutex_lock(&type_inf->lock_state);
 
   if (type_inf->state != VIDEO_STATE_STREAMOFF)
     {
@@ -1692,8 +1866,7 @@ static int video_streamon(FAR struct video_mng_s *vmng,
       change_video_state(vmng, next_video_state);
     }
 
-  video_unlock(&type_inf->lock_state);
-
+  nxmutex_unlock(&type_inf->lock_state);
   return ret;
 }
 
@@ -1772,7 +1945,6 @@ static int video_takepict_start(FAR struct video_mng_s *vmng,
   irqstate_t           flags;
   enum video_state_e   next_video_state;
   FAR vbuf_container_t *container;
-
   int                  ret = OK;
 
   if (vmng == NULL)
@@ -1780,7 +1952,7 @@ static int video_takepict_start(FAR struct video_mng_s *vmng,
       return -EINVAL;
     }
 
-  video_lock(&vmng->still_inf.lock_state);
+  nxmutex_lock(&vmng->still_inf.lock_state);
 
   if (vmng->still_inf.state != VIDEO_STATE_STREAMOFF)
     {
@@ -1829,8 +2001,7 @@ static int video_takepict_start(FAR struct video_mng_s *vmng,
         }
     }
 
-  video_unlock(&vmng->still_inf.lock_state);
-
+  nxmutex_unlock(&vmng->still_inf.lock_state);
   return ret;
 }
 
@@ -1845,7 +2016,7 @@ static int video_takepict_stop(FAR struct video_mng_s *vmng, bool halfpush)
       return -EINVAL;
     }
 
-  video_lock(&vmng->still_inf.lock_state);
+  nxmutex_lock(&vmng->still_inf.lock_state);
 
   if ((vmng->still_inf.state == VIDEO_STATE_STREAMOFF) &&
       (vmng->still_inf.remaining_capnum == VIDEO_REMAINING_CAPNUM_INFINITY))
@@ -1867,15 +2038,14 @@ static int video_takepict_stop(FAR struct video_mng_s *vmng, bool halfpush)
 
       /* Control video stream */
 
-      video_lock(&vmng->video_inf.lock_state);
+      nxmutex_lock(&vmng->video_inf.lock_state);
       next_video_state = estimate_next_video_state(vmng,
                                                    CAUSE_STILL_STOP);
       change_video_state(vmng, next_video_state);
-      video_unlock(&vmng->video_inf.lock_state);
+      nxmutex_unlock(&vmng->video_inf.lock_state);
     }
 
-  video_unlock(&vmng->still_inf.lock_state);
-
+  nxmutex_unlock(&vmng->still_inf.lock_state);
   return ret;
 }
 
@@ -2208,7 +2378,7 @@ static int set_pvalue(uint32_t id, int size, void *pval)
       return -ENOTTY;
     }
 
-  value.p_u8 = (uint8_t *)pval;
+  value.p_u8 = (FAR uint8_t *)pval;
   return g_video_sensor_ops->set_value(id, size, value);
 }
 
@@ -2912,8 +3082,23 @@ static int video_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
         break;
 
+      case VIDIOC_G_INPUT:
+        ret = video_g_input((FAR int *)arg);
+
+        break;
+
+      case VIDIOC_ENUMINPUT:
+        ret = video_enum_input((FAR struct v4l2_input *)arg);
+
+        break;
+
       case VIDIOC_REQBUFS:
         ret = video_reqbufs(priv, (FAR struct v4l2_requestbuffers *)arg);
+
+        break;
+
+      case VIDIOC_QUERYBUF:
+        ret = video_querybuf(priv, (FAR struct v4l2_buffer *)arg);
 
         break;
 
@@ -2972,6 +3157,11 @@ static int video_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
         break;
 
+      case VIDIOC_G_FMT:
+        ret = video_g_fmt(priv, (FAR struct v4l2_format *)arg);
+
+        break;
+
       case VIDIOC_S_FMT:
         ret = video_s_fmt(priv, (FAR struct v4l2_format *)arg);
 
@@ -2979,6 +3169,11 @@ static int video_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
       case VIDIOC_S_PARM:
         ret = video_s_parm(priv, (FAR struct v4l2_streamparm *)arg);
+
+        break;
+
+      case VIDIOC_G_PARM:
+        ret = video_g_parm(priv, (FAR struct v4l2_streamparm *)arg);
 
         break;
 
@@ -3017,6 +3212,16 @@ static int video_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
         break;
 
+      case VIDIOC_G_STD:
+        ret = -ENODATA;
+
+        break;
+
+      case VIDIOC_S_STD:
+        ret = -EINVAL;
+
+        break;
+
       case V4SIOC_QUERY_EXT_CTRL_SCENE:
         ret = video_query_ext_ctrl_scene
                 ((FAR struct v4s_query_ext_ctrl_scene *)arg);
@@ -3040,6 +3245,13 @@ static int video_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
         break;
 
+      case FIOC_MMAP:
+        DEBUGASSERT((FAR void **)(uintptr_t)arg != NULL);
+        *(FAR void **)((uintptr_t)arg) = priv->video_inf.bufheap;
+        ret = OK;
+
+        break;
+
       default:
         verr("Unrecognized cmd: %d\n", cmd);
         ret = - ENOTTY;
@@ -3051,7 +3263,7 @@ static int video_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
 static FAR void *video_register(FAR const char *devpath)
 {
-  FAR    video_mng_t *priv;
+  FAR video_mng_t *priv;
   int    ret;
   size_t allocsize;
 
@@ -3094,9 +3306,9 @@ static FAR void *video_register(FAR const char *devpath)
   memcpy(priv->devpath, devpath, allocsize);
   priv->devpath[allocsize] = '\0';
 
-  /* Initialize semaphore */
+  /* Initialize mutex */
 
-  nxsem_init(&priv->lock_open_num, 0, 1);
+  nxmutex_init(&priv->lock_open_num);
 
   /* Register the character driver */
 
@@ -3104,12 +3316,13 @@ static FAR void *video_register(FAR const char *devpath)
   if (ret < 0)
     {
       verr("Failed to register driver: %d\n", ret);
+      nxmutex_destroy(&priv->lock_open_num);
       kmm_free(priv->devpath);
       kmm_free(priv);
       return NULL;
     }
 
-  return (FAR void *)priv;
+  return priv;
 }
 
 static int video_unregister(FAR video_mng_t *v_mgr)
@@ -3122,9 +3335,8 @@ static int video_unregister(FAR video_mng_t *v_mgr)
     }
   else
     {
-      nxsem_destroy(&v_mgr->lock_open_num);
-
-      unregister_driver((const char *)v_mgr->devpath);
+      nxmutex_destroy(&v_mgr->lock_open_num);
+      unregister_driver(v_mgr->devpath);
 
       kmm_free(v_mgr->devpath);
       kmm_free(v_mgr);
@@ -3209,8 +3421,8 @@ static int video_complete_capture(uint8_t  err_code, uint32_t datasize)
         }
       else
         {
-          g_video_data_ops->set_buf((uint8_t *)container->buf.m.userptr,
-                                  container->buf.length);
+          g_video_data_ops->set_buf((FAR uint8_t *)container->buf.m.userptr,
+                                    container->buf.length);
         }
     }
 
@@ -3238,7 +3450,7 @@ int video_initialize(FAR const char *devpath)
 
 int video_uninitialize(void)
 {
-  if (is_initialized)
+  if (!is_initialized)
     {
       return OK;
     }

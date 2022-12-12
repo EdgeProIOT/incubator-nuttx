@@ -41,7 +41,7 @@
 #include <nuttx/kmalloc.h>
 #include <nuttx/mqueue.h>
 #include <nuttx/spinlock.h>
-#include <nuttx/semaphore.h>
+#include <nuttx/mutex.h>
 #include <nuttx/kthread.h>
 #include <nuttx/wdog.h>
 #include <nuttx/wqueue.h>
@@ -417,7 +417,7 @@ static bool g_wifi_irq_bind;
 static struct work_s g_wifi_evt_work;
 static sq_queue_t g_wifi_evt_queue;
 static struct wifi_notify g_wifi_notify[WIFI_ADPT_EVT_MAX];
-static sem_t g_wifiexcl_sem = SEM_INITIALIZER(1);
+static mutex_t g_wifiexcl_lock = NXMUTEX_INITIALIZER;
 
 /* Wi-Fi adapter reference */
 
@@ -898,7 +898,7 @@ static int esp_wifi_lock(bool lock)
 
   if (lock)
     {
-      ret = nxsem_wait_uninterruptible(&g_wifiexcl_sem);
+      ret = nxmutex_lock(&g_wifiexcl_lock);
       if (ret < 0)
         {
           wlinfo("INFO: Failed to lock Wi-Fi ret=%d\n", ret);
@@ -906,7 +906,7 @@ static int esp_wifi_lock(bool lock)
     }
   else
     {
-      ret = nxsem_post(&g_wifiexcl_sem);
+      ret = nxmutex_unlock(&g_wifiexcl_lock);
       if (ret < 0)
         {
           wlinfo("INFO: Failed to unlock Wi-Fi ret=%d\n", ret);
@@ -5089,13 +5089,6 @@ int esp_wifi_adapter_init(void)
       wlerr("ERROR: Failed to register TX done callback ret=%d\n", ret);
       ret = wifi_errno_trans(ret);
       goto errout_init_txdone;
-    }
-
-  ret = esp_wifi_scan_init();
-  if (ret < 0)
-    {
-      nerr("ERROR: Initialize Wi-Fi scan parameter error: %d\n", ret);
-      return ret;
     }
 
   ret = esp_wifi_set_country(&country);

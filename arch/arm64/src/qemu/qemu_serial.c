@@ -458,15 +458,26 @@ static void qemu_pl011_rxint(struct uart_dev_s *dev, bool enable)
 static void qemu_pl011_txint(struct uart_dev_s *dev, bool enable)
 {
   struct pl011_uart_port_s *sport = (struct pl011_uart_port_s *)dev->priv;
+  irqstate_t flags;
+
+  flags = enter_critical_section();
 
   if (enable)
     {
       pl011_irq_tx_enable(sport);
+
+      /* Fake a TX interrupt here by just calling uart_xmitchars() with
+       * interrupts disabled (note this may recurse).
+       */
+
+      uart_xmitchars(dev);
     }
   else
     {
       pl011_irq_tx_disable(sport);
     }
+
+  leave_critical_section(flags);
 }
 
 /***************************************************************************
@@ -798,10 +809,6 @@ void qemu_earlyserialinit(void)
   qemu_pl011_setup(&CONSOLE_DEV);
 #endif
 }
-
-/* Used to assure mutually exclusive access up_putc() */
-
-/* static sem_t g_putc_lock = SEM_INITIALIZER(1); */
 
 /***************************************************************************
  * Name: up_putc

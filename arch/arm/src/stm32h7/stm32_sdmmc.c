@@ -423,15 +423,12 @@ struct stm32_sampleregs_s
 static inline void sdmmc_putreg32(struct stm32_dev_s *priv, uint32_t value,
                                   int offset);
 static inline uint32_t sdmmc_getreg32(struct stm32_dev_s *priv, int offset);
-static int  stm32_takesem(struct stm32_dev_s *priv);
-#define     stm32_givesem(priv) (nxsem_post(&priv->waitsem))
 static inline void stm32_setclkcr(struct stm32_dev_s *priv, uint32_t clkcr);
 static void stm32_configwaitints(struct stm32_dev_s *priv, uint32_t waitmask,
                                  sdio_eventset_t waitevents,
                                  sdio_eventset_t wkupevents);
 static void stm32_configxfrints(struct stm32_dev_s *priv, uint32_t xfrmask);
 static void stm32_setpwrctrl(struct stm32_dev_s *priv, uint32_t pwrctrl);
-static inline uint32_t stm32_getpwrctrl(struct stm32_dev_s *priv);
 
 /* Debug Helpers ************************************************************/
 
@@ -591,13 +588,14 @@ struct stm32_dev_s g_sdmmcdev1 =
     .dmasendsetup     = stm32_dmasendsetup,
 #endif
   },
-  .base              = STM32_SDMMC1_BASE,
-  .nirq              = STM32_IRQ_SDMMC1,
+  .base               = STM32_SDMMC1_BASE,
+  .nirq               = STM32_IRQ_SDMMC1,
 #if defined(CONFIG_MMCSD_SDIOWAIT_WRCOMPLETE)
-  .d0_gpio           = SDMMC1_SDIO_PULL(GPIO_SDMMC1_D0),
+  .d0_gpio            = SDMMC1_SDIO_PULL(GPIO_SDMMC1_D0),
 #endif
+  .waitsem            = SEM_INITIALIZER(0),
 #if defined(HAVE_SDMMC_SDIO_MODE) && defined(CONFIG_SDMMC1_SDIO_MODE)
-  .sdiomode          = true,
+  .sdiomode           = true,
 #endif
 };
 #endif
@@ -645,13 +643,14 @@ struct stm32_dev_s g_sdmmcdev2 =
     .dmasendsetup     = stm32_dmasendsetup,
 #endif
   },
-  .base              = STM32_SDMMC2_BASE,
-  .nirq              = STM32_IRQ_SDMMC2,
+  .base               = STM32_SDMMC2_BASE,
+  .nirq               = STM32_IRQ_SDMMC2,
 #if defined(CONFIG_MMCSD_SDIOWAIT_WRCOMPLETE)
-  .d0_gpio           = SDMMC2_SDIO_PULL(GPIO_SDMMC2_D0),
+  .d0_gpio            = SDMMC2_SDIO_PULL(GPIO_SDMMC2_D0),
 #endif
+  .waitsem            = SEM_INITIALIZER(0),
 #if defined(HAVE_SDMMC_SDIO_MODE) && defined(CONFIG_SDMMC2_SDIO_MODE)
-  .sdiomode          = true,
+  .sdiomode           = true,
 #endif
 };
 #endif
@@ -700,27 +699,6 @@ static inline void sdmmc_modifyreg32(struct stm32_dev_s *priv, int offset,
   regval |= setbits;
   putreg32(regval, priv->base + offset);
   leave_critical_section(flags);
-}
-
-/****************************************************************************
- * Name: stm32_takesem
- *
- * Description:
- *   Take the wait semaphore (handling false alarm wakeups due to the receipt
- *   of signals).
- *
- * Input Parameters:
- *   priv  - Instance of the SDMMC private state structure.
- *
- * Returned Value:
- *   Normally OK, but may return -ECANCELED in the rare event that the task
- *   has been canceled.
- *
- ****************************************************************************/
-
-static int stm32_takesem(struct stm32_dev_s *priv)
-{
-  return nxsem_wait_uninterruptible(&priv->waitsem);
 }
 
 /****************************************************************************
@@ -909,28 +887,6 @@ static void stm32_setpwrctrl(struct stm32_dev_s *priv, uint32_t pwrctrl)
   regval &= ~STM32_SDMMC_POWER_PWRCTRL_MASK;
   regval |= pwrctrl;
   sdmmc_putreg32(priv, regval, STM32_SDMMC_POWER_OFFSET);
-}
-
-/****************************************************************************
- * Name: stm32_getpwrctrl
- *
- * Description:
- *   Return the current value of the  the PWRCTRL field of the SDIO POWER
- *   register.  This function can be used to see if the SDIO is powered ON
- *   or OFF
- *
- * Input Parameters:
- *   priv  - Instance of the SDMMC private state structure.
- *
- * Returned Value:
- *   The current value of the  the PWRCTRL field of the SDIO POWER register.
- *
- ****************************************************************************/
-
-static inline uint32_t stm32_getpwrctrl(struct stm32_dev_s *priv)
-{
-  return sdmmc_getreg32(priv, STM32_SDMMC_POWER_OFFSET) &
-    STM32_SDMMC_POWER_PWRCTRL_MASK;
 }
 
 /****************************************************************************
@@ -1509,7 +1465,7 @@ static void stm32_endwait(struct stm32_dev_s *priv,
 
   /* Wake up the waiting thread */
 
-  stm32_givesem(priv);
+  nxsem_post(&priv->waitsem);
 }
 
 /****************************************************************************
@@ -2976,7 +2932,7 @@ static sdio_eventset_t stm32_eventwait(struct sdio_dev_s *dev)
        * incremented and there will be no wait.
        */
 
-      ret = stm32_takesem(priv);
+      ret = nxsem_wait_uninterruptible(priv);
       if (ret < 0)
         {
           /* Task canceled.  Cancel the wdog (assuming it was started) and
@@ -3529,18 +3485,6 @@ struct sdio_dev_s *sdio_initialize(int slotno)
       mcerr("ERROR: Unsupported SDMMC slot: %d\n", slotno);
       return NULL;
     }
-
-  /* Initialize the SDIO slot structure */
-
-  /* Initialize semaphores */
-
-  nxsem_init(&priv->waitsem, 0, 0);
-
-  /* The waitsem semaphore is used for signaling and, hence, should not have
-   * priority inheritance enabled.
-   */
-
-  nxsem_set_protocol(&priv->waitsem, SEM_PRIO_NONE);
 
   /* Reset the card and assure that it is in the initial, unconfigured
    * state.

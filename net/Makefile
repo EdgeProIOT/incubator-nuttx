@@ -47,13 +47,14 @@ include bluetooth/Make.defs
 include ieee802154/Make.defs
 include devif/Make.defs
 include ipforward/Make.defs
+include nat/Make.defs
 include route/Make.defs
 include procfs/Make.defs
 include usrsock/Make.defs
 include utils/Make.defs
 endif
 
-CFLAGS += ${shell $(INCDIR) "$(CC)" $(TOPDIR)$(DELIM)net}
+CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)net
 
 ASRCS = $(SOCK_ASRCS) $(NETDEV_ASRCS) $(NET_ASRCS)
 AOBJS = $(ASRCS:.S=$(OBJEXT))

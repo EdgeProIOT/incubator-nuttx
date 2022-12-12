@@ -39,6 +39,9 @@
 #include "esp32s3_region.h"
 #include "esp32s3_spiram.h"
 #include "esp32s3_wdt.h"
+#ifdef CONFIG_BUILD_PROTECTED
+#  include "esp32s3_userspace.h"
+#endif
 #include "hardware/esp32s3_cache_memory.h"
 #include "hardware/esp32s3_system.h"
 
@@ -47,7 +50,7 @@
  ****************************************************************************/
 
 #ifdef CONFIG_DEBUG_FEATURES
-#  define showprogress(c)     up_lowputc(c)
+#  define showprogress(c)     xtensa_lowputc(c)
 #else
 #  define showprogress(c)
 #endif
@@ -311,6 +314,17 @@ void noreturn_function IRAM_ATTR __esp32s3_start(void)
   esp32s3_board_initialize();
 
   showprogress('B');
+
+#ifdef CONFIG_BUILD_PROTECTED
+  /* For the case of the separate user-/kernel-space build, perform whatever
+   * platform specific initialization of the user memory is required.
+   * Normally this just means initializing the user space .data and .bss
+   * segments.
+   */
+
+  esp32s3_userspace();
+  showprogress('C');
+#endif
 
   /* Bring up NuttX */
 

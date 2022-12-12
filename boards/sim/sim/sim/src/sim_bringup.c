@@ -34,7 +34,9 @@
 #include <nuttx/mtd/mtd.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/fs/nxffs.h>
+#include <nuttx/drivers/ramdisk.h>
 #include <nuttx/drivers/rpmsgdev.h>
+#include <nuttx/drivers/rpmsgblk.h>
 #include <nuttx/i2c/i2c_master.h>
 #include <nuttx/spi/spi_transfer.h>
 #include <nuttx/rc/lirc_dev.h>
@@ -45,6 +47,7 @@
 #include <nuttx/serial/uart_rpmsg.h>
 #include <nuttx/timers/oneshot.h>
 #include <nuttx/video/fb.h>
+#include <nuttx/video/video.h>
 #include <nuttx/timers/oneshot.h>
 #include <nuttx/wireless/pktradio.h>
 #include <nuttx/wireless/bluetooth/bt_null.h>
@@ -59,7 +62,7 @@
 #include <nuttx/input/buttons.h>
 #endif
 
-#include "up_internal.h"
+#include "sim_internal.h"
 #include "sim.h"
 
 /****************************************************************************
@@ -92,6 +95,9 @@ int sim_bringup(void)
 #endif
 #ifdef CONFIG_RAMMTD
   uint8_t *ramstart;
+#endif
+#if !defined(CONFIG_DISABLE_MOUNTPOINT) && defined(CONFIG_BLK_RPMSG_SERVER)
+  uint8_t *ramdiskstart;
 #endif
 #ifdef CONFIG_SIM_I2CBUS
   struct i2c_master_s *i2cbus;
@@ -231,6 +237,16 @@ int sim_bringup(void)
     }
 #endif
 
+#if !defined(CONFIG_DISABLE_MOUNTPOINT) && defined(CONFIG_BLK_RPMSG_SERVER)
+  ramdiskstart = (uint8_t *)kmm_malloc(512 * 2048);
+  ret = ramdisk_register(1, ramdiskstart, 2048, 512,
+                         RDFLAG_WRENABLED | RDFLAG_FUNLINK);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to register ramdisk: %d\n", ret);
+    }
+#endif
+
 #ifdef CONFIG_ONESHOT
   /* Get an instance of the simulated oneshot timer */
 
@@ -274,6 +290,18 @@ int sim_bringup(void)
     {
       syslog(LOG_ERR, "ERROR: fb_register() failed: %d\n", ret);
     }
+#endif
+
+#ifdef CONFIG_SIM_VIDEO
+  /* Initialize and register the simulated video driver */
+
+  ret = video_initialize(CONFIG_SIM_VIDEO_DEV_PATH);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: video_initialize() failed: %d\n", ret);
+    }
+
+  sim_video_initialize();
 #endif
 
 #ifdef CONFIG_LCD
@@ -349,10 +377,10 @@ int sim_bringup(void)
 #ifdef CONFIG_SIM_HCISOCKET
   /* Register the Host Bluetooth network device via HCI socket */
 
-  ret = bthcisock_register(CONFIG_SIM_HCISOCKET_DEVID);
+  ret = sim_bthcisock_register(CONFIG_SIM_HCISOCKET_DEVID);
   if (ret < 0)
     {
-      syslog(LOG_ERR, "ERROR: bthcisock_register() failed: %d\n", ret);
+      syslog(LOG_ERR, "ERROR: sim_bthcisock_register() failed: %d\n", ret);
     }
 #endif
 
@@ -432,14 +460,19 @@ int sim_bringup(void)
 
 #ifdef CONFIG_RPTUN
 #ifdef CONFIG_SIM_RPTUN_MASTER
-  up_rptun_init("server-proxy", "proxy", true);
+  sim_rptun_init("server-proxy", "proxy", true);
 #else
-  up_rptun_init("server-proxy", "server", false);
+  sim_rptun_init("server-proxy", "server", false);
 #endif
 
 #ifdef CONFIG_DEV_RPMSG
   rpmsgdev_register("server", "/dev/console", "/dev/server-console");
   rpmsgdev_register("server", "/dev/null", "/dev/server-null");
+  rpmsgdev_register("server", "/dev/ttyUSB0", "/dev/ttyUSB0");
+#endif
+
+#ifdef CONFIG_BLK_RPMSG
+  rpmsgblk_register("server", "/dev/ram1", NULL);
 #endif
 
 #ifdef CONFIG_RPMSGMTD

@@ -9,7 +9,6 @@ config NET_TCP
 	bool "TCP/IP Networking"
 	default n
 	select NET_READAHEAD if !NET_TCP_NO_STACK
-	depends on SCHED_WORKQUEUE
 	---help---
 		Enable or disable TCP networking support.
 
@@ -66,6 +65,14 @@ config NET_TCP_RTO
 	default 3
 	---help---
 		RTO of TCP/IP connections (all tasks)
+
+config NET_TCP_MAXRTX
+	int "Maximum retransmitted number of TCP/IP data packet"
+	default 8
+
+config NET_TCP_MAXSYNRTX
+	int "Maximum retransmitted number of TCP/IP SYN packet"
+	default 5
 
 config NET_TCP_WAIT_TIMEOUT
 	int "TIME_WAIT Length of TCP/IP connections"

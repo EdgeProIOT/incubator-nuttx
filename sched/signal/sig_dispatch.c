@@ -36,6 +36,7 @@
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/signal.h>
+#include <nuttx/queue.h>
 
 #include "sched/sched.h"
 #include "group/group.h"
@@ -296,6 +297,7 @@ static void nxsig_add_pendingsignal(FAR struct tcb_s *stcb,
 
 int nxsig_tcbdispatch(FAR struct tcb_s *stcb, siginfo_t *info)
 {
+  FAR struct tcb_s *rtcb = this_task();
   irqstate_t flags;
   int masked;
   int ret = OK;
@@ -369,7 +371,19 @@ int nxsig_tcbdispatch(FAR struct tcb_s *stcb, siginfo_t *info)
               wd_cancel(&stcb->waitdog);
             }
 
-          up_unblock_task(stcb);
+          /* Remove the task from waitting list */
+
+          dq_rem((FAR dq_entry_t *)stcb, &g_waitingforsignal);
+
+          /* Add the task to ready-to-run task list and
+           * perform the context switch if one is needed
+           */
+
+          if (nxsched_add_readytorun(stcb))
+            {
+              up_switch_context(stcb, rtcb);
+            }
+
           leave_critical_section(flags);
         }
 
@@ -411,7 +425,18 @@ int nxsig_tcbdispatch(FAR struct tcb_s *stcb, siginfo_t *info)
               wd_cancel(&stcb->waitdog);
             }
 
-          up_unblock_task(stcb);
+          /* Remove the task from waitting list */
+
+          dq_rem((FAR dq_entry_t *)stcb, &g_waitingforsignal);
+
+          /* Add the task to ready-to-run task list and
+           * perform the context switch if one is needed
+           */
+
+          if (nxsched_add_readytorun(stcb))
+            {
+              up_switch_context(stcb, rtcb);
+            }
         }
 
       leave_critical_section(flags);
@@ -430,6 +455,8 @@ int nxsig_tcbdispatch(FAR struct tcb_s *stcb, siginfo_t *info)
 
   if (masked == 0)
     {
+      flags = enter_critical_section();
+
       /* If the task is blocked waiting for a semaphore, then that task must
        * be unblocked when a signal is received.
        */
@@ -439,7 +466,7 @@ int nxsig_tcbdispatch(FAR struct tcb_s *stcb, siginfo_t *info)
           nxsem_wait_irq(stcb, EINTR);
         }
 
-#ifndef CONFIG_DISABLE_MQUEUE
+#if !defined(CONFIG_DISABLE_MQUEUE) || !defined(CONFIG_DISABLE_MQUEUE_SYSV)
       /* If the task is blocked waiting on a message queue, then that task
        * must be unblocked when a signal is received.
        */
@@ -462,10 +489,23 @@ int nxsig_tcbdispatch(FAR struct tcb_s *stcb, siginfo_t *info)
 #ifdef HAVE_GROUP_MEMBERS
           group_continue(stcb);
 #else
-          nxsched_continue(stcb);
+          /* Remove the task from waitting list */
+
+          dq_rem((FAR dq_entry_t *)stcb, &g_stoppedtasks);
+
+          /* Add the task to ready-to-run task list and
+           * perform the context switch if one is needed
+           */
+
+          if (nxsched_add_readytorun(stcb))
+            {
+              up_switch_context(stcb, rtcb);
+            }
 #endif
         }
 #endif
+
+      leave_critical_section(flags);
     }
 
   /* In case nxsig_ismember failed due to an invalid signal number */

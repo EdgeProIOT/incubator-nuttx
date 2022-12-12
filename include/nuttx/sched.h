@@ -31,12 +31,13 @@
 #include <stdint.h>
 #include <sched.h>
 #include <signal.h>
-#include <semaphore.h>
 #include <pthread.h>
 #include <time.h>
 
 #include <nuttx/clock.h>
 #include <nuttx/irq.h>
+#include <nuttx/mutex.h>
+#include <nuttx/semaphore.h>
 #include <nuttx/queue.h>
 #include <nuttx/wdog.h>
 #include <nuttx/mm/shm.h>
@@ -51,22 +52,15 @@
 
 /* Configuration ************************************************************/
 
-/* Task groups currently only supported for retention of child status */
-
-#undef HAVE_GROUP_MEMBERS
-
-/* We need a group an group members if we are supporting the parent/child
- * relationship.
+/* We need to track group members at least for:
+ *
+ * - To signal all tasks in a group. (eg. SIGCHLD)
+ * - _exit() to collect siblings threads.
  */
 
-#if defined(CONFIG_SCHED_HAVE_PARENT) && defined(CONFIG_SCHED_CHILD_STATUS)
+#undef HAVE_GROUP_MEMBERS
+#if !defined(CONFIG_DISABLE_PTHREAD)
 #  define HAVE_GROUP_MEMBERS  1
-#endif
-
-/* We don't need group members if support for pthreads is disabled */
-
-#ifdef CONFIG_DISABLE_PTHREAD
-#  undef HAVE_GROUP_MEMBERS
 #endif
 
 /* Sporadic scheduling */
@@ -107,7 +101,7 @@
 #define TCB_FLAG_SYSCALL           (1 << 10)                     /* Bit 9: In a system call */
 #define TCB_FLAG_EXIT_PROCESSING   (1 << 11)                     /* Bit 10: Exitting */
 #define TCB_FLAG_FREE_STACK        (1 << 12)                     /* Bit 12: Free stack after exit */
-#define TCB_FLAG_HEAPCHECK         (1 << 13)                     /* Bit 13: Heap check */
+#define TCB_FLAG_HEAP_CHECK        (1 << 13)                     /* Bit 13: Heap check */
                                                                  /* Bits 14-15: Available */
 
 /* Values for struct task_group tg_flags */
@@ -212,7 +206,7 @@ enum tstate_e
   TSTATE_TASK_INACTIVE,       /* BLOCKED      - Initialized but not yet activated */
   TSTATE_WAIT_SEM,            /* BLOCKED      - Waiting for a semaphore */
   TSTATE_WAIT_SIG,            /* BLOCKED      - Waiting for a signal */
-#ifndef CONFIG_DISABLE_MQUEUE
+#if !defined(CONFIG_DISABLE_MQUEUE) || !defined(CONFIG_DISABLE_MQUEUE_SYSV)
   TSTATE_WAIT_MQNOTEMPTY,     /* BLOCKED      - Waiting for a MQ to become not empty. */
   TSTATE_WAIT_MQNOTFULL,      /* BLOCKED      - Waiting for a MQ to become not full. */
 #endif
@@ -460,7 +454,7 @@ struct task_group_s
 
                               /* Pthread join Info:                         */
 
-  sem_t tg_joinsem;               /* Mutually exclusive access to join data */
+  mutex_t tg_joinlock;            /* Mutually exclusive access to join data */
   FAR struct join_s *tg_joinhead; /* Head of a list of join data            */
   FAR struct join_s *tg_jointail; /* Tail of a list of join data            */
 #endif
@@ -559,10 +553,7 @@ struct tcb_s
   uint8_t  task_state;                   /* Current state of the thread     */
 
 #ifdef CONFIG_PRIORITY_INHERITANCE
-#if CONFIG_SEM_NNESTPRIO > 0
-  uint8_t  npend_reprio;             /* Number of nested reprioritizations  */
-  uint8_t  pend_reprios[CONFIG_SEM_NNESTPRIO];
-#endif
+  uint8_t  boost_priority;               /* "Boosted" priority of the thread */
   uint8_t  base_priority;                /* "Normal" priority of the thread */
   FAR struct semholder_s *holdsem;       /* List of held semaphores         */
 #endif
@@ -635,12 +626,12 @@ struct tcb_s
   /* Pre-emption monitor support ********************************************/
 
 #ifdef CONFIG_SCHED_CRITMONITOR
-  uint32_t premp_start;                  /* Time when preemption disabled       */
-  uint32_t premp_max;                    /* Max time preemption disabled        */
-  uint32_t crit_start;                   /* Time critical section entered       */
-  uint32_t crit_max;                     /* Max time in critical section        */
-  uint32_t run_start;                    /* Time when thread begin run          */
-  uint32_t run_max;                      /* Max time thread run                 */
+  uint32_t premp_start;                  /* Time when preemption disabled   */
+  uint32_t premp_max;                    /* Max time preemption disabled    */
+  uint32_t crit_start;                   /* Time critical section entered   */
+  uint32_t crit_max;                     /* Max time in critical section    */
+  uint32_t run_start;                    /* Time when thread begin run      */
+  uint32_t run_max;                      /* Max time thread run             */
 #endif
 
   /* State save areas *******************************************************/
@@ -670,7 +661,7 @@ struct task_tcb_s
 {
   /* Common TCB fields ******************************************************/
 
-  struct tcb_s cmn;                      /* Common TCB fields                   */
+  struct tcb_s cmn;                      /* Common TCB fields               */
 
   /* Task Management Fields *************************************************/
 
@@ -947,6 +938,8 @@ void nxtask_uninit(FAR struct task_tcb_s *tcb);
  *   arg        - A pointer to an array of input parameters.  The array
  *                should be terminated with a NULL argv[] value. If no
  *                parameters are required, argv may be NULL.
+ *   envp       - A pointer to an array of environment strings. Terminated
+ *                with a NULL entry.
  *
  * Returned Value:
  *   Returns the positive, non-zero process ID of the new task or a negated
@@ -956,7 +949,8 @@ void nxtask_uninit(FAR struct task_tcb_s *tcb);
  ****************************************************************************/
 
 int nxtask_create(FAR const char *name, int priority,
-                  int stack_size, main_t entry, FAR char * const argv[]);
+                  FAR void *stack_addr, int stack_size, main_t entry,
+                  FAR char * const argv[], FAR char * const envp[]);
 
 /****************************************************************************
  * Name: nxtask_delete
@@ -1381,8 +1375,6 @@ int nxsched_get_stackinfo(pid_t pid, FAR struct stackinfo_s *stackinfo);
  ****************************************************************************/
 
 #ifdef CONFIG_SCHED_WAITPID
-pid_t nx_wait(FAR int *stat_loc);
-int   nx_waitid(int idtype, id_t id, FAR siginfo_t *info, int options);
 pid_t nx_waitpid(pid_t pid, FAR int *stat_loc, int options);
 #endif
 

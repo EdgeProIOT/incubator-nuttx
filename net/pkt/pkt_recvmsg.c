@@ -115,6 +115,7 @@ static inline void pkt_add_recvlen(FAR struct pkt_recvfrom_s *pstate,
 static void pkt_recvfrom_newdata(FAR struct net_driver_s *dev,
                                  FAR struct pkt_recvfrom_s *pstate)
 {
+  unsigned int offset;
   size_t recvlen;
 
   if (dev->d_len > pstate->pr_buflen)
@@ -128,7 +129,10 @@ static void pkt_recvfrom_newdata(FAR struct net_driver_s *dev,
 
   /* Copy the new packet data into the user buffer */
 
-  memcpy(pstate->pr_buffer, dev->d_buf, recvlen);
+  offset = (dev->d_appdata - dev->d_iob->io_data) - dev->d_iob->io_offset;
+
+  recvlen = iob_copyout(pstate->pr_buffer, dev->d_iob, recvlen, offset);
+
   ninfo("Received %d bytes (of %d)\n", (int)recvlen, (int)dev->d_len);
 
   /* Update the accumulated size of the data read */
@@ -242,13 +246,7 @@ static void pkt_recvfrom_initialize(FAR struct socket *psock, FAR void *buf,
   /* Initialize the state structure. */
 
   memset(pstate, 0, sizeof(struct pkt_recvfrom_s));
-
-  /* This semaphore is used for signaling and, hence, should not have
-   * priority inheritance enabled.
-   */
-
   nxsem_init(&pstate->pr_sem, 0, 0); /* Doesn't really fail */
-  nxsem_set_protocol(&pstate->pr_sem, SEM_PRIO_NONE);
 
   pstate->pr_buflen = len;
   pstate->pr_buffer = buf;

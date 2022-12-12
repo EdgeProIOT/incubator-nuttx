@@ -56,6 +56,8 @@
 #  define this_task()            (current_task(this_cpu()))
 #endif
 
+#define is_idle_task(t)          ((t)->pid < CONFIG_SMP_NCPUS)
+
 /* This macro returns the running task which may different from this_task()
  * during interrupt level context switches.
  */
@@ -184,6 +186,14 @@ extern dq_queue_t g_waitingforsignal;
 extern dq_queue_t g_waitingforfill;
 #endif
 
+/* This is the list of all tasks that have been stopped
+ * via SIGSTOP or SIGTSTP
+ */
+
+#ifdef CONFIG_SIG_SIGSTOP_ACTION
+extern dq_queue_t g_stoppedtasks;
+#endif
+
 /* This the list of all tasks that have been initialized, but not yet
  * activated. NOTE:  This is the only list that is not prioritized.
  */
@@ -297,10 +307,14 @@ extern volatile spinlock_t g_cpu_tasklistlock;
  * Public Function Prototypes
  ****************************************************************************/
 
+int nxthread_create(FAR const char *name, uint8_t ttype, int priority,
+                    FAR void *stack_addr, int stack_size, main_t entry,
+                    FAR char * const argv[], FAR char * const envp[]);
+
 /* Task list manipulation functions */
 
 bool nxsched_add_readytorun(FAR struct tcb_s *rtrtcb);
-bool nxsched_remove_readytorun(FAR struct tcb_s *rtrtcb);
+bool nxsched_remove_readytorun(FAR struct tcb_s *rtrtcb, bool merge);
 bool nxsched_add_prioritized(FAR struct tcb_s *tcb, DSEG dq_queue_t *list);
 void nxsched_merge_prioritized(FAR dq_queue_t *list1, FAR dq_queue_t *list2,
                                uint8_t task_state);
@@ -308,6 +322,7 @@ bool nxsched_merge_pending(void);
 void nxsched_add_blocked(FAR struct tcb_s *btcb, tstate_t task_state);
 void nxsched_remove_blocked(FAR struct tcb_s *btcb);
 int  nxsched_set_priority(FAR struct tcb_s *tcb, int sched_priority);
+bool nxsched_reprioritize_rtr(FAR struct tcb_s *tcb, int priority);
 
 /* Priority inheritance support */
 
@@ -351,7 +366,6 @@ void nxsched_sporadic_lowpriority(FAR struct tcb_s *tcb);
 
 #ifdef CONFIG_SIG_SIGSTOP_ACTION
 void nxsched_suspend(FAR struct tcb_s *tcb);
-void nxsched_continue(FAR struct tcb_s *tcb);
 #endif
 
 #ifdef CONFIG_SMP

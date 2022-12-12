@@ -77,9 +77,6 @@
 #  define NEED_IPDOMAIN_SUPPORT 1
 #endif
 
-#define TCPIPv4BUF ((FAR struct tcp_hdr_s *)&dev->d_buf[NET_LL_HDRLEN(dev) + IPv4_HDRLEN])
-#define TCPIPv6BUF ((FAR struct tcp_hdr_s *)&dev->d_buf[NET_LL_HDRLEN(dev) + IPv6_HDRLEN])
-
 /* Debug */
 
 #ifdef CONFIG_NET_TCP_WRBUFFER_DUMP
@@ -284,7 +281,6 @@ static inline void send_ipselect(FAR struct net_driver_s *dev,
     {
       /* Select the IPv6 domain */
 
-      DEBUGASSERT(conn->domain == PF_INET6);
       tcp_ipv6_select(dev);
     }
 }
@@ -364,7 +360,6 @@ static uint16_t psock_send_eventhandler(FAR struct net_driver_s *dev,
       if (conn->domain == PF_INET)
 #endif
         {
-          DEBUGASSERT(IFF_IS_IPv4(dev->d_flags));
           tcp = TCPIPv4BUF;
         }
 #endif /* CONFIG_NET_IPv4 */
@@ -374,7 +369,6 @@ static uint16_t psock_send_eventhandler(FAR struct net_driver_s *dev,
       else
 #endif
         {
-          DEBUGASSERT(IFF_IS_IPv6(dev->d_flags));
           tcp = TCPIPv6BUF;
         }
 #endif /* CONFIG_NET_IPv6 */
@@ -602,7 +596,12 @@ static uint16_t psock_send_eventhandler(FAR struct net_driver_s *dev,
            * happen until the polling cycle completes).
            */
 
-          devif_iob_send(dev, TCP_WBIOB(wrb), sndlen, 0);
+          devif_iob_send(dev, TCP_WBIOB(wrb), sndlen,
+                         0, tcpip_hdrsize(conn));
+          if (dev->d_sndlen == 0)
+            {
+              return flags;
+            }
 
           /* Reset the retransmission timer. */
 
@@ -888,7 +887,12 @@ static uint16_t psock_send_eventhandler(FAR struct net_driver_s *dev,
            * won't actually happen until the polling cycle completes).
            */
 
-          devif_iob_send(dev, TCP_WBIOB(wrb), sndlen, TCP_WBSENT(wrb));
+          devif_iob_send(dev, TCP_WBIOB(wrb), sndlen,
+                         TCP_WBSENT(wrb), tcpip_hdrsize(conn));
+          if (dev->d_sndlen == 0)
+            {
+              return flags;
+            }
 
           /* Remember how much data we send out now so that we know
            * when everything has been acknowledged.  Just increment
@@ -1182,30 +1186,16 @@ ssize_t psock_tcp_send(FAR struct socket *psock, FAR const void *buf,
         {
           conn->sndcb = tcp_callback_alloc(conn);
 
-#ifdef CONFIG_DEBUG_ASSERTIONS
-          if (conn->sndcb != NULL)
+          /* Test if the callback has been allocated */
+
+          if (conn->sndcb == NULL)
             {
-              conn->sndcb_alloc_cnt++;
+              /* A buffer allocation error occurred */
 
-              /* The callback is allowed to be allocated only once.
-               * This is to catch a potential re-allocation after
-               * conn->sndcb was set to NULL.
-               */
-
-              DEBUGASSERT(conn->sndcb_alloc_cnt == 1);
+              nerr("ERROR: Failed to allocate callback\n");
+              ret = nonblock ? -EAGAIN : -ENOMEM;
+              goto errout_with_lock;
             }
-#endif
-        }
-
-      /* Test if the callback has been allocated */
-
-      if (conn->sndcb == NULL)
-        {
-          /* A buffer allocation error occurred */
-
-          nerr("ERROR: Failed to allocate callback\n");
-          ret = nonblock ? -EAGAIN : -ENOMEM;
-          goto errout_with_lock;
         }
 
       /* Set up the callback in the connection */
@@ -1232,6 +1222,11 @@ ssize_t psock_tcp_send(FAR struct socket *psock, FAR const void *buf,
             tcp_send_gettimeout(start, timeout));
           if (ret < 0)
             {
+              if (ret == -ETIMEDOUT)
+                {
+                  ret = -EAGAIN;
+                }
+
               goto errout_with_lock;
             }
         }
@@ -1285,13 +1280,9 @@ ssize_t psock_tcp_send(FAR struct socket *psock, FAR const void *buf,
 
               nerr("ERROR: Failed to allocate write buffer\n");
 
-              if (nonblock)
+              if (nonblock || timeout != UINT_MAX)
                 {
                   ret = -EAGAIN;
-                }
-              else if (timeout != UINT_MAX)
-                {
-                  ret = -ETIMEDOUT;
                 }
               else
                 {

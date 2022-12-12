@@ -35,13 +35,21 @@
 #include <nuttx/mm/iob.h>
 #include <nuttx/net/ip.h>
 #include <nuttx/net/net.h>
+#include <nuttx/net/tcp.h>
 #include <nuttx/wqueue.h>
 
-#if defined(CONFIG_NET_TCP) && !defined(CONFIG_NET_TCP_NO_STACK)
+#ifdef CONFIG_NET_TCP
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+/* This is a helper pointer for accessing the contents of the tcp header */
+
+#define TCPIPv4BUF ((FAR struct tcp_hdr_s *)IPBUF(IPv4_HDRLEN))
+#define TCPIPv6BUF ((FAR struct tcp_hdr_s *)IPBUF(IPv6_HDRLEN))
+
+#ifndef CONFIG_NET_TCP_NO_STACK
 
 #define NET_TCP_HAVE_STACK 1
 
@@ -310,10 +318,6 @@ struct tcp_conn_s
   /* Callback instance for TCP send() */
 
   FAR struct devif_callback_s *sndcb;
-
-#ifdef CONFIG_DEBUG_ASSERTIONS
-  int sndcb_alloc_cnt;    /* The callback allocation counter */
-#endif
 #endif
 
   /* accept() is called when the TCP logic has created a connection
@@ -548,6 +552,27 @@ int tcp_remote_ipv6_device(FAR struct tcp_conn_s *conn);
 
 FAR struct tcp_conn_s *tcp_alloc_accept(FAR struct net_driver_s *dev,
                                         FAR struct tcp_hdr_s *tcp);
+
+/****************************************************************************
+ * Name: tcp_selectport
+ *
+ * Description:
+ *   If the port number is zero; select an unused port for the connection.
+ *   If the port number is non-zero, verify that no other connection has
+ *   been created with this port number.
+ *
+ * Returned Value:
+ *   Selected or verified port number in network order on success, a negated
+ *   errno on failure.
+ *
+ * Assumptions:
+ *   Interrupts are disabled
+ *
+ ****************************************************************************/
+
+int tcp_selectport(uint8_t domain,
+                   FAR const union ip_addr_u *ipaddr,
+                   uint16_t portno);
 
 /****************************************************************************
  * Name: tcp_bind
@@ -1226,8 +1251,9 @@ uint16_t tcp_callback(FAR struct net_driver_s *dev,
  *
  ****************************************************************************/
 
-uint16_t tcp_datahandler(FAR struct tcp_conn_s *conn, FAR uint8_t *buffer,
-                         uint16_t nbytes);
+uint16_t tcp_datahandler(FAR struct net_driver_s *dev,
+                         FAR struct tcp_conn_s *conn,
+                         uint16_t offset);
 
 /****************************************************************************
  * Name: tcp_backlogcreate
@@ -2020,9 +2046,26 @@ int tcp_ioctl(FAR struct tcp_conn_s *conn, int cmd, unsigned long arg);
 void tcp_sendbuffer_notify(FAR struct tcp_conn_s *conn);
 #endif /* CONFIG_NET_SEND_BUFSIZE */
 
+/****************************************************************************
+ * Name: tcpip_hdrsize
+ *
+ * Description:
+ *   Get the total size of L3 and L4 TCP header
+ *
+ * Input Parameters:
+ *   conn     The connection structure associated with the socket
+ *
+ * Returned Value:
+ *   the total size of L3 and L4 TCP header
+ *
+ ****************************************************************************/
+
+uint16_t tcpip_hdrsize(FAR struct tcp_conn_s *conn);
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* CONFIG_NET_TCP && !CONFIG_NET_TCP_NO_STACK */
+#endif /* !CONFIG_NET_TCP_NO_STACK */
+#endif /* CONFIG_NET_TCP */
 #endif /* __NET_TCP_TCP_H */

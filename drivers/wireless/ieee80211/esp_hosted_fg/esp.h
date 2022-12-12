@@ -59,6 +59,7 @@ struct esp_hosted_fg_lower_s
   int  (*attach)(int irq, xcpt_t handler, FAR void *arg);
   void (*enable)(int irq);
   void (*disable)(int irq);
+  int  (*read)(int irq);
   void (*reset)(bool);
 };
 

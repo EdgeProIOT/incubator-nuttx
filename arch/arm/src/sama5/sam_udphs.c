@@ -465,8 +465,6 @@ static inline struct sam_ep_s *
 static inline void
               sam_ep_unreserve(struct sam_usbdev_s *priv,
                 struct sam_ep_s *privep);
-static inline bool
-              sam_ep_reserved(struct sam_usbdev_s *priv, int epno);
 static int    sam_ep_configure_internal(struct sam_ep_s *privep,
                 const struct usb_epdesc_s *desc);
 
@@ -845,7 +843,7 @@ static void sam_dumpep(struct sam_usbdev_s *priv, int epno)
  * Description:
  *   Allocate a DMA transfer descriptor by removing it from the free list
  *
- * Assumption:  Caller holds the exclsem
+ * Assumption:  Caller holds the lock
  *
  ****************************************************************************/
 
@@ -873,7 +871,7 @@ static struct sam_dtd_s *sam_dtd_alloc(struct sam_usbdev_s *priv)
  * Description:
  *   Free a DMA transfer descriptor by returning it to the free list
  *
- * Assumption:  Caller holds the exclsem
+ * Assumption:  Caller holds the lock
  *
  ****************************************************************************/
 
@@ -3233,20 +3231,6 @@ sam_ep_unreserve(struct sam_usbdev_s *priv, struct sam_ep_s *privep)
   irqstate_t flags = enter_critical_section();
   priv->epavail   |= SAM_EP_BIT(USB_EPNO(privep->ep.eplog));
   leave_critical_section(flags);
-}
-
-/****************************************************************************
- * Name: sam_ep_reserved
- *
- * Description:
- *   Check if the endpoint has already been allocated.
- *
- ****************************************************************************/
-
-static inline bool
-sam_ep_reserved(struct sam_usbdev_s *priv, int epno)
-{
-  return ((priv->epavail & SAM_EP_BIT(epno)) == 0);
 }
 
 /****************************************************************************

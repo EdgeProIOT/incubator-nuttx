@@ -56,7 +56,7 @@
 
 #include <nuttx/clock.h>
 #include <nuttx/kmalloc.h>
-#include <nuttx/semaphore.h>
+#include <nuttx/mutex.h>
 #include <nuttx/net/netconfig.h>
 #include <nuttx/net/net.h>
 #include <nuttx/net/netdev.h>
@@ -64,16 +64,10 @@
 #include <nuttx/net/udp.h>
 
 #include "devif/devif.h"
+#include "nat/nat.h"
 #include "netdev/netdev.h"
 #include "inet/inet.h"
 #include "udp/udp.h"
-
-/****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-#define IPv4BUF ((FAR struct ipv4_hdr_s *)&dev->d_buf[NET_LL_HDRLEN(dev)])
-#define IPv6BUF ((FAR struct ipv6_hdr_s *)&dev->d_buf[NET_LL_HDRLEN(dev)])
 
 /****************************************************************************
  * Private Data
@@ -88,7 +82,7 @@ struct udp_conn_s g_udp_connections[CONFIG_NET_UDP_CONNS];
 /* A list of all free UDP connections */
 
 static dq_queue_t g_free_udp_connections;
-static sem_t g_free_sem = SEM_INITIALIZER(1);
+static mutex_t g_free_lock = NXMUTEX_INITIALIZER;
 
 /* A list of all allocated UDP connections */
 
@@ -97,21 +91,6 @@ static dq_queue_t g_active_udp_connections;
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
-
-/****************************************************************************
- * Name: _udp_semtake() and _udp_semgive()
- *
- * Description:
- *   Take/give semaphore
- *
- ****************************************************************************/
-
-static inline void _udp_semtake(FAR sem_t *sem)
-{
-  net_lockedwait_uninterruptible(sem);
-}
-
-#define _udp_semgive(sem) nxsem_post(sem)
 
 /****************************************************************************
  * Name: udp_find_conn()
@@ -555,7 +534,13 @@ uint16_t udp_select_port(uint8_t domain, FAR union ip_binding_u *u)
           g_last_udp_port = 4096;
         }
     }
-  while (udp_find_conn(domain, u, HTONS(g_last_udp_port)) != NULL);
+  while (udp_find_conn(domain, u, HTONS(g_last_udp_port)) != NULL
+#if defined(CONFIG_NET_NAT) && defined(CONFIG_NET_IPv4)
+         || (domain == PF_INET &&
+             ipv4_nat_port_inuse(IP_PROTO_UDP, u->ipv4.laddr,
+                                 HTONS(g_last_udp_port)))
+#endif
+  );
 
   /* Initialize and return the connection structure, bind it to the
    * port number
@@ -604,9 +589,9 @@ FAR struct udp_conn_s *udp_alloc(uint8_t domain)
 {
   FAR struct udp_conn_s *conn;
 
-  /* The free list is protected by a semaphore (that behaves like a mutex). */
+  /* The free list is protected by a mutex. */
 
-  _udp_semtake(&g_free_sem);
+  nxmutex_lock(&g_free_lock);
 #ifndef CONFIG_NET_ALLOC_CONNS
   conn = (FAR struct udp_conn_s *)dq_remfirst(&g_free_udp_connections);
 #else
@@ -629,7 +614,6 @@ FAR struct udp_conn_s *udp_alloc(uint8_t domain)
       conn->sndbufs = CONFIG_NET_SEND_BUFSIZE;
 
       nxsem_init(&conn->sndsem, 0, 0);
-      nxsem_set_protocol(&conn->sndsem, SEM_PRIO_NONE);
 #endif
 
 #ifdef CONFIG_NET_UDP_WRITE_BUFFERS
@@ -642,7 +626,7 @@ FAR struct udp_conn_s *udp_alloc(uint8_t domain)
       dq_addlast(&conn->sconn.node, &g_active_udp_connections);
     }
 
-  _udp_semgive(&g_free_sem);
+  nxmutex_unlock(&g_free_lock);
   return conn;
 }
 
@@ -661,11 +645,11 @@ void udp_free(FAR struct udp_conn_s *conn)
   FAR struct udp_wrbuffer_s *wrbuffer;
 #endif
 
-  /* The free list is protected by a semaphore (that behaves like a mutex). */
+  /* The free list is protected by a mutex. */
 
   DEBUGASSERT(conn->crefs == 0);
 
-  _udp_semtake(&g_free_sem);
+  nxmutex_lock(&g_free_lock);
   conn->lport = 0;
 
   /* Remove the connection from the active list */
@@ -700,7 +684,7 @@ void udp_free(FAR struct udp_conn_s *conn)
   /* Free the connection */
 
   dq_addlast(&conn->sconn.node, &g_free_udp_connections);
-  _udp_semgive(&g_free_sem);
+  nxmutex_unlock(&g_free_lock);
 }
 
 /****************************************************************************
@@ -839,7 +823,13 @@ int udp_bind(FAR struct udp_conn_s *conn, FAR const struct sockaddr *addr)
        * and port ?
        */
 
-      if (udp_find_conn(conn->domain, &conn->u, portno) == NULL)
+      if (udp_find_conn(conn->domain, &conn->u, portno) == NULL
+#if defined(CONFIG_NET_NAT) && defined(CONFIG_NET_IPv4)
+          && !(conn->domain == PF_INET &&
+               ipv4_nat_port_inuse(IP_PROTO_UDP, conn->u.ipv4.laddr,
+                                   portno))
+#endif
+      )
         {
           /* No.. then bind the socket to the port */
 

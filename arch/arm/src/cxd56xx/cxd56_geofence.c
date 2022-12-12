@@ -33,6 +33,7 @@
 #include <debug.h>
 
 #include <nuttx/kmalloc.h>
+#include <nuttx/mutex.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/board.h>
 #include <nuttx/spi/spi.h>
@@ -58,7 +59,7 @@
 
 struct cxd56_geofence_dev_s
 {
-  sem_t          devsem;
+  mutex_t        devlock;
   struct pollfd *fds[CONFIG_GEOFENCE_NPOLLWAITERS];
 };
 
@@ -398,7 +399,7 @@ static int cxd56_geofence_get_all_status(unsigned long arg)
 
 static int cxd56_geofence_set_mode(unsigned long arg)
 {
-  int                                   ret;
+  int                           ret;
   struct cxd56_geofence_mode_s *mode;
 
   if (!arg)
@@ -435,7 +436,7 @@ static void cxd56_geofence_sighandler(uint32_t data, void *userdata)
     (struct cxd56_geofence_dev_s *)userdata;
   int ret;
 
-  ret = nxsem_wait(&priv->devsem);
+  ret = nxmutex_lock(&priv->devlock);
   if (ret < 0)
     {
       return;
@@ -443,7 +444,7 @@ static void cxd56_geofence_sighandler(uint32_t data, void *userdata)
 
   poll_notify(priv->fds, CONFIG_GEOFENCE_NPOLLWAITERS, POLLIN);
 
-  nxsem_post(&priv->devsem);
+  nxmutex_unlock(&priv->devlock);
 }
 
 /****************************************************************************
@@ -549,7 +550,7 @@ static int cxd56_geofence_poll(struct file *filep,
                                struct pollfd *fds,
                                bool setup)
 {
-  struct inode *               inode;
+  struct inode                *inode;
   struct cxd56_geofence_dev_s *priv;
   int                          ret = OK;
   int                          i;
@@ -557,7 +558,7 @@ static int cxd56_geofence_poll(struct file *filep,
   inode = filep->f_inode;
   priv  = (struct cxd56_geofence_dev_s *)inode->i_private;
 
-  ret = nxsem_wait(&priv->devsem);
+  ret = nxmutex_lock(&priv->devlock);
   if (ret < 0)
     {
       return ret;
@@ -608,7 +609,7 @@ static int cxd56_geofence_poll(struct file *filep,
     }
 
 errout:
-  nxsem_post(&priv->devsem);
+  nxmutex_unlock(&priv->devlock);
   return ret;
 }
 
@@ -631,7 +632,7 @@ static int cxd56_geofence_register(const char *devpath)
   struct cxd56_geofence_dev_s *priv;
   int                          ret;
 
-  priv = (struct cxd56_geofence_dev_s *)kmm_malloc(
+  priv = (struct cxd56_geofence_dev_s *)kmm_zalloc(
     sizeof(struct cxd56_geofence_dev_s));
   if (!priv)
     {
@@ -639,8 +640,7 @@ static int cxd56_geofence_register(const char *devpath)
       return -ENOMEM;
     }
 
-  memset(priv, 0, sizeof(struct cxd56_geofence_dev_s));
-  nxsem_init(&priv->devsem, 0, 1);
+  nxmutex_init(&priv->devlock);
 
   ret = cxd56_geofence_initialize(priv);
   if (ret < 0)
@@ -673,6 +673,7 @@ err1:
   unregister_driver(devpath);
 
 err0:
+  nxmutex_destroy(&priv->devlock);
   kmm_free(priv);
   return ret;
 }

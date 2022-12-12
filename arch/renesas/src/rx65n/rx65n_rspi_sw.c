@@ -34,12 +34,12 @@
 
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
-#include <nuttx/semaphore.h>
+#include <nuttx/mutex.h>
 #include <nuttx/spi/spi.h>
 
 #include <arch/board/board.h>
 
-#include "up_internal.h"
+#include "renesas_internal.h"
 #include "chip.h"
 #include "rx65n_definitions.h"
 #include "rx65n_rspi.h"
@@ -154,7 +154,7 @@ struct rx65n_rspidev_s
   void (*rxword)(struct rx65n_rspidev_s *priv);
 
   bool initialized;   /* Has RSPI interface been initialized */
-  sem_t exclsem;      /* Held while chip is selected for mutual exclusion */
+  mutex_t lock;       /* Held while chip is selected for mutual exclusion */
   uint32_t frequency; /* Requested clock frequency */
   uint32_t actual;    /* Actual clock frequency */
 
@@ -277,10 +277,10 @@ static const struct spi_ops_s g_rspi0ops =
 
 static struct rx65n_rspidev_s g_rspi0dev =
 {
-  .rspidev   =
-    {
-      &g_rspi0ops
-    },
+  .rspidev =
+  {
+    .ops = &g_rspi0ops,
+  },
   .rspibase  = RX65N_RSPI0_BASE,
   .rspiclock = RX65N_PCLK_FREQUENCY,
 #ifndef CONFIG_SPI_POLLWAIT
@@ -291,7 +291,9 @@ static struct rx65n_rspidev_s g_rspi0dev =
   .rspigrpbase = RX65N_GRPAL0_ADDR,
   .rspierimask = RX65N_GRPAL0_SPEI0_MASK,
   .rspiidlimask = RX65N_GRPAL0_SPII0_MASK,
+  .waitsem = SEM_INITIALIZER(0),
 #endif
+  .lock = NXMUTEX_INITIALIZER,
 };
 #endif
 
@@ -329,10 +331,10 @@ static const struct spi_ops_s g_rspi1ops =
 
 static struct rx65n_rspidev_s g_rspi1dev =
 {
-  .rspidev   =
-    {
-      &g_rspi1ops
-    },
+  .rspidev =
+  {
+    .ops = &g_rspi1ops,
+  },
   .rspibase  = RX65N_RSPI1_BASE,
   .rspiclock = RX65N_PCLK_FREQUENCY,
 #ifndef CONFIG_SPI_POLLWAIT
@@ -343,7 +345,9 @@ static struct rx65n_rspidev_s g_rspi1dev =
   .rspigrpbase = RX65N_GRPAL0_ADDR,
   .rspierimask = RX65N_GRPAL0_SPEI1_MASK,
   .rspiidlimask = RX65N_GRPAL0_SPII1_MASK,
+  .waitsem = SEM_INITIALIZER(0),
 #endif
+  .lock = NXMUTEX_INITIALIZER,
 };
 #endif
 
@@ -381,10 +385,10 @@ static const struct spi_ops_s g_rspi2ops =
 
 static struct rx65n_rspidev_s g_rspi2dev =
 {
-  .rspidev   =
-    {
-      &g_rspi2ops
-    },
+  .rspidev =
+  {
+    .ops = &g_rspi2ops,
+  },
   .rspibase  = RX65N_RSPI2_BASE,
   .rspiclock = RX65N_PCLK_FREQUENCY,
 #ifndef CONFIG_SPI_POLLWAIT
@@ -395,7 +399,9 @@ static struct rx65n_rspidev_s g_rspi2dev =
   .rspigrpbase = RX65N_GRPAL0_ADDR,
   .rspierimask = RX65N_GRPAL0_SPEI2_MASK,
   .rspiidlimask = RX65N_GRPAL0_SPII2_MASK,
+  .waitsem = SEM_INITIALIZER(0),
 #endif
+  .lock = NXMUTEX_INITIALIZER,
 };
 #endif
 
@@ -1335,11 +1341,11 @@ static int rspi_lock(FAR struct spi_dev_s *dev, bool lock)
 
   if (lock)
     {
-      ret = nxsem_wait_uninterruptible(&priv->exclsem);
+      ret = nxmutex_lock(&priv->lock);
     }
   else
     {
-      ret = nxsem_post(&priv->exclsem);
+      ret = nxmutex_unlock(&priv->lock);
     }
 
   return ret;
@@ -1790,7 +1796,7 @@ void rspi_interrupt_init(FAR struct rx65n_rspidev_s *priv, uint8_t bus)
  * Return Value : none
  ****************************************************************************/
 
-static void rspi_power_on_off (uint8_t channel, uint8_t on_or_off)
+static void rspi_power_on_off(uint8_t channel, uint8_t on_or_off)
 {
   SYSTEM.PRCR.WORD = 0xa50bu;
 
@@ -1816,7 +1822,7 @@ static void rspi_power_on_off (uint8_t channel, uint8_t on_or_off)
  * Return Value : none
  ****************************************************************************/
 
-static void rspi_reg_protect (uint8_t enable)
+static void rspi_reg_protect(uint8_t enable)
 {
   SYSTEM.PRCR.WORD = 0xa50b;
   MPC.PWPR.BIT.B0WI = 0;
@@ -1842,17 +1848,6 @@ static void rspi_bus_initialize(FAR struct rx65n_rspidev_s *priv)
 {
   uint8_t regval8;
   uint16_t regval16;
-
-#ifndef CONFIG_SPI_POLLWAIT
-  /* Initialize the semaphore that is used to wake up the waiting
-   * thread when the transfer completes.  This semaphore is used for
-   * signaling and, hence, should not have priority inheritance enabled.
-   */
-
-  nxsem_init(&priv->waitsem, 0, 0);
-  nxsem_set_protocol(&priv->waitsem, SEM_PRIO_NONE);
-#endif
-  nxsem_init(&priv->exclsem, 0, 1);
 
   /* Initialize control register */
 

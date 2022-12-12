@@ -106,6 +106,11 @@ static uint16_t psock_send_eventhandler(FAR struct net_driver_s *dev,
           /* Copy the packet data into the device packet buffer and send it */
 
           devif_pkt_send(dev, pstate->snd_buffer, pstate->snd_buflen);
+          if (dev->d_sndlen == 0)
+            {
+              return flags;
+            }
+
           pstate->snd_sent = pstate->snd_buflen;
 
           /* Make sure no ARP request overwrites this ARP request.  This
@@ -210,13 +215,7 @@ ssize_t pkt_sendmsg(FAR struct socket *psock, FAR struct msghdr *msg,
 
   net_lock();
   memset(&state, 0, sizeof(struct send_s));
-
-  /* This semaphore is used for signaling and, hence, should not have
-   * priority inheritance enabled.
-   */
-
   nxsem_init(&state.snd_sem, 0, 0); /* Doesn't really fail */
-  nxsem_set_protocol(&state.snd_sem, SEM_PRIO_NONE);
 
   state.snd_sock      = psock;          /* Socket descriptor to use */
   state.snd_buflen    = len;            /* Number of bytes to send */

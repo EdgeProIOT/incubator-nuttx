@@ -152,6 +152,8 @@
  ****************************************************************************/
 
 	.text
+	.syntax	unified
+	.arm
 
 /****************************************************************************
  * Public Functions
@@ -753,6 +755,7 @@ g_intstacktop:
  *  Name: g_fiqstackalloc/g_fiqstacktop
  ****************************************************************************/
 
+#ifdef CONFIG_ARMV7A_DECODEFIQ
 	.globl	g_fiqstackalloc
 	.type	g_fiqstackalloc, object
 	.globl	g_fiqstacktop
@@ -763,6 +766,7 @@ g_fiqstackalloc:
 g_fiqstacktop:
 	.size	g_fiqstacktop, 0
 	.size	g_fiqstackalloc, (CONFIG_ARCH_INTERRUPTSTACK & ~7)
+#endif
 
 #endif /* !CONFIG_SMP && CONFIG_ARCH_INTERRUPTSTACK > 7 */
 	.end

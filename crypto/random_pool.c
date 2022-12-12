@@ -34,7 +34,7 @@
 #include <nuttx/random.h>
 #include <nuttx/board.h>
 #include <nuttx/clock.h>
-#include <nuttx/semaphore.h>
+#include <nuttx/mutex.h>
 #include <nuttx/crypto/blake2s.h>
 
 /****************************************************************************
@@ -45,8 +45,8 @@
 #  define MIN(a,b) ((a) < (b) ? (a) : (b))
 #endif
 
-#define ROTL_32(x,n) ( ((x) << (n)) | ((x) >> (32-(n))) )
-#define ROTR_32(x,n) ( ((x) >> (n)) | ((x) << (32-(n))) )
+#define ROTL_32(x,n) (((x) << (n)) | ((x) >> (32 - (n))))
+#define ROTR_32(x,n) (((x) >> (n)) | ((x) << (32 - (n))))
 
 /****************************************************************************
  * Private Function Prototypes
@@ -66,7 +66,7 @@ struct blake2xs_rng_s
 
 struct rng_s
 {
-  sem_t rd_sem; /* Threads can only exclusively access the RNG */
+  mutex_t rd_lock; /* Threads can only exclusively access the RNG */
   volatile uint32_t rd_addptr;
   volatile uint32_t rd_newentr;
   volatile uint8_t rd_rotate;
@@ -89,7 +89,10 @@ enum
  * Private Data
  ****************************************************************************/
 
-static struct rng_s g_rng;
+static struct rng_s g_rng =
+{
+  NXMUTEX_INITIALIZER,
+};
 
 #ifdef CONFIG_BOARD_ENTROPY_POOL
 /* Entropy pool structure can be provided by board source. Use for this is,
@@ -189,7 +192,7 @@ static void addentropy(FAR const uint32_t *buf, size_t n, bool inc_new)
 }
 
 /****************************************************************************
- * Name: getentropy
+ * Name: initentropy
  *
  * Description:
  *   Hash entropy pool to BLAKE2s context. This is an internal interface for
@@ -211,7 +214,7 @@ static void addentropy(FAR const uint32_t *buf, size_t n, bool inc_new)
  *
  ****************************************************************************/
 
-static void getentropy(FAR blake2s_state *S)
+static void initentropy(FAR blake2s_state *S)
 {
 #ifdef CONFIG_SCHED_CPULOAD
   struct cpuload_s load;
@@ -281,7 +284,7 @@ static void rng_reseed(void)
 
   /* Initialize with randomness from entropy pool */
 
-  getentropy(&g_rng.blake2xs.ctx);
+  initentropy(&g_rng.blake2xs.ctx);
 
   /* Absorb also the previous root */
 
@@ -355,21 +358,6 @@ static void rng_buf_internal(FAR uint8_t *bytes, size_t nbytes)
       bytes += block_size;
       nbytes -= block_size;
     }
-}
-
-static void rng_init(void)
-{
-  cryptinfo("Initializing RNG\n");
-
-  memset(&g_rng, 0, sizeof(struct rng_s));
-  nxsem_init(&g_rng.rd_sem, 0, 1);
-
-  /* We do not initialize output here because this is called
-   * quite early in boot and there may not be enough entropy.
-   *
-   * Board level may define CONFIG_BOARD_INITRNGSEED if it implements
-   * early random seeding.
-   */
 }
 
 /****************************************************************************
@@ -495,7 +483,7 @@ void up_rngreseed(void)
 {
   int ret;
 
-  ret = nxsem_wait_uninterruptible(&g_rng.rd_sem);
+  ret = nxmutex_lock(&g_rng.rd_lock);
   if (ret >= 0)
     {
       if (g_rng.rd_newentr >= MIN_SEED_NEW_ENTROPY_WORDS)
@@ -503,7 +491,7 @@ void up_rngreseed(void)
           rng_reseed();
         }
 
-      nxsem_post(&g_rng.rd_sem);
+      nxmutex_unlock(&g_rng.rd_lock);
     }
 }
 
@@ -517,8 +505,6 @@ void up_rngreseed(void)
 
 void up_randompool_initialize(void)
 {
-  rng_init();
-
 #ifdef CONFIG_BOARD_INITRNGSEED
   board_init_rngseed();
 #endif
@@ -546,21 +532,31 @@ void up_randompool_initialize(void)
 
 void arc4random_buf(FAR void *bytes, size_t nbytes)
 {
-  int ret;
-
-  do
-    {
-      ret = nxsem_wait_uninterruptible(&g_rng.rd_sem);
-
-      /* The only possible error should be if we were awakened by
-       * thread cancellation. At this point, we must continue to acquire
-       * the semaphore anyway.
-       */
-
-      DEBUGASSERT(ret == OK || ret == -ECANCELED);
-    }
-  while (ret < 0);
-
+  nxmutex_lock(&g_rng.rd_lock);
   rng_buf_internal(bytes, nbytes);
-  nxsem_post(&g_rng.rd_sem);
+  nxmutex_unlock(&g_rng.rd_lock);
+}
+
+/****************************************************************************
+ * Name: arc4random
+ *
+ * Description:
+ *   Returns a single 32-bit value. This is the preferred interface for
+ *   getting random numbers. The traditional /dev/random approach is
+ *   susceptible for things like the attacker exhausting file
+ *   descriptors on purpose.
+ *
+ *   Note that this function cannot fail, other than by asserting.
+ *
+ * Returned Value:
+ *   a random 32-bit value.
+ *
+ ****************************************************************************/
+
+uint32_t arc4random(void)
+{
+  uint32_t ret;
+
+  arc4random_buf(&ret, sizeof(ret));
+  return ret;
 }

@@ -31,13 +31,12 @@
 
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
-#include <nuttx/semaphore.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/drivers/drivers.h>
 
 #include <arch/io.h>
 
-#include "up_internal.h"
+#include "x86_64_internal.h"
 
 #if defined(CONFIG_DEV_RANDOM) || defined(CONFIG_DEV_URANDOM_ARCH)
 
@@ -49,20 +48,8 @@ static int x86_rng_initialize(void);
 static ssize_t x86_rngread(struct file *filep, char *buffer, size_t);
 
 /****************************************************************************
- * Private Types
- ****************************************************************************/
-
-struct rng_dev_s
-{
-  sem_t rd_devsem;      /* Threads can only exclusively access the RNG */
-  sem_t rd_readsem;     /* To block until the buffer is filled NOT used  */
-};
-
-/****************************************************************************
  * Private Data
  ****************************************************************************/
-
-static struct rng_dev_s g_rngdev;
 
 static const struct file_operations g_rngops =
 {
@@ -89,11 +76,6 @@ static const struct file_operations g_rngops =
 static int x86_rng_initialize(void)
 {
   _info("Initializing RNG\n");
-
-  memset(&g_rngdev, 0, sizeof(struct rng_dev_s));
-
-  nxsem_init(&g_rngdev.rd_devsem, 0, 1);
-
   return OK;
 }
 

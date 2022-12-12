@@ -168,6 +168,8 @@
  */
 
 	.text
+	.syntax	unified
+	.arm
 	.global	__start
 	.type	__start, #function
 
@@ -208,6 +210,7 @@ __cpu0_start:
 	bic		r0, r0, #(SCTLR_M | SCTLR_C)
 	bic		r0, r0, #(SCTLR_I)
 	mcr		CP15_SCTLR(r0)
+	isb
 
 	/* Clear the 16K level 1 page table */
 
@@ -363,6 +366,8 @@ __cpu0_start:
 	mcr		CP15_BPIALL(r0)		/* Invalidate entire branch prediction array */
 	mcr		CP15_ICIALLU(r0)	/* Invalidate I-cache */
 #endif
+
+	isb
 
 	/* Load the page table address.
 	 *
@@ -523,6 +528,7 @@ __cpu0_start:
 	/* Then write the configured control register */
 
 	mcr		CP15_SCTLR(r0)			/* Write control reg */
+	isb
 	.rept		12				/* Cortex A8 wants lots of NOPs here */
 	nop
 	.endr

@@ -32,15 +32,6 @@
 #include <nuttx/net/netdev.h>
 
 /****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-/* This is a helper pointer for accessing the contents of the ip header */
-
-#define IPv4BUF ((FAR struct ipv4_hdr_s *)(dev->d_buf + dev->d_llhdrlen))
-#define IPv6BUF ((FAR struct ipv6_hdr_s *)(dev->d_buf + dev->d_llhdrlen))
-
-/****************************************************************************
  * Private Functions
  ****************************************************************************/
 
@@ -132,13 +123,6 @@ int devif_loopback(FAR struct net_driver_s *dev)
         }
 
       NETDEV_TXDONE(dev);
-
-      /* Add the link layer header length for the next loop */
-
-      if (dev->d_len != 0)
-        {
-          dev->d_len += dev->d_llhdrlen;
-        }
     }
   while (dev->d_len > 0);
 

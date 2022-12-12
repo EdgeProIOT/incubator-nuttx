@@ -37,6 +37,7 @@
 #include <nuttx/fs/fs.h>
 #include <nuttx/queue.h>
 #include <nuttx/net/net.h>
+#include <nuttx/mutex.h>
 #include <nuttx/semaphore.h>
 
 #ifdef CONFIG_NET_LOCAL
@@ -128,9 +129,10 @@ struct local_conn_s
   uint16_t lc_cfpcount;          /* Control file pointer counter */
   FAR struct file *
      lc_cfps[LOCAL_NCONTROLFDS]; /* Socket message control filep */
+  struct ucred lc_cred;          /* The credentials of connection instance */
 #endif /* CONFIG_NET_LOCAL_SCM */
 
-  sem_t lc_sendsem;            /* Make sending multi-thread safe */
+  mutex_t lc_sendlock;           /* Make sending multi-thread safe */
 
 #ifdef CONFIG_NET_LOCAL_STREAM
   /* SOCK_STREAM fields common to both client and server */

@@ -55,15 +55,6 @@
 #ifdef CONFIG_NET_ICMPv6_SOCKET
 
 /****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-#define IPv6BUF \
-  ((FAR struct ipv6_hdr_s *)&dev->d_buf[NET_LL_HDRLEN(dev)])
-#define ICMPv6BUF \
-  ((FAR struct icmpv6_echo_request_s *)&dev->d_buf[NET_LL_HDRLEN(dev) + IPv6_HDRLEN])
-
-/****************************************************************************
  * Private Types
  ****************************************************************************/
 
@@ -105,7 +96,6 @@ struct icmpv6_sendto_s
 static void sendto_request(FAR struct net_driver_s *dev,
                            FAR struct icmpv6_sendto_s *pstate)
 {
-  FAR struct ipv6_hdr_s *ipv6;
   FAR struct icmpv6_echo_request_s *icmpv6;
 
   IFF_SET_IPv6(dev->d_flags);
@@ -120,24 +110,17 @@ static void sendto_request(FAR struct net_driver_s *dev,
 
   dev->d_sndlen += pstate->snd_buflen;
 
-  /* Set up the IPv6 header (most is probably already in place) */
-
-  ipv6           = IPv6BUF;
-  ipv6->vtc      = 0x60;                       /* Version/traffic class (MS) */
-  ipv6->tcf      = 0;                          /* Traffic class(LS)/Flow label(MS) */
-  ipv6->flow     = 0;                          /* Flow label (LS) */
-  ipv6->len[0]   = (pstate->snd_buflen >> 8);  /* Length excludes the IPv6 header */
-  ipv6->len[1]   = (pstate->snd_buflen & 0xff);
-  ipv6->proto    = IP_PROTO_ICMP6;             /* Next header */
-  ipv6->ttl      = 255;                        /* Hop limit */
-
-  net_ipv6addr_hdrcopy(ipv6->srcipaddr, dev->d_ipv6addr);
-  net_ipv6addr_hdrcopy(ipv6->destipaddr, pstate->snd_toaddr.s6_addr16);
+  ipv6_build_header(IPv6BUF, pstate->snd_buflen, IP_PROTO_ICMP6,
+                    dev->d_ipv6addr, pstate->snd_toaddr.s6_addr16, 255);
 
   /* Copy the ICMPv6 request and payload into place after the IPv6 header */
 
-  icmpv6         = ICMPv6BUF;
-  memcpy(icmpv6, pstate->snd_buf, pstate->snd_buflen);
+  icmpv6         = IPBUF(IPv6_HDRLEN);
+
+  iob_update_pktlen(dev->d_iob, IPv6_HDRLEN);
+
+  iob_copyin(dev->d_iob, pstate->snd_buf,
+             pstate->snd_buflen, IPv6_HDRLEN, false);
 
   /* Calculate the ICMPv6 checksum over the ICMPv6 header and payload. */
 
@@ -148,8 +131,7 @@ static void sendto_request(FAR struct net_driver_s *dev,
       icmpv6->chksum = 0xffff;
     }
 
-  ninfo("Outgoing ICMPv6 packet length: %d (%d)\n",
-        dev->d_len, (ipv6->len[0] << 8) | ipv6->len[1]);
+  ninfo("Outgoing ICMPv6 packet length: %d\n", dev->d_len);
 
 #ifdef CONFIG_NET_STATISTICS
   g_netstats.icmpv6.sent++;
@@ -364,12 +346,7 @@ ssize_t icmpv6_sendmsg(FAR struct socket *psock, FAR struct msghdr *msg,
 
   /* Initialize the state structure */
 
-  /* This semaphore is used for signaling and, hence, should not have
-   * priority inheritance enabled.
-   */
-
   nxsem_init(&state.snd_sem, 0, 0);
-  nxsem_set_protocol(&state.snd_sem, SEM_PRIO_NONE);
 
   state.snd_result = -ENOMEM;           /* Assume allocation failure */
   state.snd_buf    = buf;               /* ICMPv6 header + data payload */
@@ -439,6 +416,8 @@ ssize_t icmpv6_sendmsg(FAR struct socket *psock, FAR struct msghdr *msg,
 
       icmpv6_callback_free(dev, conn, state.snd_cb);
     }
+
+  nxsem_destroy(&state.snd_sem);
 
   net_unlock();
 

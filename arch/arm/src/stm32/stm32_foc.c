@@ -32,6 +32,7 @@
 #include <debug.h>
 
 #include <nuttx/arch.h>
+#include <nuttx/mutex.h>
 
 #include "arm_internal.h"
 #include "stm32_pwm.h"
@@ -705,7 +706,7 @@ struct stm32_foc_dev_s
 struct stm32_foc_adccmn_s
 {
   uint8_t       cntr; /* ADC common counter */
-  sem_t         sem;  /* Lock data */
+  mutex_t       lock; /* Lock data */
 };
 
 /* STM32 FOC volatile data */
@@ -815,7 +816,8 @@ static void stm32_foc_hw_config_get(struct foc_dev_s *dev);
 
 static struct stm32_foc_adccmn_s g_stm32_foc_adccmn123 =
 {
-  .cntr = 0
+  .cntr = 0,
+  .lock = NXMUTEX_INITIALIZER,
 };
 #  endif  /* CONFIG_STM32_HAVE_IP_ADC_V1 */
 
@@ -825,7 +827,8 @@ static struct stm32_foc_adccmn_s g_stm32_foc_adccmn123 =
 
 static struct stm32_foc_adccmn_s g_stm32_foc_adccmn12 =
 {
-  .cntr = 0
+  .cntr = 0,
+  .lock = NXMUTEX_INITIALIZER,
 };
 #    endif  /* CONFIG_STM32_HAVE_ADC1 || CONFIG_STM32_HAVE_ADC2 */
 #    if defined(CONFIG_STM32_HAVE_ADC3) || defined(CONFIG_STM32_HAVE_ADC4)
@@ -833,7 +836,8 @@ static struct stm32_foc_adccmn_s g_stm32_foc_adccmn12 =
 
 static struct stm32_foc_adccmn_s g_stm32_foc_adccmn34 =
 {
-  .cntr = 0
+  .cntr = 0,
+  .lock = NXMUTEX_INITIALIZER,
 };
 #    endif  /* CONFIG_STM32_HAVE_ADC3 || CONFIG_STM32_HAVE_ADC4 */
 #  endif    /* CONFIG_STM32_HAVE_IP_ADC_V2 */
@@ -1132,7 +1136,7 @@ static int stm32_foc_adc_start(struct foc_dev_s *dev, bool state)
 
 static int stm32_foc_adc_cfg(struct foc_dev_s *dev)
 {
-  struct stm32_foc_dev_s  *foc_dev = STM32_FOC_DEV_FROM_DEV_GET(dev);
+  struct stm32_foc_dev_s *foc_dev = STM32_FOC_DEV_FROM_DEV_GET(dev);
 
   DEBUGASSERT(dev);
   DEBUGASSERT(foc_dev);
@@ -1340,7 +1344,7 @@ static int stm32_foc_setup(struct foc_dev_s *dev)
 #ifdef FOC_ADC_HAVE_CMN
   /* Lock ADC common data */
 
-  ret = nxsem_wait_uninterruptible(&priv->adc_cmn->sem);
+  ret = nxmutex_lock(&priv->adc_cmn->lock);
   if (ret < 0)
     {
       goto errout;
@@ -1361,7 +1365,7 @@ static int stm32_foc_setup(struct foc_dev_s *dev)
 
   /* Unlock ADC common data */
 
-  nxsem_post(&priv->adc_cmn->sem);
+  nxmutex_unlock(&priv->adc_cmn->lock);
 #endif
 
   /* Setup PWM */
@@ -1448,10 +1452,10 @@ errout:
 
 static int stm32_foc_shutdown(struct foc_dev_s *dev)
 {
-  struct stm32_foc_dev_s    *foc_dev = STM32_FOC_DEV_FROM_DEV_GET(dev);
-  struct stm32_foc_board_s  *board   = STM32_FOC_BOARD_FROM_DEV_GET(dev);
-  struct stm32_foc_priv_s   *priv    = STM32_FOC_PRIV_FROM_DEV_GET(dev);
-  int                        ret     = OK;
+  struct stm32_foc_dev_s   *foc_dev = STM32_FOC_DEV_FROM_DEV_GET(dev);
+  struct stm32_foc_board_s *board   = STM32_FOC_BOARD_FROM_DEV_GET(dev);
+  struct stm32_foc_priv_s  *priv    = STM32_FOC_PRIV_FROM_DEV_GET(dev);
+  int                       ret     = OK;
 
   DEBUGASSERT(dev);
   DEBUGASSERT(foc_dev);
@@ -1474,7 +1478,7 @@ static int stm32_foc_shutdown(struct foc_dev_s *dev)
 #ifdef FOC_ADC_HAVE_CMN
   /* Lock ADC common data */
 
-  ret = nxsem_wait_uninterruptible(&priv->adc_cmn->sem);
+  ret = nxmutex_lock(&priv->adc_cmn->lock);
   if (ret < 0)
     {
       goto errout;
@@ -1497,7 +1501,7 @@ static int stm32_foc_shutdown(struct foc_dev_s *dev)
 #ifdef FOC_ADC_HAVE_CMN
   /* Unlock ADC common data */
 
-  nxsem_post(&priv->adc_cmn->sem);
+  nxmutex_unlock(&priv->adc_cmn->lock);
 #endif
 
   /* Call board-specific shutdown */
@@ -2354,16 +2358,9 @@ stm32_foc_initialize(int inst, struct stm32_foc_board_s *board)
 
   modifyreg32(FOC_PWM_FZ_REG, 0, pwmfzbit);
 
-#ifdef FOC_ADC_HAVE_CMN
-  /* Initialize ADC common data semaphore  */
-
-  nxsem_init(&foc_priv->adc_cmn->sem, 0, 1);
-#endif
-
   /* Initialize calibration semaphore */
 
   nxsem_init(&foc_priv->cal_done_sem, 0, 0);
-  nxsem_set_protocol(&foc_priv->cal_done_sem, SEM_PRIO_NONE);
 
   /* Get FOC device */
 

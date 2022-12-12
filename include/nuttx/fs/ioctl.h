@@ -91,6 +91,9 @@
 #define _MMCSDIOBASE    (0x3300) /* MMCSD device ioctl commands */
 #define _BLUETOOTHBASE  (0x3400) /* Bluetooth ioctl commands */
 #define _PKTRADIOBASE   (0x3500) /* Packet radio ioctl commands */
+#define _LTEBASE        (0x3600) /* LTE device ioctl commands */
+#define _VIDIOCBASE     (0x3700) /* Video device ioctl commands */
+#define _CELLIOCBASE    (0x3800) /* Cellular device ioctl commands */
 #define _WLIOCBASE      (0x8b00) /* Wireless modules ioctl network commands */
 
 /* boardctl() commands share the same number space */
@@ -592,6 +595,21 @@
 
 #define _PKRADIOIOCVALID(c) (_IOC_TYPE(c)==_PKTRADIOBASE)
 #define _PKRADIOIOC(nr)     _IOC(_PKTRADIOBASE,nr)
+
+/* LTE device ioctl definitions *********************************************/
+
+#define _LTEIOCVALID(c) (_IOC_TYPE(c)==_LTEBASE)
+#define _LTEIOC(nr)     _IOC(_LTEBASE,nr)
+
+/* Video device ioctl definitions *******************************************/
+
+#define _VIDIOCVALID(c) (_IOC_TYPE(c)==_VIDIOCBASE)
+#define _VIDIOC(nr)      _IOC(_VIDIOCBASE,nr)
+
+/* cellularctl() command definitions ****************************************/
+
+#define _CELLIOCVALID(c) (_IOC_TYPE(c)==_CELLIOCBASE)
+#define _CELLIOC(nr)     _IOC(_CELLIOCBASE,nr)
 
 /* Wireless driver network ioctl definitions ********************************/
 

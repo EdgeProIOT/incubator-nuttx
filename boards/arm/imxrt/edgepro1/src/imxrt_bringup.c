@@ -127,7 +127,7 @@ int imxrt_bringup(void)
   imxrt_i2c_register(3);
 #endif
 
-#if defined(CONFIG_SPI_DRIVER) && (defined(CONFIG_IMXRT_LPSPI4)
+#if defined(CONFIG_SPI_DRIVER) && defined(CONFIG_IMXRT_LPSPI4)
   imxrt_spidev_initialize();
   imxrt_spi_register(4);
 #endif

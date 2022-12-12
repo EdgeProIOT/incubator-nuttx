@@ -46,6 +46,10 @@
 
 #define GPIO_LED1             2
 
+/* PCNT Quadrature Encoder IDs */
+
+#define PCNT_QE0_ID           0
+
 /* MCP2515 Interrupt pin */
 
 #define GPIO_MCP2515_IRQ      22
@@ -161,7 +165,9 @@ int esp32_twai_setup(void);
  *   number.
  *
  * Input Parameters:
- *   port  - The I2S port used for the device
+ *   port       - The I2S port used for the device
+ *   enable_tx  - Register device as TX if true
+ *   enable_rx  - Register device as RX if true
  *
  * Returned Value:
  *   Zero is returned on success.  Otherwise, a negated errno value is
@@ -169,9 +175,9 @@ int esp32_twai_setup(void);
  *
  ****************************************************************************/
 
-#if defined CONFIG_ESP32_I2S0 && !defined CONFIG_AUDIO_CS4344 || \
-    defined CONFIG_ESP32_I2S1
-int board_i2sdev_initialize(int port);
+#if defined(CONFIG_ESP32_I2S0) && !defined(CONFIG_AUDIO_CS4344) || \
+    defined(CONFIG_ESP32_I2S1)
+int board_i2sdev_initialize(int port, bool enable_tx, bool enable_rx);
 #endif
 
 /****************************************************************************

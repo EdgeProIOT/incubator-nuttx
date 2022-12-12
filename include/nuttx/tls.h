@@ -63,6 +63,14 @@
  * Public Types
  ****************************************************************************/
 
+#ifdef __cplusplus
+#define EXTERN extern "C"
+extern "C"
+{
+#else
+#define EXTERN extern
+#endif
+
 /* type tls_ndxset_t & tls_dtor_t *******************************************/
 
 /* Smallest addressable type that can hold the entire configured number of
@@ -119,7 +127,7 @@ struct getopt_s
 
 struct task_info_s
 {
-  sem_t           ta_sem;
+  mutex_t         ta_lock;
   FAR char      **argv;                         /* Name+start-up parameters     */
 #if CONFIG_TLS_TASK_NELEM > 0
   uintptr_t       ta_telem[CONFIG_TLS_TASK_NELEM]; /* Task local storage elements */
@@ -344,5 +352,10 @@ void tls_destruct(void);
  ****************************************************************************/
 
 FAR struct task_info_s *task_get_info(void);
+
+#undef EXTERN
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __INCLUDE_NUTTX_TLS_H */

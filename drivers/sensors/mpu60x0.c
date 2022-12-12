@@ -576,11 +576,13 @@ static inline int __mpu_write_pwr_mgmt_2(FAR struct mpu_dev_s *dev,
   return __mpu_write_reg(dev, PWR_MGMT_2, &val, sizeof(val));
 }
 
+#ifdef CONFIG_MPU60X0_SPI
 static inline int __mpu_write_user_ctrl(FAR struct mpu_dev_s *dev,
                                         uint8_t val)
 {
   return __mpu_write_reg(dev, USER_CTRL, &val, sizeof(val));
 }
+#endif
 
 /* __mpu_write_gyro_config() :
  *
@@ -645,31 +647,6 @@ static inline int __mpu_write_config(FAR struct mpu_dev_s *dev,
   return __mpu_write_reg(dev, CONFIG, &val, sizeof(val));
 }
 
-/* WHO_AM_I (0x75) : read-only, always returns 0x68 for mpu60x0 */
-
-static inline uint8_t __mpu_read_who_am_i(FAR struct mpu_dev_s *dev)
-{
-  uint8_t val = 0xff;
-  __mpu_read_reg(dev, WHO_AM_I, &val, sizeof(val));
-  return val;
-}
-
-/* Locks and unlocks the @dev data structure (mutex).
- *
- * Use these functions any time you call one of the lock-dependent
- * helper functions defined above.
- */
-
-static void inline mpu_lock(FAR struct mpu_dev_s *dev)
-{
-  nxmutex_lock(&dev->lock);
-}
-
-static void inline mpu_unlock(FAR struct mpu_dev_s *dev)
-{
-  nxmutex_unlock(&dev->lock);
-}
-
 /* Resets the mpu60x0, sets it to a default configuration. */
 
 static int mpu_reset(FAR struct mpu_dev_s *dev)
@@ -687,13 +664,14 @@ static int mpu_reset(FAR struct mpu_dev_s *dev)
     }
 #endif
 
-  mpu_lock(dev);
+  nxmutex_lock(&dev->lock);
 
   /* Awaken chip, issue hardware reset */
 
   ret = __mpu_write_pwr_mgmt_1(dev, PWR_MGMT_1__DEVICE_RESET);
   if (ret != OK)
     {
+      nxmutex_unlock(&dev->lock);
       snerr("Could not find mpu60x0!\n");
       return ret;
     }
@@ -750,7 +728,7 @@ static int mpu_reset(FAR struct mpu_dev_s *dev)
 
   __mpu_write_int_pin_cfg(dev, INT_PIN_CFG__INT_RD_CLEAR);
 
-  mpu_unlock(dev);
+  nxmutex_unlock(&dev->lock);
   return 0;
 }
 
@@ -775,9 +753,9 @@ static int mpu_open(FAR struct file *filep)
 
   /* Reset the register cache */
 
-  mpu_lock(dev);
+  nxmutex_lock(&dev->lock);
   dev->bufpos = 0;
-  mpu_unlock(dev);
+  nxmutex_unlock(&dev->lock);
 
   return 0;
 }
@@ -793,9 +771,9 @@ static int mpu_close(FAR struct file *filep)
 
   /* Reset (clear) the register cache. */
 
-  mpu_lock(dev);
+  nxmutex_lock(&dev->lock);
   dev->bufpos = 0;
-  mpu_unlock(dev);
+  nxmutex_unlock(&dev->lock);
 
   return 0;
 }
@@ -843,7 +821,7 @@ static ssize_t mpu_read(FAR struct file *filep, FAR char *buf, size_t len)
   FAR struct mpu_dev_s *dev = inode->i_private;
   size_t send_len = 0;
 
-  mpu_lock(dev);
+  nxmutex_lock(&dev->lock);
 
   /* Populate the register cache if it seems empty. */
 
@@ -876,8 +854,7 @@ static ssize_t mpu_read(FAR struct file *filep, FAR char *buf, size_t len)
       dev->bufpos = 0;
     }
 
-  mpu_unlock(dev);
-
+  nxmutex_unlock(&dev->lock);
   return send_len;
 }
 
@@ -973,7 +950,6 @@ int mpu60x0_register(FAR const char *path, FAR struct mpu_config_s *config)
       snerr("ERROR: Failed to configure mpu60x0: %d\n", ret);
 
       nxmutex_destroy(&priv->lock);
-
       kmm_free(priv);
       return ret;
     }
@@ -986,7 +962,6 @@ int mpu60x0_register(FAR const char *path, FAR struct mpu_config_s *config)
       snerr("ERROR: Failed to register mpu60x0 interface: %d\n", ret);
 
       nxmutex_destroy(&priv->lock);
-
       kmm_free(priv);
       return ret;
     }

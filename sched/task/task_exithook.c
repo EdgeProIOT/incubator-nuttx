@@ -33,6 +33,7 @@
 
 #include <nuttx/sched.h>
 #include <nuttx/fs/fs.h>
+#include <nuttx/mm/mm.h>
 
 #include "sched/sched.h"
 #include "group/group.h"
@@ -65,7 +66,7 @@ static inline void nxtask_exitstatus(FAR struct task_group_s *group,
     {
       /* No.. Find the exit status entry for this task in the parent TCB */
 
-      child = group_find_child(group, getpid());
+      child = group_find_child(group, gettid());
       if (child)
         {
           /* Save the exit status..  For the case of HAVE_GROUP_MEMBERS,
@@ -104,7 +105,7 @@ static inline void nxtask_groupexit(FAR struct task_group_s *group)
     {
       /* No.. Find the exit status entry for this task in the parent TCB */
 
-      child = group_find_child(group, getpid());
+      child = group_find_child(group, gettid());
       if (child)
         {
           /* Mark that all members of the child task group has exited */
@@ -504,6 +505,17 @@ void nxtask_exithook(FAR struct tcb_s *tcb, int status, bool nonblocking)
   /* Deallocate anything left in the TCB's queues */
 
   nxsig_cleanup(tcb); /* Deallocate Signal lists */
+
+#ifdef CONFIG_SCHED_DUMP_LEAK
+  if ((tcb->cmn.flags & TCB_FLAG_TTYPE_MASK) == TCB_FLAG_TTYPE_KERNEL)
+    {
+      kmm_memdump(tcb->pid);
+    }
+  else
+    {
+      umm_memdump(tcb->pid);
+    }
+#endif
 
 #ifdef CONFIG_SMP
   leave_critical_section(flags);

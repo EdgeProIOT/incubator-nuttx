@@ -54,6 +54,9 @@ static void xtensa_registerdump(const uintptr_t *regs)
           regs[REG_A8],  regs[REG_A9],  regs[REG_A10], regs[REG_A11],
           regs[REG_A12], regs[REG_A13], regs[REG_A14], regs[REG_A15]);
   svcinfo("  PC: %08x PS: %08x\n", regs[REG_PC], regs[REG_PS]);
+#ifdef CONFIG_BUILD_PROTECTED
+  svcinfo("  INT_CTX: %08x\n", regs[REG_INT_CTX]);
+#endif
 }
 #endif
 
@@ -94,7 +97,7 @@ int xtensa_swint(int irq, void *context, void *arg)
     {
       /* A2=SYS_save_context:  This is a save context command:
        *
-       * int xtensa_saveusercontext(uint32_t *saveregs);
+       * int up_saveusercontext(uint32_t *saveregs);
        *
        * At this point, the following values are saved in context:
        *
@@ -163,7 +166,7 @@ int xtensa_swint(int irq, void *context, void *arg)
 
       /* A2=SYS_syscall_return: This is a syscall return command:
        *
-       *   void up_syscall_return(void);
+       *   void xtensa_syscall_return(void);
        *
        * At this point, the following values are saved in context:
        *

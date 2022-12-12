@@ -24,7 +24,6 @@
 
 #include <nuttx/config.h>
 
-#include <stdbool.h>
 #include <poll.h>
 #include <time.h>
 #include <assert.h>
@@ -42,53 +41,8 @@
 #include "inode/inode.h"
 
 /****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-#define poll_semgive(sem) nxsem_post(sem)
-
-/****************************************************************************
  * Private Functions
  ****************************************************************************/
-
-/****************************************************************************
- * Name: poll_semtake
- ****************************************************************************/
-
-static int poll_semtake(FAR sem_t *sem)
-{
-  return nxsem_wait(sem);
-}
-
-/****************************************************************************
- * Name: poll_fdsetup
- *
- * Description:
- *   Configure (or unconfigure) one file/socket descriptor for the poll
- *   operation.  If fds and sem are non-null, then the poll is being setup.
- *   if fds and sem are NULL, then the poll is being torn down.
- *
- ****************************************************************************/
-
-static int poll_fdsetup(int fd, FAR struct pollfd *fds, bool setup)
-{
-  FAR struct file *filep;
-  int ret;
-
-  /* Get the file pointer corresponding to this file descriptor */
-
-  ret = fs_getfilep(fd, &filep);
-  if (ret < 0)
-    {
-      return ret;
-    }
-
-  DEBUGASSERT(filep != NULL);
-
-  /* Let file_poll() do the rest */
-
-  return file_poll(filep, fds, setup);
-}
 
 /****************************************************************************
  * Name: poll_setup
@@ -118,10 +72,10 @@ static inline int poll_setup(FAR struct pollfd *fds, nfds_t nfds,
        * on each thread.
        */
 
-      fds[i].sem     = sem;
+      fds[i].arg     = sem;
+      fds[i].cb      = poll_default_cb;
       fds[i].revents = 0;
       fds[i].priv    = NULL;
-      fds[i].events |= POLLERR | POLLHUP;
 
       /* Check for invalid descriptors. "If the value of fd is less than 0,
        * events shall be ignored, and revents shall be set to 0 in that entry
@@ -267,7 +221,8 @@ static inline int poll_teardown(FAR struct pollfd *fds, nfds_t nfds,
 
       /* Un-initialize the poll structure */
 
-      fds[i].sem = NULL;
+      fds[i].arg = NULL;
+      fds[i].cb  = NULL;
     }
 
   return ret;
@@ -276,6 +231,67 @@ static inline int poll_teardown(FAR struct pollfd *fds, nfds_t nfds,
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: poll_fdsetup
+ *
+ * Description:
+ *   Configure (or unconfigure) one file/socket descriptor for the poll
+ *   operation.  If fds and sem are non-null, then the poll is being setup.
+ *   if fds and sem are NULL, then the poll is being torn down.
+ *
+ ****************************************************************************/
+
+int poll_fdsetup(int fd, FAR struct pollfd *fds, bool setup)
+{
+  FAR struct file *filep;
+  int ret;
+
+  /* Get the file pointer corresponding to this file descriptor */
+
+  ret = fs_getfilep(fd, &filep);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  DEBUGASSERT(filep != NULL);
+
+  /* Let file_poll() do the rest */
+
+  return file_poll(filep, fds, setup);
+}
+
+/****************************************************************************
+ * Name: poll_default_cb
+ *
+ * Description:
+ *   The default poll callback function, this function do the final step of
+ *   poll notification.
+ *
+ * Input Parameters:
+ *   fds - The fds
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+void poll_default_cb(FAR struct pollfd *fds)
+{
+  int semcount = 0;
+  FAR sem_t *pollsem;
+
+  if (fds->arg != NULL)
+    {
+      pollsem = (FAR sem_t *)fds->arg;
+      nxsem_get_value(pollsem, &semcount);
+      if (semcount < 1)
+        {
+          nxsem_post(pollsem);
+        }
+    }
+}
 
 /****************************************************************************
  * Name: poll_notify
@@ -297,7 +313,6 @@ static inline int poll_teardown(FAR struct pollfd *fds, nfds_t nfds,
 void poll_notify(FAR struct pollfd **afds, int nfds, pollevent_t eventset)
 {
   int i;
-  int semcount;
   FAR struct pollfd *fds;
 
   DEBUGASSERT(afds != NULL && nfds >= 1);
@@ -317,15 +332,10 @@ void poll_notify(FAR struct pollfd **afds, int nfds, pollevent_t eventset)
               fds->revents &= ~POLLOUT;
             }
 
-          if (fds->revents != 0)
+          if (fds->revents != 0 && fds->cb != NULL)
             {
               finfo("Report events: %08" PRIx32 "\n", fds->revents);
-
-              nxsem_get_value(fds->sem, &semcount);
-              if (semcount < 1)
-                {
-                  nxsem_post(fds->sem);
-                }
+              fds->cb(fds);
             }
         }
     }
@@ -392,7 +402,6 @@ int file_poll(FAR struct file *filep, FAR struct pollfd *fds, bool setup)
   else
     {
       poll_notify(&fds, 1, POLLERR | POLLHUP);
-
       ret = OK;
     }
 
@@ -400,21 +409,37 @@ int file_poll(FAR struct file *filep, FAR struct pollfd *fds, bool setup)
 }
 
 /****************************************************************************
- * Name: nx_poll
+ * Name: poll
  *
  * Description:
- *   nx_poll() is similar to the standard 'poll' interface except that is
- *   not a cancellation point and it does not modify the errno variable.
+ *   poll() waits for one of a set of file descriptors to become ready to
+ *   perform I/O.  If none of the events requested (and no error) has
+ *   occurred for any of  the  file  descriptors,  then  poll() blocks until
+ *   one of the events occurs.
  *
- *   nx_poll() is an internal NuttX interface and should not be called from
- *   applications.
+ * Input Parameters:
+ *   fds  - List of structures describing file descriptors to be monitored
+ *   nfds - The number of entries in the list
+ *   timeout - Specifies an upper limit on the time for which poll() will
+ *     block in milliseconds.  A negative value of timeout means an infinite
+ *     timeout.
  *
  * Returned Value:
- *   Zero is returned on success; a negated value is returned on any failure.
+ *   On success, the number of structures that have non-zero revents fields.
+ *   A value of 0 indicates that the call timed out and no file descriptors
+ *   were ready.  On error, -1 is returned, and errno is set appropriately:
+ *
+ *   EBADF  - An invalid file descriptor was given in one of the sets.
+ *   EFAULT - The fds address is invalid
+ *   EINTR  - A signal occurred before any requested event.
+ *   EINVAL - The nfds value exceeds a system limit.
+ *   ENOMEM - There was no space to allocate internal data structures.
+ *   ENOSYS - One or more of the drivers supporting the file descriptor
+ *     does not support the poll method.
  *
  ****************************************************************************/
 
-int nx_poll(FAR struct pollfd *fds, unsigned int nfds, int timeout)
+int poll(FAR struct pollfd *fds, nfds_t nfds, int timeout)
 {
   sem_t sem;
   int count = 0;
@@ -423,13 +448,11 @@ int nx_poll(FAR struct pollfd *fds, unsigned int nfds, int timeout)
 
   DEBUGASSERT(nfds == 0 || fds != NULL);
 
-  /* This semaphore is used for signaling and, hence, should not have
-   * priority inheritance enabled.
-   */
+  /* poll() is a cancellation point */
+
+  enter_cancellation_point();
 
   nxsem_init(&sem, 0, 0);
-  nxsem_set_protocol(&sem, SEM_PRIO_NONE);
-
   ret = poll_setup(fds, nfds, &sem);
   if (ret >= 0)
     {
@@ -487,7 +510,7 @@ int nx_poll(FAR struct pollfd *fds, unsigned int nfds, int timeout)
         {
           /* Wait for the poll event or signal with no timeout */
 
-          ret = poll_semtake(&sem);
+          ret = nxsem_wait(&sem);
         }
 
       /* Teardown the poll operation and get the count of events.  Zero will
@@ -504,57 +527,15 @@ int nx_poll(FAR struct pollfd *fds, unsigned int nfds, int timeout)
     }
 
   nxsem_destroy(&sem);
-  return ret < 0 ? ret : count;
-}
+  leave_cancellation_point();
 
-/****************************************************************************
- * Name: poll
- *
- * Description:
- *   poll() waits for one of a set of file descriptors to become ready to
- *   perform I/O.  If none of the events requested (and no error) has
- *   occurred for any of  the  file  descriptors,  then  poll() blocks until
- *   one of the events occurs.
- *
- * Input Parameters:
- *   fds  - List of structures describing file descriptors to be monitored
- *   nfds - The number of entries in the list
- *   timeout - Specifies an upper limit on the time for which poll() will
- *     block in milliseconds.  A negative value of timeout means an infinite
- *     timeout.
- *
- * Returned Value:
- *   On success, the number of structures that have non-zero revents fields.
- *   A value of 0 indicates that the call timed out and no file descriptors
- *   were ready.  On error, -1 is returned, and errno is set appropriately:
- *
- *   EBADF  - An invalid file descriptor was given in one of the sets.
- *   EFAULT - The fds address is invalid
- *   EINTR  - A signal occurred before any requested event.
- *   EINVAL - The nfds value exceeds a system limit.
- *   ENOMEM - There was no space to allocate internal data structures.
- *   ENOSYS - One or more of the drivers supporting the file descriptor
- *     does not support the poll method.
- *
- ****************************************************************************/
-
-int poll(FAR struct pollfd *fds, nfds_t nfds, int timeout)
-{
-  int ret;
-
-  /* poll() is a cancellation point */
-
-  enter_cancellation_point();
-
-  /* Let nx_poll() do all of the work */
-
-  ret = nx_poll(fds, nfds, timeout);
   if (ret < 0)
     {
       set_errno(-ret);
-      ret = ERROR;
+      return ERROR;
     }
-
-  leave_cancellation_point();
-  return ret;
+  else
+    {
+      return count;
+    }
 }

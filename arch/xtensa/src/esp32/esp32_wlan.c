@@ -717,11 +717,8 @@ static void wlan_rxpoll(void *arg)
         {
           ninfo("IPv4 frame\n");
 
-          /* Handle ARP on input then give the IPv4 packet to the network
-           * layer
-           */
+          /* Receive an IPv4 packet from the network device */
 
-          arp_ipin(&priv->dev);
           ipv4_input(&priv->dev);
 
           /* If the above function invocation resulted in data
@@ -731,21 +728,6 @@ static void wlan_rxpoll(void *arg)
 
           if (priv->dev.d_len > 0)
             {
-              /* Update the Ethernet header with the correct MAC address */
-
-#ifdef CONFIG_NET_IPv6
-              if (IFF_IS_IPv4(priv->dev.d_flags))
-#endif
-                {
-                  arp_out(&priv->dev);
-                }
-#ifdef CONFIG_NET_IPv6
-              else
-                {
-                  neighbor_out(&priv->dev);
-                }
-#endif
-
               /* And send the packet */
 
               wlan_cache_txpkt_tail(priv);
@@ -769,21 +751,6 @@ static void wlan_rxpoll(void *arg)
 
           if (priv->dev.d_len > 0)
             {
-              /* Update the Ethernet header with the correct MAC address */
-
-#ifdef CONFIG_NET_IPv4
-              if (IFF_IS_IPv4(priv->dev.d_flags))
-                {
-                  arp_out(&priv->dev);
-                }
-              else
-#endif
-#ifdef CONFIG_NET_IPv6
-                {
-                  neighbor_out(&priv->dev);
-                }
-#endif
-
               /* And send the packet */
 
               wlan_cache_txpkt_tail(priv);
@@ -798,7 +765,7 @@ static void wlan_rxpoll(void *arg)
 
           /* Handle ARP packet */
 
-          arp_arpin(&priv->dev);
+          arp_input(&priv->dev);
 
           /* If the above function invocation resulted in data
            * that should be sent out on the network, the field
@@ -880,45 +847,16 @@ static int wlan_txpoll(struct net_driver_s *dev)
 
   DEBUGASSERT(dev->d_buf != NULL);
 
-  /* If the polling resulted in data that should be sent out on the network,
-   * the field d_len is set to a value > 0.
-   */
+  wlan_cache_txpkt_tail(priv);
 
-  if (dev->d_len > 0)
+  pktbuf = wlan_alloc_buffer(priv);
+  if (!pktbuf)
     {
-      /* Look up the destination MAC address and add it to the Ethernet
-       * header.
-       */
-
-#ifdef CONFIG_NET_IPv4
-#ifdef CONFIG_NET_IPv6
-      if (IFF_IS_IPv4(dev->d_flags))
-#endif
-        {
-          arp_out(dev);
-        }
-#endif /* CONFIG_NET_IPv4 */
-
-#ifdef CONFIG_NET_IPv6
-#ifdef CONFIG_NET_IPv4
-      else
-#endif
-        {
-          neighbor_out(dev);
-        }
-#endif /* CONFIG_NET_IPv6 */
-
-      wlan_cache_txpkt_tail(priv);
-
-      pktbuf = wlan_alloc_buffer(priv);
-      if (!pktbuf)
-        {
-          return -ENOMEM;
-        }
-
-      dev->d_buf = pktbuf->buffer;
-      dev->d_len = WLAN_BUF_SIZE;
+      return -ENOMEM;
     }
+
+  dev->d_buf = pktbuf->buffer;
+  dev->d_len = WLAN_BUF_SIZE;
 
   /* If zero is returned, the polling will continue until
    * all connections have been examined.
@@ -1776,13 +1714,6 @@ int esp32_wlan_sta_initialize(void)
         eth_mac[0], eth_mac[1], eth_mac[2],
         eth_mac[3], eth_mac[4], eth_mac[5]);
 
-  ret = esp_wifi_scan_init();
-  if (ret < 0)
-    {
-      nerr("ERROR: Initialize Wi-Fi scan parameter error: %d\n", ret);
-      return ret;
-    }
-
   ret = esp32_net_initialize(ESP32_WLAN_STA_DEVNO, eth_mac, &g_sta_ops);
   if (ret < 0)
     {
@@ -1842,13 +1773,6 @@ int esp32_wlan_softap_initialize(void)
   ninfo("Wi-Fi softAP MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
         eth_mac[0], eth_mac[1], eth_mac[2],
         eth_mac[3], eth_mac[4], eth_mac[5]);
-
-  ret = esp_wifi_scan_init();
-  if (ret < 0)
-    {
-      nerr("ERROR: Initialize Wi-Fi scan parameter error: %d\n", ret);
-      return ret;
-    }
 
   ret = esp32_net_initialize(ESP32_WLAN_SOFTAP_DEVNO, eth_mac,
                              &g_softap_ops);

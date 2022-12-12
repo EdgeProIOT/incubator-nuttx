@@ -109,11 +109,6 @@
 
 #define SLIP_WDDELAY   (1*1000000)
 
-/* This is a helper pointer for accessing the contents of the ip header */
-
-#define IPv4BUF        ((FAR struct ipv4_hdr_s *)priv->dev.d_buf)
-#define IPv6BUF        ((FAR struct ipv6_hdr_s *)priv->dev.d_buf)
-
 /****************************************************************************
  * Private Types
  ****************************************************************************/
@@ -153,9 +148,6 @@ static struct slip_driver_s g_slip[CONFIG_NET_SLIP_NINTERFACES];
  * Private Function Prototypes
  ****************************************************************************/
 
-static int slip_semtake(FAR struct slip_driver_s *priv);
-static void slip_forcetake(FAR struct slip_driver_s *priv);
-
 /* Common TX logic */
 
 static void slip_write(FAR struct slip_driver_s *priv,
@@ -184,45 +176,6 @@ static int slip_rmmac(FAR struct net_driver_s *dev, FAR const uint8_t *mac);
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
-
-/****************************************************************************
- * Name: slip_semtake
- ****************************************************************************/
-
-static int slip_semtake(FAR struct slip_driver_s *priv)
-{
-  return nxsem_wait_uninterruptible(&priv->waitsem);
-}
-
-#define slip_semgive(p) nxsem_post(&(p)->waitsem);
-
-/****************************************************************************
- * Name: slip_forcetake
- *
- * Description:
- *   This is just another wrapper but this one continues even if the thread
- *   is canceled.  This must be done in certain conditions where were must
- *   continue in order to clean-up resources.
- *
- ****************************************************************************/
-
-static void slip_forcetake(FAR struct slip_driver_s *priv)
-{
-  int ret;
-
-  do
-    {
-      ret = nxsem_wait_uninterruptible(&priv->waitsem);
-
-      /* The only expected error would -ECANCELED meaning that the
-       * parent thread has been canceled.  We have to continue and
-       * terminate the poll in this case.
-       */
-
-      DEBUGASSERT(ret == OK || ret == -ECANCELED);
-    }
-  while (ret < 0);
-}
 
 /****************************************************************************
  * Name: slip_write
@@ -402,17 +355,7 @@ static int slip_txpoll(FAR struct net_driver_s *dev)
   FAR struct slip_driver_s *priv =
     (FAR struct slip_driver_s *)dev->d_private;
 
-  /* If the polling resulted in data that should be sent out on the network,
-   * the field d_len is set to a value > 0.
-   */
-
-  if (priv->dev.d_len > 0)
-    {
-      if (!devif_loopback(&priv->dev))
-        {
-          slip_transmit(priv);
-        }
-    }
+  slip_transmit(priv);
 
   /* If zero is returned, the polling will continue until all connections
    * have been examined.
@@ -449,7 +392,7 @@ static int slip_txtask(int argc, FAR char *argv[])
    */
 
   priv = &g_slip[index];
-  slip_semgive(priv);
+  nxsem_post(&priv->waitsem);
 
   /* Loop forever */
 
@@ -457,7 +400,7 @@ static int slip_txtask(int argc, FAR char *argv[])
     {
       /* Wait for the timeout to expire (or until we are signaled by  */
 
-      ret = slip_semtake(priv);
+      ret = nxsem_wait_uninterruptible(&priv->waitsem);
       if (ret < 0)
         {
           DEBUGASSERT(ret == -ECANCELED);
@@ -466,13 +409,13 @@ static int slip_txtask(int argc, FAR char *argv[])
 
       if (!priv->txnodelay)
         {
-          slip_semgive(priv);
+          nxsem_post(&priv->waitsem);
           nxsig_usleep(SLIP_WDDELAY);
         }
       else
         {
           priv->txnodelay = false;
-          slip_semgive(priv);
+          nxsem_post(&priv->waitsem);
         }
 
       /* Is the interface up? */
@@ -645,6 +588,7 @@ static inline void slip_receive(FAR struct slip_driver_s *priv)
 static int slip_rxtask(int argc, FAR char *argv[])
 {
   FAR struct slip_driver_s *priv;
+  FAR struct net_driver_s *dev;
   unsigned int index = *(argv[1]) - '0';
   int ch;
 
@@ -656,10 +600,11 @@ static int slip_rxtask(int argc, FAR char *argv[])
    */
 
   priv = &g_slip[index];
-  slip_semgive(priv);
+  nxsem_post(&priv->waitsem);
 
   /* Loop forever */
 
+  dev = &priv->dev;
   for (; ; )
     {
       /* Wait for the next character to be available on the input stream. */
@@ -787,8 +732,8 @@ static int slip_ifup(FAR struct net_driver_s *dev)
 
 #ifdef CONFIG_NET_IPv4
   nerr("Bringing up: %d.%d.%d.%d\n",
-       dev->d_ipaddr & 0xff, (dev->d_ipaddr >> 8) & 0xff,
-       (dev->d_ipaddr >> 16) & 0xff, dev->d_ipaddr >> 24);
+        (int)(dev->d_ipaddr & 0xff), (int)((dev->d_ipaddr >> 8) & 0xff),
+        (int)((dev->d_ipaddr >> 16) & 0xff), (int)(dev->d_ipaddr >> 24));
 #endif
 #ifdef CONFIG_NET_IPv6
   ninfo("Bringing up: %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",
@@ -987,7 +932,6 @@ int slip_initialize(int intf, FAR const char *devname)
   /* Initialize the wait semaphore */
 
   nxsem_init(&priv->waitsem, 0, 0);
-  nxsem_set_protocol(&priv->waitsem, SEM_PRIO_NONE);
 
   /* Start the SLIP receiver kernel thread */
 
@@ -996,8 +940,7 @@ int slip_initialize(int intf, FAR const char *devname)
   argv[1] = NULL;
 
   ret = kthread_create("rxslip", CONFIG_NET_SLIP_DEFPRIO,
-                       CONFIG_NET_SLIP_STACKSIZE, slip_rxtask,
-                       (FAR char * const *)argv);
+                       CONFIG_NET_SLIP_STACKSIZE, slip_rxtask, argv);
   if (ret < 0)
     {
       nerr("ERROR: Failed to start receiver task\n");
@@ -1008,13 +951,12 @@ int slip_initialize(int intf, FAR const char *devname)
 
   /* Wait and make sure that the receive task is started. */
 
-  slip_forcetake(priv);
+  nxsem_wait_uninterruptible(&priv->waitsem);
 
   /* Start the SLIP transmitter kernel thread */
 
   ret = kthread_create("txslip", CONFIG_NET_SLIP_DEFPRIO,
-                       CONFIG_NET_SLIP_STACKSIZE, slip_txtask,
-                       (FAR char * const *)argv);
+                       CONFIG_NET_SLIP_STACKSIZE, slip_txtask, argv);
   if (ret < 0)
     {
       nerr("ERROR: Failed to start receiver task\n");
@@ -1025,11 +967,11 @@ int slip_initialize(int intf, FAR const char *devname)
 
   /* Wait and make sure that the transmit task is started. */
 
-  slip_forcetake(priv);
+  nxsem_wait_uninterruptible(&priv->waitsem);
 
   /* Bump the semaphore count so that it can now be used as a mutex */
 
-  slip_semgive(priv);
+  nxsem_post(&priv->waitsem);
 
   /* Register the device with the OS so that socket IOCTLs can be performed */
 

@@ -106,6 +106,8 @@
  ****************************************************************************/
 
 	.text
+	.syntax	unified
+	.arm
 
 /****************************************************************************
  * Public Functions
@@ -132,7 +134,7 @@ arm_vectorirq:
 
 	/* Switch to SYS mode */
 
-#ifdef CONFIG_ARMV7A_DECODEFIQ
+#ifdef CONFIG_ARMV7R_DECODEFIQ
 	cpsid		if, #PSR_MODE_SYS
 #else
 	cpsid		i, #PSR_MODE_SYS
@@ -242,7 +244,7 @@ arm_vectorsvc:
 
 	/* Switch to SYS mode */
 
-#ifdef CONFIG_ARMV7A_DECODEFIQ
+#ifdef CONFIG_ARMV7R_DECODEFIQ
 	cpsid		if, #PSR_MODE_SYS
 #else
 	cpsid		i, #PSR_MODE_SYS
@@ -353,7 +355,7 @@ arm_vectordata:
 
 	/* Switch to SYS mode */
 
-#ifdef CONFIG_ARMV7A_DECODEFIQ
+#ifdef CONFIG_ARMV7R_DECODEFIQ
 	cpsid		if, #PSR_MODE_SYS
 #else
 	cpsid		i, #PSR_MODE_SYS
@@ -707,6 +709,7 @@ g_intstacktop:
  *  Name: g_fiqstackalloc/g_fiqstacktop
  ****************************************************************************/
 
+#ifdef CONFIG_ARMV7R_DECODEFIQ
 	.globl	g_fiqstackalloc
 	.type	g_fiqstackalloc, object
 	.globl	g_fiqstacktop
@@ -717,6 +720,7 @@ g_fiqstackalloc:
 g_fiqstacktop:
 	.size	g_fiqstacktop, 0
 	.size	g_fiqstackalloc, (CONFIG_ARCH_INTERRUPTSTACK & ~7)
+#endif
 
 #endif /* CONFIG_ARCH_INTERRUPTSTACK > 7 */
 	.end

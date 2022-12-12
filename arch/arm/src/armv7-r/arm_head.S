@@ -131,6 +131,8 @@
  */
 
 	.text
+	.syntax	unified
+	.arm
 	.global	__start
 	.type	__start, #function
 
@@ -161,6 +163,7 @@ __start:
 	mcr		CP15_BPIALL(r0)		/* Invalidate entire branch prediction array */
 	mcr		CP15_ICIALLU(r0)	/* Invalidate I-cache */
 	mcr		CP15_DCIALLU(r0)	/* Invalidate D-cache */
+	isb
 
 	/* Configure the system control register (see sctrl.h) */
 
@@ -190,15 +193,14 @@ __start:
 	 *   SCTLR_EE       Bit 25: 0=Little endian.
 	 *   SCTLR_NMFI     Bit 27: Non-maskable FIQ (NMFI) support
 	 *   SCTLR_TE       Bit 30: All exceptions handled in ARM state.
-	 *   SCTLR_IE       Bit 31: Instruction endian-ness.
 	 */
 
 	/* Clear all configurable bits */
 
-	bic		r0, r0, #(SCTLR_M | SCTLR_A  | SCTLR_C | SCTLR_CCP15BEN | SCTLR_B)
-	bic		r0, r0, #(SCTLR_SW | SCTLR_I | SCTLR_V   | SCTLR_RR)
-	bic		r0, r0, #(SCTLR_BR | SCTLR_DZ | SCTLR_FI | SCTLR_U)
-	bic		r0, r0, #(SCTLR_VE | SCTLR_EE | SCTLR_NMFI | SCTLR_TE | SCTLR_IE)
+	bic		r0, r0, #(SCTLR_M  | SCTLR_A  | SCTLR_C    | SCTLR_CCP15BEN | SCTLR_B)
+	bic		r0, r0, #(SCTLR_SW | SCTLR_I  | SCTLR_V    | SCTLR_RR)
+	bic		r0, r0, #(SCTLR_BR | SCTLR_DZ | SCTLR_FI)
+	bic		r0, r0, #(SCTLR_VE | SCTLR_EE | SCTLR_NMFI | SCTLR_TE)
 
 	/* Set configured bits */
 
@@ -313,6 +315,7 @@ __start:
 	/* Then write the configured control register */
 
 	mcr		CP15_SCTLR(r0)			/* Write control reg */
+	isb
 	.rept		12				/* Some CPUs want want lots of NOPs here */
 	nop
 	.endr
