@@ -43,7 +43,6 @@
 #include <nuttx/wqueue.h>
 #include <nuttx/net/phy.h>
 #include <nuttx/net/mii.h>
-#include <nuttx/net/arp.h>
 #include <nuttx/net/netdev.h>
 
 #if defined(CONFIG_ARCH_PHY_INTERRUPT)
@@ -195,7 +194,7 @@
  * header
  */
 
-#define BUF ((FAR struct eth_hdr_s *)priv->dev.d_buf)
+#define BUF ((struct eth_hdr_s *)&priv->dev.d_buf[0])
 
 /* PHY return definitions */
 
@@ -450,62 +449,62 @@ static void rx65n_checksetup(void);
 
 /* Free buffer management */
 
-static void rx65n_initbuffer(FAR struct rx65n_ethmac_s *priv);
-static inline uint8_t *rx65n_allocbuffer(FAR struct rx65n_ethmac_s *priv);
-static inline void rx65n_freebuffer(FAR struct rx65n_ethmac_s *priv,
-              uint8_t *buffer);
-static inline bool rx65n_isfreebuffer(FAR struct rx65n_ethmac_s *priv);
+static void rx65n_initbuffer(struct rx65n_ethmac_s *priv);
+static inline uint8_t *rx65n_allocbuffer(struct rx65n_ethmac_s *priv);
+static inline void rx65n_freebuffer(struct rx65n_ethmac_s *priv,
+                                    uint8_t *buffer);
+static inline bool rx65n_isfreebuffer(struct rx65n_ethmac_s *priv);
 
 /* Common TX logic */
 
-static int  rx65n_transmit(FAR struct rx65n_ethmac_s *priv);
+static int  rx65n_transmit(struct rx65n_ethmac_s *priv);
 static int  rx65n_txpoll(struct net_driver_s *dev);
-static void rx65n_dopoll(FAR struct rx65n_ethmac_s *priv);
+static void rx65n_dopoll(struct rx65n_ethmac_s *priv);
 
 /* Interrupt handling */
 
-static void rx65n_enableint(FAR struct rx65n_ethmac_s *priv,
-              uint32_t ierbit);
-static void rx65n_disableint(FAR struct rx65n_ethmac_s *priv,
-              uint32_t ierbit);
+static void rx65n_enableint(struct rx65n_ethmac_s *priv,
+                            uint32_t ierbit);
+static void rx65n_disableint(struct rx65n_ethmac_s *priv,
+                             uint32_t ierbit);
 
-static void rx65n_freesegment(FAR struct rx65n_ethmac_s *priv,
-              FAR struct eth_rxdesc_s *rxfirst, int segments);
-static int  rx65n_recvframe(FAR struct rx65n_ethmac_s *priv);
-static void rx65n_receive(FAR struct rx65n_ethmac_s *priv);
-static void rx65n_freeframe(FAR struct rx65n_ethmac_s *priv);
-static void rx65n_txdone(FAR struct rx65n_ethmac_s *priv);
+static void rx65n_freesegment(struct rx65n_ethmac_s *priv,
+                              struct eth_rxdesc_s *rxfirst, int segments);
+static int  rx65n_recvframe(struct rx65n_ethmac_s *priv);
+static void rx65n_receive(struct rx65n_ethmac_s *priv);
+static void rx65n_freeframe(struct rx65n_ethmac_s *priv);
+static void rx65n_txdone(struct rx65n_ethmac_s *priv);
 
-static void rx65n_interrupt_work(FAR void *arg);
-static int  rx65n_interrupt(int irq, FAR void *context, FAR void *arg);
+static void rx65n_interrupt_work(void *arg);
+static int  rx65n_interrupt(int irq, void *context, void *arg);
 
 /* Timer expirations */
 
-static void rx65n_txtimeout_work(FAR void *arg);
+static void rx65n_txtimeout_work(void *arg);
 
 /* NuttX callback functions */
 
 static int  rx65n_ifup(struct net_driver_s *dev);
 static int  rx65n_ifdown(struct net_driver_s *dev);
 
-static void rx65n_txavail_work(FAR void *arg);
+static void rx65n_txavail_work(void *arg);
 static int  rx65n_txavail(struct net_driver_s *dev);
 
 #if defined(CONFIG_NET_MCASTGROUP) || defined(CONFIG_NET_ICMPv6)
-static int  rx65n_addmac(struct net_driver_s *dev, FAR const uint8_t *mac);
+static int  rx65n_addmac(struct net_driver_s *dev, const uint8_t *mac);
 #endif
 #ifdef CONFIG_NET_MCASTGROUP
-static int  rx65n_rmmac(struct net_driver_s *dev, FAR const uint8_t *mac);
+static int  rx65n_rmmac(struct net_driver_s *dev, const uint8_t *mac);
 #endif
 #ifdef CONFIG_NETDEV_IOCTL
 static int  rx65n_ioctl(struct net_driver_s *dev, int cmd,
-              unsigned long arg);
+                        unsigned long arg);
 #endif
 
 /* Descriptor Initialization */
 
-static void rx65n_txdescinit(FAR struct rx65n_ethmac_s *priv);
-static void rx65n_rxdescinit(FAR struct rx65n_ethmac_s *priv);
+static void rx65n_txdescinit(struct rx65n_ethmac_s *priv);
+static void rx65n_rxdescinit(struct rx65n_ethmac_s *priv);
 
 /* PHY Initialization */
 
@@ -513,36 +512,36 @@ static void rx65n_rxdescinit(FAR struct rx65n_ethmac_s *priv);
 static void  rx65n_phyintenable(bool enable);
 #endif
 #if defined(CONFIG_ARCH_PHY_INTERRUPT)
-int arch_phy_irq(FAR const char *intf, xcpt_t handler, void *arg,
+int arch_phy_irq(const char *intf, xcpt_t handler, void *arg,
                  phy_enable_t *enable);
 #endif
-static int  rx65n_phyinit(FAR struct rx65n_ethmac_s *priv);
+static int  rx65n_phyinit(struct rx65n_ethmac_s *priv);
 
 /* MAC/DMA Initialization */
 
-static int  rx65n_ethreset(FAR struct rx65n_ethmac_s *priv);
-static int  rx65n_macconfig(FAR struct rx65n_ethmac_s *priv);
-static void rx65n_macaddress(FAR struct rx65n_ethmac_s *priv);
-static int  rx65n_ethconfig(FAR struct rx65n_ethmac_s *priv);
+static int  rx65n_ethreset(struct rx65n_ethmac_s *priv);
+static int  rx65n_macconfig(struct rx65n_ethmac_s *priv);
+static void rx65n_macaddress(struct rx65n_ethmac_s *priv);
+static int  rx65n_ethconfig(struct rx65n_ethmac_s *priv);
 
-static void rx65n_phy_preamble (void);
-static void rx65n_phy_trans_zto0 (void);
-static void rx65n_phy_trans_1to0 (void);
+static void rx65n_phy_preamble(void);
+static void rx65n_phy_trans_zto0(void);
+static void rx65n_phy_trans_1to0(void);
 static void rx65n_phy_reg_set(uint8_t phydevaddr, uint16_t reg_addr,
                               int32_t option);
-static void rx65n_phy_reg_write (uint16_t data);
-static void rx65n_phy_mii_write1 (void);
-static void rx65n_phy_mii_write0 (void);
+static void rx65n_phy_reg_write(uint16_t data);
+static void rx65n_phy_mii_write1(void);
+static void rx65n_phy_mii_write0(void);
 
 void rx65n_ether_enable_icu(void);
-void rx65n_power_on_control (void);
+void rx65n_power_on_control(void);
 void rx65n_ether_set_phy_mode(uint8_t mode);
 void rx65n_ether_interrupt_init(void);
 
-static int rx65n_phywrite (uint8_t phydevaddr, uint16_t reg_addr,
-                           uint16_t data);
-static uint16_t rx65n_phyread (uint8_t phydevaddr, uint16_t reg_addr,
-                               uint16_t *value);
+static int rx65n_phywrite(uint8_t phydevaddr, uint16_t reg_addr,
+                          uint16_t data);
+static uint16_t rx65n_phyread(uint8_t phydevaddr, uint16_t reg_addr,
+                              uint16_t *value);
 
 void up_enable_irq(int irq);
 void up_disable_irq(int irq);
@@ -550,9 +549,9 @@ void up_disable_irq(int irq);
 #if defined(CONFIG_ARCH_PHY_INTERRUPT)
 struct phylinknotification_t
 {
-        xcpt_t phandler;
-        void *penable;
-        struct phy_notify_s *pclient;
+  xcpt_t phandler;
+  void *penable;
+  struct phy_notify_s *pclient;
 };
 
 struct phylinknotification_t phylinknotification =
@@ -704,7 +703,7 @@ static void rx65n_checksetup(void)
  *
  ****************************************************************************/
 
-static void rx65n_initbuffer(FAR struct rx65n_ethmac_s *priv)
+static void rx65n_initbuffer(struct rx65n_ethmac_s *priv)
 {
   uint8_t *buffer;
   int i;
@@ -719,7 +718,7 @@ static void rx65n_initbuffer(FAR struct rx65n_ethmac_s *priv)
        i < RX65N_ETH_NFREEBUFFERS;
        i++, buffer += CONFIG_RX65N_ETH_BUFSIZE)
     {
-      sq_addlast((FAR sq_entry_t *)buffer, &priv->freeb);
+      sq_addlast((sq_entry_t *)buffer, &priv->freeb);
     }
 }
 
@@ -742,7 +741,7 @@ static void rx65n_initbuffer(FAR struct rx65n_ethmac_s *priv)
  *
  ****************************************************************************/
 
-static inline uint8_t *rx65n_allocbuffer(FAR struct rx65n_ethmac_s *priv)
+static inline uint8_t *rx65n_allocbuffer(struct rx65n_ethmac_s *priv)
 {
   /* Allocate a buffer by returning the head of the free buffer list */
 
@@ -769,12 +768,12 @@ static inline uint8_t *rx65n_allocbuffer(FAR struct rx65n_ethmac_s *priv)
  *
  ****************************************************************************/
 
-static inline void rx65n_freebuffer(FAR struct rx65n_ethmac_s *priv,
+static inline void rx65n_freebuffer(struct rx65n_ethmac_s *priv,
                                     uint8_t *buffer)
 {
   /* Free the buffer by adding it to the end of the free buffer list */
 
-  sq_addlast((FAR sq_entry_t *)buffer, &priv->freeb);
+  sq_addlast((sq_entry_t *)buffer, &priv->freeb);
 }
 
 /****************************************************************************
@@ -795,7 +794,7 @@ static inline void rx65n_freebuffer(FAR struct rx65n_ethmac_s *priv,
  *
  ****************************************************************************/
 
-static inline bool rx65n_isfreebuffer(FAR struct rx65n_ethmac_s *priv)
+static inline bool rx65n_isfreebuffer(struct rx65n_ethmac_s *priv)
 {
   /* Return TRUE if the free buffer list is not empty */
 
@@ -822,7 +821,7 @@ static inline bool rx65n_isfreebuffer(FAR struct rx65n_ethmac_s *priv)
  *
  ****************************************************************************/
 
-static int rx65n_transmit(FAR struct rx65n_ethmac_s *priv)
+static int rx65n_transmit(struct rx65n_ethmac_s *priv)
 {
   struct eth_txdesc_s *txdesc;
   struct eth_txdesc_s *txfirst;
@@ -1042,8 +1041,7 @@ static int rx65n_transmit(FAR struct rx65n_ethmac_s *priv)
 
 static int rx65n_txpoll(struct net_driver_s *dev)
 {
-  FAR struct rx65n_ethmac_s *priv = (FAR struct rx65n_ethmac_s *)dev->
-                                     d_private;
+  struct rx65n_ethmac_s *priv = (struct rx65n_ethmac_s *)dev->d_private;
 
   DEBUGASSERT(priv->dev.d_buf != NULL);
 
@@ -1117,9 +1115,9 @@ static int rx65n_txpoll(struct net_driver_s *dev)
  *
  ****************************************************************************/
 
-static void rx65n_dopoll(FAR struct rx65n_ethmac_s *priv)
+static void rx65n_dopoll(struct rx65n_ethmac_s *priv)
 {
-  FAR struct net_driver_s *dev = &priv->dev;
+  struct net_driver_s *dev = &priv->dev;
 
   /* Check if the next TX descriptor is owned by the Ethernet DMA or
    * CPU.  We cannot perform the TX poll if we are unable to accept
@@ -1174,7 +1172,7 @@ static void rx65n_dopoll(FAR struct rx65n_ethmac_s *priv)
  *   None
  ****************************************************************************/
 
-static void rx65n_enableint(FAR struct rx65n_ethmac_s *priv, uint32_t ierbit)
+static void rx65n_enableint(struct rx65n_ethmac_s *priv, uint32_t ierbit)
 {
   uint32_t regval;
 
@@ -1199,7 +1197,7 @@ static void rx65n_enableint(FAR struct rx65n_ethmac_s *priv, uint32_t ierbit)
  *   None
  ****************************************************************************/
 
-static void rx65n_disableint(FAR struct rx65n_ethmac_s *priv,
+static void rx65n_disableint(struct rx65n_ethmac_s *priv,
                              uint32_t ierbit)
 {
   uint32_t regval;
@@ -1230,8 +1228,8 @@ static void rx65n_disableint(FAR struct rx65n_ethmac_s *priv,
  *
  ****************************************************************************/
 
-static void rx65n_freesegment(FAR struct rx65n_ethmac_s *priv,
-                              FAR struct eth_rxdesc_s *rxfirst, int segments)
+static void rx65n_freesegment(struct rx65n_ethmac_s *priv,
+                              struct eth_rxdesc_s *rxfirst, int segments)
 {
   struct eth_rxdesc_s *rxdesc;
   int i;
@@ -1294,7 +1292,7 @@ static void rx65n_freesegment(FAR struct rx65n_ethmac_s *priv,
  *
  ****************************************************************************/
 
-static int rx65n_recvframe(FAR struct rx65n_ethmac_s *priv)
+static int rx65n_recvframe(struct rx65n_ethmac_s *priv)
 {
   struct eth_rxdesc_s *rxdesc;
   struct eth_rxdesc_s *rxcurr;
@@ -1430,7 +1428,7 @@ static int rx65n_recvframe(FAR struct rx65n_ethmac_s *priv)
                */
 
               nerr("ERROR: Dropped, RX descriptor errors: %08" PRIx32 "\n",
-                                rxdesc->rdes0);
+                   rxdesc->rdes0);
               rx65n_freesegment(priv, rxcurr, priv->segments);
             }
         }
@@ -1470,7 +1468,7 @@ static int rx65n_recvframe(FAR struct rx65n_ethmac_s *priv)
  *
  ****************************************************************************/
 
-static void rx65n_receive(FAR struct rx65n_ethmac_s *priv)
+static void rx65n_receive(struct rx65n_ethmac_s *priv)
 {
   struct net_driver_s *dev = &priv->dev;
 
@@ -1594,7 +1592,7 @@ static void rx65n_receive(FAR struct rx65n_ethmac_s *priv)
         {
           nerr("ERROR: Dropped, Unknown type: %04x\n", BUF->type);
 #if defined(CONFIG_NETDEV_STATISTICS)
-                  (priv->dev.d_statistics.rx_dropped)++;
+          (priv->dev.d_statistics.rx_dropped)++;
 #endif
         }
 
@@ -1632,7 +1630,7 @@ static void rx65n_receive(FAR struct rx65n_ethmac_s *priv)
  *
  ****************************************************************************/
 
-static void rx65n_freeframe(FAR struct rx65n_ethmac_s *priv)
+static void rx65n_freeframe(struct rx65n_ethmac_s *priv)
 {
   struct eth_txdesc_s *txdesc;
   int i;
@@ -1735,7 +1733,7 @@ static void rx65n_freeframe(FAR struct rx65n_ethmac_s *priv)
  *
  ****************************************************************************/
 
-static void rx65n_txdone(FAR struct rx65n_ethmac_s *priv)
+static void rx65n_txdone(struct rx65n_ethmac_s *priv)
 {
   DEBUGASSERT(priv->txtail != NULL);
 
@@ -1749,7 +1747,7 @@ static void rx65n_txdone(FAR struct rx65n_ethmac_s *priv)
     {
       /* Cancel the TX timeout */
 
-          rx65n_cmtw0_stop(rx65n_cmtw0_timeout);
+      rx65n_cmtw0_stop(rx65n_cmtw0_timeout);
 
       /* And disable further TX interrupts. */
 
@@ -1778,9 +1776,9 @@ static void rx65n_txdone(FAR struct rx65n_ethmac_s *priv)
  *
  ****************************************************************************/
 
-static void rx65n_interrupt_work(FAR void *arg)
+static void rx65n_interrupt_work(void *arg)
 {
-  FAR struct rx65n_ethmac_s *priv = (FAR struct rx65n_ethmac_s *)arg;
+  struct rx65n_ethmac_s *priv = (struct rx65n_ethmac_s *)arg;
   uint32_t edmasr;
   uint32_t regval;
 
@@ -1902,9 +1900,9 @@ static void rx65n_interrupt_work(FAR void *arg)
  *
  ****************************************************************************/
 
-static int rx65n_interrupt(int irq, FAR void *context, FAR void *arg)
+static int rx65n_interrupt(int irq, void *context, void *arg)
 {
-  FAR struct rx65n_ethmac_s *priv = &g_rx65nethmac[0];
+  struct rx65n_ethmac_s *priv = &g_rx65nethmac[0];
   uint32_t edmasr;
 
   /* Get the interrupt status bits (ETHERC/EDMAC interrupt status check ) */
@@ -1956,9 +1954,9 @@ static int rx65n_interrupt(int irq, FAR void *context, FAR void *arg)
  *
  ****************************************************************************/
 
-static void rx65n_txtimeout_work(FAR void *arg)
+static void rx65n_txtimeout_work(void *arg)
 {
-  FAR struct rx65n_ethmac_s *priv = (FAR struct rx65n_ethmac_s *)arg;
+  struct rx65n_ethmac_s *priv = (struct rx65n_ethmac_s *)arg;
 
   /* Reset the hardware.Just take the interface down, then back up again. */
 
@@ -2000,7 +1998,7 @@ static void rx65n_txtimeout_work(FAR void *arg)
 
 void rx65n_txtimeout_expiry(wdparm_t arg)
 {
-  FAR struct rx65n_ethmac_s *priv = (FAR struct rx65n_ethmac_s *)arg;
+  struct rx65n_ethmac_s *priv = (struct rx65n_ethmac_s *)arg;
   nerr("ERROR: Timeout!\n");
 
   /* Disable further Ethernet interrupts.  This will prevent some race
@@ -2039,8 +2037,7 @@ void rx65n_txtimeout_expiry(wdparm_t arg)
 
 static int rx65n_ifup(struct net_driver_s *dev)
 {
-  FAR struct rx65n_ethmac_s *priv = (FAR struct rx65n_ethmac_s *)dev->
-                                     d_private;
+  struct rx65n_ethmac_s *priv = (struct rx65n_ethmac_s *)dev->d_private;
   int ret;
 
 #ifdef CONFIG_NET_IPv4
@@ -2095,8 +2092,7 @@ static int rx65n_ifup(struct net_driver_s *dev)
 
 static int rx65n_ifdown(struct net_driver_s *dev)
 {
-  FAR struct rx65n_ethmac_s *priv = (FAR struct rx65n_ethmac_s *)dev->
-                                                d_private;
+  struct rx65n_ethmac_s *priv = (struct rx65n_ethmac_s *)dev->d_private;
   irqstate_t flags;
   int ret = OK;
   ninfo("Taking the network down\n");
@@ -2149,9 +2145,9 @@ static int rx65n_ifdown(struct net_driver_s *dev)
  *
  ****************************************************************************/
 
-static void rx65n_txavail_work(FAR void *arg)
+static void rx65n_txavail_work(void *arg)
 {
-  FAR struct rx65n_ethmac_s *priv = (FAR struct rx65n_ethmac_s *)arg;
+  struct rx65n_ethmac_s *priv = (struct rx65n_ethmac_s *)arg;
 
   ninfo("ifup: %d\n", priv->ifup);
 
@@ -2189,8 +2185,7 @@ static void rx65n_txavail_work(FAR void *arg)
 
 static int rx65n_txavail(struct net_driver_s *dev)
 {
-  FAR struct rx65n_ethmac_s *priv = (FAR struct rx65n_ethmac_s *)dev->
-                                               d_private;
+  struct rx65n_ethmac_s *priv = (struct rx65n_ethmac_s *)dev->d_private;
 
   /* Is our single work structure available?
    * It may not be if there are
@@ -2227,7 +2222,7 @@ static int rx65n_txavail(struct net_driver_s *dev)
  ****************************************************************************/
 
 #if defined(CONFIG_NET_MCASTGROUP) || defined(CONFIG_NET_ICMPv6)
-static int rx65n_addmac(struct net_driver_s *dev, FAR const uint8_t *mac)
+static int rx65n_addmac(struct net_driver_s *dev, const uint8_t *mac)
 {
   ninfo("MAC: %02x:%02x:%02x:%02x:%02x:%02x\n",
         mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
@@ -2260,7 +2255,7 @@ static int rx65n_addmac(struct net_driver_s *dev, FAR const uint8_t *mac)
  ****************************************************************************/
 
 #ifdef CONFIG_NET_MCASTGROUP
-static int rx65n_rmmac(struct net_driver_s *dev, FAR const uint8_t *mac)
+static int rx65n_rmmac(struct net_driver_s *dev, const uint8_t *mac)
 {
   ninfo("MAC: %02x:%02x:%02x:%02x:%02x:%02x\n",
         mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
@@ -2290,7 +2285,7 @@ static int rx65n_rmmac(struct net_driver_s *dev, FAR const uint8_t *mac)
  *
  ****************************************************************************/
 
-static void rx65n_txdescinit(FAR struct rx65n_ethmac_s *priv)
+static void rx65n_txdescinit(struct rx65n_ethmac_s *priv)
 {
   struct eth_txdesc_s *txdesc;
   int i;
@@ -2372,7 +2367,7 @@ static void rx65n_txdescinit(FAR struct rx65n_ethmac_s *priv)
  *
  ****************************************************************************/
 
-static void rx65n_rxdescinit(FAR struct rx65n_ethmac_s *priv)
+static void rx65n_rxdescinit(struct rx65n_ethmac_s *priv)
 {
   struct eth_rxdesc_s *rxdesc;
   int i;
@@ -2626,7 +2621,7 @@ static void rx65n_phyintenable(bool enable)
  ****************************************************************************/
 
 #if defined(CONFIG_ARCH_PHY_INTERRUPT)
-int arch_phy_irq(FAR const char *intf, xcpt_t handler, void *arg,
+int arch_phy_irq(const char *intf, xcpt_t handler, void *arg,
                  phy_enable_t *enable)
 {
   /* Using  ET0_LINKSTA for PHY interrupt line which is connected to ETHERC.
@@ -2694,7 +2689,7 @@ int arch_phy_irq(FAR const char *intf, xcpt_t handler, void *arg,
  * Return Value : none
  ****************************************************************************/
 
-void phy_start_autonegotiate (uint8_t pause)
+void phy_start_autonegotiate(uint8_t pause)
 {
   volatile uint16_t regval = 0;
 
@@ -2829,7 +2824,7 @@ void rx65n_ether_set_phy_mode(uint8_t mode)
  * Return Value : none
  ****************************************************************************/
 
-static void phy_reg_read (uint16_t *pdata)
+static void phy_reg_read(uint16_t *pdata)
 {
   int32_t databitcnt = 0;
   int32_t j;
@@ -2895,8 +2890,8 @@ static void phy_reg_read (uint16_t *pdata)
  * Return Value : read value
  ****************************************************************************/
 
-static uint16_t rx65n_phyread (uint8_t phydevaddr, uint16_t reg_addr,
-                               uint16_t *value)
+static uint16_t rx65n_phyread(uint8_t phydevaddr, uint16_t reg_addr,
+                              uint16_t *value)
 {
   uint16_t data;
 
@@ -2961,7 +2956,7 @@ void rx65n_ether_enable_icu(void)
  * Return Value : none
  ****************************************************************************/
 
-static void rx65n_phy_trans_zto0 ()
+static void rx65n_phy_trans_zto0(void)
 {
   int32_t j;
 
@@ -3004,7 +2999,7 @@ static void rx65n_phy_trans_zto0 ()
  * Return Value : none
  ****************************************************************************/
 
-static void rx65n_phy_trans_1to0 ()
+static void rx65n_phy_trans_1to0(void)
 {
   /* The processing of TA (turnaround) about writing of the frame format
    * of MII Management Interface which is
@@ -3027,8 +3022,8 @@ static void rx65n_phy_trans_1to0 ()
  * Return Value : none
  ****************************************************************************/
 
-static void rx65n_phy_reg_set (uint8_t phydevaddr, uint16_t reg_addr,
-                               int32_t option)
+static void rx65n_phy_reg_set(uint8_t phydevaddr, uint16_t reg_addr,
+                              int32_t option)
 {
   int32_t bitcnt = 0;
   uint16_t data;
@@ -3079,7 +3074,7 @@ static void rx65n_phy_reg_set (uint8_t phydevaddr, uint16_t reg_addr,
  * Return Value : none
  ****************************************************************************/
 
-static void rx65n_phy_reg_write (uint16_t data)
+static void rx65n_phy_reg_write(uint16_t data)
 {
   int32_t databitcnt = 0;
 
@@ -3113,7 +3108,7 @@ static void rx65n_phy_reg_write (uint16_t data)
  * Return Value : none
  ****************************************************************************/
 
-static void rx65n_phy_mii_write1 ()
+static void rx65n_phy_mii_write1(void)
 {
   int32_t j;
 
@@ -3310,7 +3305,7 @@ void rx65n_ether_interrupt_init(void)
  *
  ****************************************************************************/
 
-static int rx65n_phyinit(FAR struct rx65n_ethmac_s *priv)
+static int rx65n_phyinit(struct rx65n_ethmac_s *priv)
 {
   uint32_t count;
   uint16_t reg;
@@ -3418,7 +3413,7 @@ static int rx65n_phyinit(FAR struct rx65n_ethmac_s *priv)
  *
  ****************************************************************************/
 
-static int rx65n_ethreset(FAR struct rx65n_ethmac_s *priv)
+static int rx65n_ethreset(struct rx65n_ethmac_s *priv)
 {
   uint32_t regval;
   uint32_t retries;
@@ -3498,7 +3493,7 @@ static int rx65n_ethreset(FAR struct rx65n_ethmac_s *priv)
  *
  ****************************************************************************/
 
-static int rx65n_macconfig(FAR struct rx65n_ethmac_s *priv)
+static int rx65n_macconfig(struct rx65n_ethmac_s *priv)
 {
   uint32_t regval;
   uint32_t retries;
@@ -3552,9 +3547,9 @@ static int rx65n_macconfig(FAR struct rx65n_ethmac_s *priv)
  *
  ****************************************************************************/
 
-static void rx65n_macaddress(FAR struct rx65n_ethmac_s *priv)
+static void rx65n_macaddress(struct rx65n_ethmac_s *priv)
 {
-  FAR struct net_driver_s *dev = &priv->dev;
+  struct net_driver_s *dev = &priv->dev;
   uint32_t regval;
   regval = 0;
 
@@ -3599,7 +3594,7 @@ static void rx65n_macaddress(FAR struct rx65n_ethmac_s *priv)
  *
  ****************************************************************************/
 
-static int rx65n_ethconfig(FAR struct rx65n_ethmac_s *priv)
+static int rx65n_ethconfig(struct rx65n_ethmac_s *priv)
 {
   int ret;
   uint32_t regval;

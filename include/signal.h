@@ -269,6 +269,7 @@
                                   * being masked in the handler */
 #define SA_RESETHAND    (1 << 6) /* Clears the handler when the signal
                                   * is delivered */
+#define SA_KERNELHAND   (1 << 7) /* Invoke the handler in kernel space directly */
 
 /* These are the possible values of the signfo si_code field */
 
@@ -308,6 +309,10 @@
 #  define SIG_DFL       ((_sa_handler_t)0)   /* Default is SIG_IGN for all signals */
 #  define SIG_HOLD      ((_sa_handler_t)1)   /* Used only with sigset() */
 #endif
+
+#define sigisemptyset(set)           (!*(set))
+#define sigorset(dest, left, right)  (!(*(dest) = *(left) | *(right)))
+#define sigandset(dest, left, right) (!(*(dest) = *(left) & *(right)))
 
 /********************************************************************************
  * Public Types
@@ -371,6 +376,7 @@ struct siginfo
 #if 0                        /* Not implemented */
   FAR void    *si_addr;      /* Report address with SIGFPE, SIGSEGV, or SIGBUS */
 #endif
+  FAR void    *si_user;      /* The User info associated with sigaction */
 };
 
 #ifndef __SIGINFO_T_DEFINED
@@ -401,6 +407,7 @@ struct sigaction
   } sa_u;
   sigset_t          sa_mask;
   int               sa_flags;
+  FAR void         *sa_user;
 };
 
 /* Definitions that adjust the non-standard naming */

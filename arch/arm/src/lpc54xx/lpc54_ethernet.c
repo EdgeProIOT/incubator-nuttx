@@ -80,7 +80,6 @@
 #include <nuttx/wqueue.h>
 #include <nuttx/clock.h>
 #include <nuttx/net/mii.h>
-#include <nuttx/net/arp.h>
 #include <nuttx/net/netdev.h>
 
 #ifdef CONFIG_NET_PKT
@@ -257,7 +256,7 @@
  * header
  */
 
-#define BUF ((FAR struct eth_hdr_s *)&dev->d_buf[0])
+#define BUF ((struct eth_hdr_s *)&dev->d_buf[0])
 
 /****************************************************************************
  * Private Types

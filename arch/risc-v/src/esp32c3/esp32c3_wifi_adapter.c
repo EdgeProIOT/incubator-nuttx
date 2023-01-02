@@ -345,7 +345,7 @@ static int esp_get_time(void *t);
 static uint32_t esp_clk_slowclk_cal_get_wrapper(void);
 static void esp_log_writev(uint32_t level, const char *tag,
                            const char *format, va_list args)
-            printflike(3, 0);
+            printf_like(3, 0);
 static void *esp_malloc_internal(size_t size);
 static void *esp_realloc_internal(void *ptr, size_t size);
 static void *esp_calloc_internal(size_t n, size_t size);
@@ -400,7 +400,7 @@ void ets_timer_arm_us(void *timer, uint32_t us, bool repeat);
 int64_t esp_timer_get_time(void);
 void esp_fill_random(void *buf, size_t len);
 void esp_log_write(uint32_t level, const char *tag, const char *format, ...)
-     printflike(3, 4);
+     printf_like(3, 4);
 uint32_t esp_log_timestamp(void);
 uint8_t esp_crc8(const uint8_t *p, uint32_t len);
 
@@ -980,7 +980,9 @@ static void esp32c3_ints_on(uint32_t mask)
 {
   int n = __builtin_ffs(mask) - 1;
 
-  up_enable_irq(n);
+  wlinfo("INFO mask=%08lx irq=%d\n", mask, n);
+
+  up_enable_irq(ESP32C3_IRQ_MAC_NMI);
 }
 
 /****************************************************************************
@@ -1001,7 +1003,9 @@ static void esp32c3_ints_off(uint32_t mask)
 {
   int n = __builtin_ffs(mask) - 1;
 
-  up_disable_irq(n);
+  wlinfo("INFO mask=%08lx irq=%d\n", mask, n);
+
+  up_disable_irq(ESP32C3_IRQ_MAC_NMI);
 }
 
 /****************************************************************************

@@ -31,7 +31,6 @@
 #include <nuttx/net/netconfig.h>
 #include <nuttx/net/netdev.h>
 #include <nuttx/net/net.h>
-#include <nuttx/net/arp.h>
 
 #include "devif/devif.h"
 #include "arp/arp.h"
@@ -965,8 +964,14 @@ int devif_poll(FAR struct net_driver_s *dev, devif_poll_callback_t callback)
                 }
             }
         }
+      else
+        {
+          /* Not stopped by devif_poll_callback, just stop and return bstop */
+
+          break;
+        }
     }
-  while (bstop);
+  while (!bstop);
 
   /* Device polling completed, release iob */
 

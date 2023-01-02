@@ -156,7 +156,8 @@ function bloaty {
     mkdir -p "${tools}"/bloaty
     cmake -D BLOATY_PREFER_SYSTEM_CAPSTONE=NO -DCMAKE_SYSTEM_PREFIX_PATH="${tools}"/bloaty
     make install -j 6
-    git clean -xfd
+    cd "${tools}"
+    rm -rf bloaty-src
   fi
 
   command bloaty --version
@@ -249,7 +250,8 @@ function kconfig-frontends {
     # Avoid "aclocal/automake missing" errors
     touch aclocal.m4 Makefile.in
     make install
-    cd "${tools}"/nuttx-tools; git clean -xfd
+    cd "${tools}"
+    rm -rf nuttx-tools
   fi
 }
 
@@ -276,22 +278,21 @@ function python-tools {
   export PIP_USER=yes
   export PYTHONUSERBASE=${tools}/pylocal
   add_path "${PYTHONUSERBASE}"/bin
-  pip3 install \
+
+  # Force the reinstall of python packages due to issues with GitHub
+  # cache restoration.
+  pip3 install --force-reinstall \
     CodeChecker \
     cxxfilt \
     esptool==3.3.1 \
+    imgtool==1.9.0 \
     pexpect==4.8.0 \
     pyelftools \
     pyserial==3.5 \
     pytest==6.2.5 \
     pytest-json==0.4.0 \
     pytest-ordering==0.6 \
-    pytest-repeat==0.9.1 
-
-  # MCUboot's tool for image signing and key management
-  if ! command -v imgtool &> /dev/null; then
-    pip3 install imgtool
-  fi
+    pytest-repeat==0.9.1
 }
 
 function riscv-gcc-toolchain {
@@ -515,8 +516,18 @@ case ${os} in
     install="arm-gcc-toolchain arm64-gcc-toolchain avr-gcc-toolchain binutils bloaty elf-toolchain gen-romfs gperf kconfig-frontends mips-gcc-toolchain python-tools riscv-gcc-toolchain rust xtensa-esp32-gcc-toolchain u-boot-tools c-cache"
     mkdir -p "${tools}"/homebrew
     export HOMEBREW_CACHE=${tools}/homebrew
-    # https://github.com/actions/virtual-environments/issues/2322#issuecomment-749211076
-    rm -rf /usr/local/bin/2to3
+    # https://github.com/apache/arrow/issues/15025
+    rm -f /usr/local/bin/2to3 || :
+    rm -f /usr/local/bin/idle3 || :
+    rm -f /usr/local/bin/pydoc3 || :
+    rm -f /usr/local/bin/python3 || :
+    rm -f /usr/local/bin/python3-config || :
+    # same for python@3.11
+    rm -f /usr/local/bin/2to3-3.11 || :
+    rm -f /usr/local/bin/idle3.11 || :
+    rm -f /usr/local/bin/pydoc3.11 || :
+    rm -f /usr/local/bin/python3.11 || :
+    rm -f /usr/local/bin/python3.11-config || :
     # https://github.com/osx-cross/homebrew-avr/issues/205#issuecomment-760637996
     brew update --quiet
     ;;
