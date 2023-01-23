@@ -36,6 +36,7 @@
 #include <nuttx/i2c/i2c_master.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/kmalloc.h>
+#include <nuttx/mutex.h>
 #include <nuttx/semaphore.h>
 #include <nuttx/ioexpander/mcp23x17.h>
 
@@ -73,7 +74,7 @@ struct mxkbd_dev_s
 {
   FAR struct ioexpander_dev_s *dev;
 
-  sem_t  exclsem;      /* Exclusive access to dev */
+  mutex_t lock;        /* Exclusive access to dev */
   sem_t  waitsem;      /* Signal waiting thread */
   bool   waiting;      /* Waiting for keyboard data */
 
@@ -90,6 +91,8 @@ struct mxkbd_dev_s
   uint16_t  tailndx;      /* Buffer tail index */
   uint8_t   kbdbuffer[CONFIG_MXKBD_BUFSIZE];
   uint8_t   crefs;        /* Reference count on the driver instance */
+
+  uint8_t   matrix[8];
 };
 
 /****************************************************************************
@@ -108,8 +111,8 @@ static int  mxkbd_poll(FAR struct file *filep, FAR struct pollfd *fds,
                          bool setup);
 
 #ifdef CONFIG_IOEXPANDER_INT_ENABLE
-static int mxkbd_interrupt_handler(FAR struct ioexpander_dev_s *ioe,
-                                     ioe_pinset_t pinset, FAR void *arg);
+static int mxkbd_callback(FAR struct ioexpander_dev_s *ioe,
+                          ioe_pinset_t pinset, FAR void *arg);
 #endif
 
 /****************************************************************************
@@ -124,38 +127,14 @@ static const struct file_operations g_hidkbd_fops =
   mxkbd_write,            /* write */
   NULL,                   /* seek */
   NULL,                   /* ioctl */
+  NULL,                   /* truncate */
+  NULL,                   /* mmap */
   mxkbd_poll              /* poll */
-#ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
-  , NULL                  /* unlink */
-#endif
 };
 
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
-
-/****************************************************************************
- * Name: mxkbd_pollnotify
- ****************************************************************************/
-
-static void mxkbd_pollnotify(FAR struct mxkbd_dev_s *priv)
-{
-  int i;
-
-  for (i = 0; i < CONFIG_MXKBD_NPOLLWAITERS; i++)
-    {
-      struct pollfd *fds = priv->fds[i];
-      if (fds)
-        {
-          fds->revents |= (fds->events & POLLIN);
-          if (fds->revents != 0)
-            {
-              uinfo("Report events: %02x\n", (unsigned int)fds->revents);
-              nxsem_post(fds->sem);
-            }
-        }
-    }
-}
 
 /****************************************************************************
  * Name: mxkbd_open
@@ -230,7 +209,7 @@ static ssize_t mxkbd_read(FAR struct file *filep, FAR char *buffer,
 
   /* Read data from our internal buffer of received characters */
 
-  ret = nxsem_wait_uninterruptible(&priv->exclsem);
+  ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
       return ret;
@@ -250,14 +229,14 @@ static ssize_t mxkbd_read(FAR struct file *filep, FAR char *buffer,
       else
         {
           priv->waiting = true;
-          nxsem_post(&priv->exclsem);
+          nxmutex_unlock(&priv->lock);
           ret = nxsem_wait_uninterruptible(&priv->waitsem);
           if (ret < 0)
             {
               return ret;
             }
 
-          ret = nxsem_wait_uninterruptible(&priv->exclsem);
+          ret = nxmutex_lock(&priv->lock);
           if (ret < 0)
             {
               return ret;
@@ -288,7 +267,7 @@ static ssize_t mxkbd_read(FAR struct file *filep, FAR char *buffer,
   priv->tailndx = tail;
 
 errout:
-  nxsem_post(&priv->exclsem);
+  nxmutex_unlock(&priv->lock);
   return ret;
 }
 
@@ -331,7 +310,7 @@ static int mxkbd_poll(FAR struct file *filep, FAR struct pollfd *fds,
   /* Make sure that we have exclusive access to the private data structure */
 
   DEBUGASSERT(priv);
-  ret = nxsem_wait_uninterruptible(&priv->exclsem);
+  ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
       return ret;
@@ -370,7 +349,7 @@ static int mxkbd_poll(FAR struct file *filep, FAR struct pollfd *fds,
 
       if (priv->headndx != priv->tailndx)
         {
-          mxkbd_pollnotify(priv);
+          poll_notify(priv->fds, CONFIG_MXKBD_NPOLLWAITERS, POLLIN);
         }
     }
   else
@@ -387,7 +366,7 @@ static int mxkbd_poll(FAR struct file *filep, FAR struct pollfd *fds,
     }
 
 errout:
-  nxsem_post(&priv->exclsem);
+  nxmutex_unlock(&priv->lock);
   return ret;
 }
 
@@ -406,7 +385,6 @@ errout:
  *   None
  *
  ****************************************************************************/
-#if 0
 static void mxkbd_putbuffer(FAR struct mxkbd_dev_s *priv,
                                uint8_t keycode)
 {
@@ -448,19 +426,195 @@ static void mxkbd_putbuffer(FAR struct mxkbd_dev_s *priv,
 
   priv->headndx = head;
 }
-#endif
 
 /****************************************************************************
- * Name: mxkbd_interrupt_handler
+ * Name: mxkbd_select_row
+ *
+ * Description:
+ *   Selecting single row on the keyboard.
+ *   The keyboard matrix has 8 rows and 8 coloumns.
+ *
+ * Input Parameters:
+ *   priv - Driver internal state
+ *   row - Row index
+ *
+ * Returned Value:
+ *   TRUE is returned on success. Otherwise FALSE.
+ *
+ ****************************************************************************/
+static bool mxkbd_select_row(FAR struct mxkbd_dev_s *priv, uint8_t row)
+{
+  /* 8 rows, index starting with 0 */
+
+  if (row > 7)
+    {
+      return FALSE;
+    }
+
+  IOEXP_WRITEPIN(priv->dev, row, FALSE);
+
+  return TRUE;
+}
+
+/****************************************************************************
+ * Name: mxkbd_select_rows
+ *
+ * Description:
+ *   Selecting all rows on the keyboard.
+ *
+ * Input Parameters:
+ *   priv - Driver internal state
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+static void mxkbd_select_rows(FAR struct mxkbd_dev_s *priv)
+{
+  uint8_t i;
+
+  for (i = 0; i < 8; i++)
+    {
+      mxkbd_select_row(priv, i);
+    }
+}
+
+/****************************************************************************
+ * Name: mxkbd_unselect_row
+ *
+ * Description:
+ *   Unselecting single row on the keyboard.
+ *   The keyboard matrix has 8 rows and 8 coloumns.
+ *
+ * Input Parameters:
+ *   priv - Driver internal state
+ *   row - Row index
+ *
+ * Returned Value:
+ *   TRUE is returned on success. Otherwise FALSE.
+ *
+ ****************************************************************************/
+static bool mxkbd_unselect_row(FAR struct mxkbd_dev_s *priv, uint8_t row)
+{
+  /* 8 rows, index starting with 0 */
+
+  if (row > 7)
+    {
+      return FALSE;
+    }
+
+  IOEXP_WRITEPIN(priv->dev, row, TRUE);
+
+  return TRUE;
+}
+
+/****************************************************************************
+ * Name: mxkbd_unselect_rows
+ *
+ * Description:
+ *   Unselecting all rows on the keyboard.
+ *
+ * Input Parameters:
+ *   priv - Driver internal state
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+static void mxkbd_unselect_rows(FAR struct mxkbd_dev_s *priv)
+{
+  uint8_t i;
+
+  for (i = 0; i < 8; i++)
+    {
+      mxkbd_unselect_row(priv, i);
+    }
+}
+
+/****************************************************************************
+ * Name: mxkbd_read_cols_on_row
+ *
+ * Description:
+ *   Reading coloumns on sigle row
+ *
+ * Input Parameters:
+ *   priv - Driver internal state
+ *   matrix - Raw matrix
+ *   row - Row index
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+static void mxkbd_read_cols_on_row(FAR struct mxkbd_dev_s *priv,
+                                   uint8_t matrix[], uint8_t row)
+{
+  uint8_t i;
+  uint8_t row_shifter = 1;
+  uint8_t row_value = 0;
+
+  if (!mxkbd_select_row(priv, row))
+    {
+      return;
+    }
+
+  /* 8 cols, index starting with 8 */
+
+  for (i = 8; i < 16; i++, row_shifter <<= 1)
+    {
+      int ret;
+      bool pin_state = FALSE;
+
+      ret = IOEXP_READPIN(priv->dev, i, &pin_state);
+      if (ret < 0)
+        {
+          continue;
+        }
+      row_value |= pin_state ? 0 : row_shifter;
+    }
+
+
+  mxkbd_unselect_row(priv, row);
+
+  /* Update the matrix */
+
+  matrix[row] = row_value;
+}
+
+/****************************************************************************
+ * Name: mxkbd_callback
  *
  * Description:
  *
  ****************************************************************************/
 
 #ifdef CONFIG_IOEXPANDER_INT_ENABLE
-static int mxkbd_interrupt_handler(FAR struct ioexpander_dev_s *ioe,
-                                     ioe_pinset_t pinset, FAR void *arg)
+static int mxkbd_callback(FAR struct ioexpander_dev_s *dev,
+                          ioe_pinset_t pinset, FAR void *arg)
 {
+  uint8_t i;
+  uint8_t matrix[8] = {0};
+  bool changed;
+  struct mxkbd_dev_s *priv = (struct mxkbd_dev_s *)arg;
+
+  mxkbd_unselect_rows(priv);
+
+  for (i = 0; i < 8; i++)
+    {
+      mxkbd_read_cols_on_row(priv, matrix, i);
+    }
+
+  changed = memcmp(priv->matrix, matrix, sizeof(matrix)) != 0;
+  if (changed)
+    {
+      //TODO: Process input! 
+
+      memcpy(priv->matrix, matrix, sizeof(matrix));
+    }
+
+
+  mxkbd_select_rows(priv);
+
   return OK;
 }
 #endif
@@ -513,18 +667,12 @@ int mxkbd_register(FAR struct ioexpander_dev_s *dev, char kbdminor)
   priv->crefs     = 0;       /* Reset reference count to 0 */
   priv->waiting   = false;
 
-  nxsem_init(&priv->exclsem,  0, 1);   /* Initialize device semaphore */
+  nxmutex_init(&priv->lock);   /* Initialize device mutex */
   nxsem_init(&priv->waitsem, 0, 0);
-
-  /* The waitsem semaphore is used for signaling and, hence, should
-   * not have priority inheritance enabled.
-   */
-
-  nxsem_set_protocol(&priv->waitsem, SEM_PRIO_NONE);
 
   /* Listen on COL0 ÷ COL7 */
 
-  IOEP_ATTACH(priv->dev, 0xff00, mxkbd_interrupt_handler, priv);
+  IOEP_ATTACH(priv->dev, 0xff00, mxkbd_callback, priv);
 
   IOEXP_SETDIRECTION(priv->dev, 0, IOEXPANDER_DIRECTION_OUT);
   IOEXP_SETDIRECTION(priv->dev, 1, IOEXPANDER_DIRECTION_OUT);
@@ -544,6 +692,8 @@ int mxkbd_register(FAR struct ioexpander_dev_s *dev, char kbdminor)
   IOEXP_SETDIRECTION(priv->dev, 14, IOEXPANDER_DIRECTION_IN_PULLUP);
   IOEXP_SETDIRECTION(priv->dev, 15, IOEXPANDER_DIRECTION_IN_PULLUP);
 
+  mxkbd_callback(priv->dev, 0xff00, priv);
+
   snprintf(kbddevname, DEV_NAMELEN, DEV_FORMAT, kbdminor);
   iinfo("Registering %s\n", kbddevname);
   ret = register_driver(kbddevname, &g_hidkbd_fops, 0666, priv);
@@ -556,8 +706,8 @@ int mxkbd_register(FAR struct ioexpander_dev_s *dev, char kbdminor)
   return OK;
 
 errout_with_priv:
+  nxmutex_destroy(&priv->lock);
   nxsem_destroy(&priv->waitsem);
-  nxsem_destroy(&priv->exclsem);
   kmm_free(priv);
   return ret;
 }
