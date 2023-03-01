@@ -159,7 +159,7 @@ static uint16_t psock_connect_eventhandler(FAR struct net_driver_s *dev,
                                            FAR void *pvpriv, uint16_t flags)
 {
   struct tcp_connect_s *pstate = pvpriv;
-  FAR struct tcp_conn_s *conn = pstate->tc_conn;
+  FAR struct tcp_conn_s *conn;
 
   ninfo("flags: %04x\n", flags);
 
@@ -167,6 +167,8 @@ static uint16_t psock_connect_eventhandler(FAR struct net_driver_s *dev,
 
   if (pstate)
     {
+      conn = pstate->tc_conn;
+
       /* The following errors should be detected here (someday)
        *
        *     ECONNREFUSED
@@ -358,17 +360,17 @@ int psock_tcp_connect(FAR struct socket *psock,
             {
               /* Wait for either the connect to complete or for an
                * error/timeout to occur.
-               * NOTES:  net_lockedwait will also terminate if a
+               * NOTES:  net_sem_wait will also terminate if a
                * signal is received.
                */
 
-              ret = net_lockedwait(&state.tc_sem);
+              ret = net_sem_wait(&state.tc_sem);
 
               /* Uninitialize the state structure */
 
               nxsem_destroy(&state.tc_sem);
 
-              /* If net_lockedwait failed, negated errno was returned. */
+              /* If net_sem_wait failed, negated errno was returned. */
 
               if (ret >= 0)
                 {

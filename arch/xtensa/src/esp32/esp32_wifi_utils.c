@@ -27,6 +27,7 @@
 #include <assert.h>
 #include <debug.h>
 #include <netinet/arp.h>
+#include <sys/param.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/wireless/wireless.h>
@@ -45,7 +46,7 @@
 #define ESP_IW_EVENT_SIZE(field) \
   (offsetof(struct iw_event, u) + sizeof(((union iwreq_data *)0)->field))
 
-#ifdef CONFIG_ESP32_WIFI_SCAN_RESULT_SIZE 
+#ifdef CONFIG_ESP32_WIFI_SCAN_RESULT_SIZE
 #  define WIFI_SCAN_RESULT_SIZE      CONFIG_ESP32_WIFI_SCAN_RESULT_SIZE
 #else
 #  define WIFI_SCAN_RESULT_SIZE      (4096)
@@ -53,10 +54,6 @@
 
 #define SCAN_TIME_SEC                (5)
 #define SSID_LEN                     (33)
-
-#ifndef MIN
-#  define MIN(a,b) ((a) < (b) ? (a) : (b))
-#endif
 
 /* Maximum number of channels for Wi-Fi 2.4Ghz */
 

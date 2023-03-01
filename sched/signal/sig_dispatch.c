@@ -372,6 +372,10 @@ int nxsig_tcbdispatch(FAR struct tcb_s *stcb, siginfo_t *info)
   if (masked == 1)
 #endif
     {
+      /* Add signal to pending queue regardless. */
+
+      nxsig_add_pendingsignal(stcb, info);
+
       /* Check if the task is waiting for this pending signal. If so, then
        * unblock it. This must be performed in a critical section because
        * signals can be queued from the interrupt level.
@@ -402,19 +406,9 @@ int nxsig_tcbdispatch(FAR struct tcb_s *stcb, siginfo_t *info)
             {
               up_switch_context(stcb, rtcb);
             }
-
-          leave_critical_section(flags);
         }
 
-      /* Its not one we are waiting for... Add it to the list of pending
-       * signals.
-       */
-
-      else
-        {
-          leave_critical_section(flags);
-          nxsig_add_pendingsignal(stcb, info);
-        }
+      leave_critical_section(flags);
     }
 
   /************************* UNMASKED SIGNAL ACTIONS ************************/

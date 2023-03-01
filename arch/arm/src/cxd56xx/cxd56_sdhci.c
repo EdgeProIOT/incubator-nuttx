@@ -29,6 +29,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <sys/param.h>
 #include <assert.h>
 #include <debug.h>
 #include <errno.h>
@@ -210,10 +211,6 @@
 
 #define SDIO_OCR_NUM_FUNCTIONS(ocr) (((ocr) >> 28) & 0x7)
 #define SDIO_FUNC_NUM_MAX       (7)
-
-#ifndef MIN
-#  define MIN(a, b) ((a) < (b) ? (a) : (b))
-#endif
 
 #define SDIO_BLOCK_TIMEOUT      200
 #define SDIO_BLOCK_SIZE         512
@@ -3277,7 +3274,7 @@ struct sdio_dev_s *cxd56_sdhci_finalize(int slotno)
 
   /* SD clock disable */
 
-  cxd56_sdio_clock(&(priv->dev), CLOCK_SDIO_DISABLED);
+  cxd56_sdio_clock(&priv->dev, CLOCK_SDIO_DISABLED);
 
   /* Power OFF for SDIO */
 
@@ -3360,11 +3357,6 @@ void cxd56_sdhci_mediachange(struct sdio_dev_s *dev)
 
   if (cdstatus != priv->cdstatus)
     {
-      if (priv->cdstatus & SDIO_STATUS_PRESENT)
-        {
-          priv->cbevents &= SDIOMEDIA_INSERTED;
-        }
-
       mediachange = 1;
     }
 

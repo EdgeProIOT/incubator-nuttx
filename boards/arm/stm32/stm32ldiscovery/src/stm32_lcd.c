@@ -33,6 +33,7 @@
 
 #include <nuttx/config.h>
 
+#include <sys/param.h>
 #include <sys/types.h>
 #include <inttypes.h>
 #include <stdint.h>
@@ -69,16 +70,6 @@
 
 #ifndef CONFIG_LIBC_SLCDCODEC
 #  error "This SLCD driver requires CONFIG_LIBC_SLCDCODEC"
-#endif
-
-/* The ever-present MIN/MAX macros ******************************************/
-
-#ifndef MIN
-#  define MIN(a,b) (((a) < (b)) ? (a) : (b))
-#endif
-
-#ifndef MAX
-#  define MAX(a,b) (((a) > (b)) ? (a) : (b))
 #endif
 
 /* LCD **********************************************************************/
@@ -346,8 +337,8 @@ static const struct file_operations g_slcdops =
   slcd_write,    /* write */
   NULL,          /* seek */
   slcd_ioctl,    /* ioctl */
-  NULL,          /* truncate */
   NULL,          /* mmap */
+  NULL,          /* truncate */
   slcd_poll      /* poll */
 };
 

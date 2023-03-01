@@ -78,6 +78,7 @@ static int usrsock_send_ack(struct usrsock_s *usrsock,
 
   ack.head.msgid = USRSOCK_MESSAGE_RESPONSE_ACK;
   ack.head.flags = (result == -EINPROGRESS);
+  ack.head.events = 0;
 
   ack.xid    = xid;
   ack.result = result;
@@ -93,6 +94,7 @@ static int usrsock_send_dack(struct usrsock_s *usrsock,
 {
   ack->reqack.head.msgid = USRSOCK_MESSAGE_RESPONSE_DATA_ACK;
   ack->reqack.head.flags = 0;
+  ack->reqack.head.events = 0;
 
   ack->reqack.xid    = xid;
   ack->reqack.result = result;
@@ -359,6 +361,15 @@ static int usrsock_ioctl_handler(struct usrsock_s *usrsock,
                            req->arglen, req->arglen);
 }
 
+static int usrsock_shutdown_handler(struct usrsock_s *usrsock,
+                                    const void *data, size_t len)
+{
+  const struct usrsock_request_shutdown_s *req = data;
+  int ret = host_usrsock_shutdown(req->usockid, req->how);
+
+  return usrsock_send_ack(usrsock, req->head.xid, ret);
+}
+
 static const usrsock_handler_t g_usrsock_handler[] =
 {
   [USRSOCK_REQUEST_SOCKET]      = usrsock_socket_handler,
@@ -374,6 +385,7 @@ static const usrsock_handler_t g_usrsock_handler[] =
   [USRSOCK_REQUEST_LISTEN]      = usrsock_listen_handler,
   [USRSOCK_REQUEST_ACCEPT]      = usrsock_accept_handler,
   [USRSOCK_REQUEST_IOCTL]       = usrsock_ioctl_handler,
+  [USRSOCK_REQUEST_SHUTDOWN]    = usrsock_shutdown_handler,
 };
 
 /****************************************************************************

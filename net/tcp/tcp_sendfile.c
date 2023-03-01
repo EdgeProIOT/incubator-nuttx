@@ -40,6 +40,7 @@
 #include <debug.h>
 
 #include <arch/irq.h>
+#include <nuttx/sched.h>
 #include <nuttx/semaphore.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/net/net.h>
@@ -266,16 +267,9 @@ static uint16_t sendfile_eventhandler(FAR struct net_driver_s *dev,
        * happen until the polling cycle completes).
        */
 
-      ret = file_seek(pstate->snd_file,
-                      pstate->snd_foffset + pstate->snd_acked, SEEK_SET);
-      if (ret < 0)
-        {
-          nerr("ERROR: Failed to lseek: %d\n", ret);
-          pstate->snd_sent = ret;
-          goto end_wait;
-        }
-
-      ret = file_read(pstate->snd_file, dev->d_appdata, sndlen);
+      ret = devif_file_send(dev, pstate->snd_file, sndlen,
+                            pstate->snd_foffset + pstate->snd_acked,
+                            tcpip_hdrsize(conn));
       if (ret < 0)
         {
           nerr("ERROR: Failed to read from input file: %d\n", (int)ret);
@@ -344,16 +338,9 @@ static uint16_t sendfile_eventhandler(FAR struct net_driver_s *dev,
            * happen until the polling cycle completes).
            */
 
-          ret = file_seek(pstate->snd_file,
-                          pstate->snd_foffset + pstate->snd_sent, SEEK_SET);
-          if (ret < 0)
-            {
-              nerr("ERROR: Failed to lseek: %d\n", ret);
-              pstate->snd_sent = ret;
-              goto end_wait;
-            }
-
-          ret = file_read(pstate->snd_file, dev->d_appdata, sndlen);
+          ret = devif_file_send(dev, pstate->snd_file, sndlen,
+                                pstate->snd_foffset + pstate->snd_sent,
+                                tcpip_hdrsize(conn));
           if (ret < 0)
             {
               nerr("ERROR: Failed to read from input file: %d\n", (int)ret);
@@ -367,7 +354,7 @@ static uint16_t sendfile_eventhandler(FAR struct net_driver_s *dev,
 
           pstate->snd_sent += sndlen;
           ninfo("pid: %d SEND: acked=%" PRId32 " sent=%zd flen=%zu\n",
-                getpid(),
+                nxsched_getpid(),
                 pstate->snd_acked, pstate->snd_sent, pstate->snd_flen);
         }
       else
@@ -537,7 +524,7 @@ ssize_t tcp_sendfile(FAR struct socket *psock, FAR struct file *infile,
     {
       uint32_t acked = state.snd_acked;
 
-      ret = net_timedwait_uninterruptible(
+      ret = net_sem_timedwait_uninterruptible(
               &state.snd_sem, _SO_TIMEOUT(conn->sconn.s_sndtimeo));
       if (ret != -ETIMEDOUT || acked == state.snd_acked)
         {

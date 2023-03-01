@@ -42,6 +42,7 @@
 #include <debug.h>
 #include <nuttx/fs/fs.h>
 
+#include <nuttx/mutex.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/ioctl.h>
 #include <nuttx/mtd/mtd.h>
@@ -72,7 +73,7 @@
 struct mtdconfig_struct_s
 {
   FAR struct mtd_dev_s *mtd;  /* Contained MTD interface */
-  sem_t        exclsem;       /* Supports mutual exclusion */
+  mutex_t      lock;          /* Supports mutual exclusion */
   uint32_t     blocksize;     /* Size of blocks in contained MTD */
   uint32_t     erasesize;     /* Size of erase block  in contained MTD */
   size_t       nblocks;       /* Number of blocks available */
@@ -119,8 +120,8 @@ static const struct file_operations mtdconfig_fops =
   NULL,            /* write */
   NULL,            /* seek */
   mtdconfig_ioctl, /* ioctl */
-  NULL,            /* truncate */
   NULL,            /* mmap */
+  NULL,            /* truncate */
   mtdconfig_poll   /* poll */
 };
 
@@ -1004,7 +1005,7 @@ errout:
  * Name: mtdconfig_open
  ****************************************************************************/
 
-static int  mtdconfig_open(FAR struct file *filep)
+static int mtdconfig_open(FAR struct file *filep)
 {
   FAR struct inode *inode = filep->f_inode;
   FAR struct mtdconfig_struct_s *dev = inode->i_private;
@@ -1012,7 +1013,7 @@ static int  mtdconfig_open(FAR struct file *filep)
 
   /* Get exclusive access to the device */
 
-  ret = nxsem_wait(&dev->exclsem);
+  ret = nxmutex_lock(&dev->lock);
   if (ret < 0)
     {
       ferr("ERROR: nxsem_wait failed: %d\n", ret);
@@ -1036,7 +1037,7 @@ static int  mtdconfig_close(FAR struct file *filep)
 
   /* Release exclusive access to the device */
 
-  nxsem_post(&dev->exclsem);
+  nxmutex_unlock(&dev->lock);
   return OK;
 }
 
@@ -1335,7 +1336,7 @@ retry_find:
       /* Save the data at this entry */
 
 #ifdef CONFIG_MTD_CONFIG_NAMED
-      strcpy(hdr.name, pdata->name);
+      strlcpy(hdr.name, pdata->name, sizeof(hdr.name));
 #else
       hdr.id = pdata->id;
       hdr.instance = pdata->instance;
@@ -1542,7 +1543,7 @@ static int mtdconfig_firstconfig(FAR struct mtdconfig_struct_s *dev,
       /* Set other return data items */
 
 #ifdef CONFIG_MTD_CONFIG_NAMED
-      strcpy(pdata->name, hdr.name);
+      strlcpy(pdata->name, hdr.name, sizeof(pdata->name));
 #else
       pdata->id = hdr.id;
       pdata->instance = hdr.instance;
@@ -1617,7 +1618,7 @@ static int mtdconfig_nextconfig(FAR struct mtdconfig_struct_s *dev,
         }
 
 #ifdef CONFIG_MTD_CONFIG_NAMED
-      strcpy(pdata->name, hdr.name);
+      strlcpy(pdata->name, hdr.name, sizeof(pdata->name));
 #else
       pdata->id = hdr.id;
       pdata->instance = hdr.instance;
@@ -1774,7 +1775,7 @@ int mtdconfig_register(FAR struct mtd_dev_s *mtd)
           goto errout;
         }
 
-      nxsem_init(&dev->exclsem, 0, 1);
+      nxmutex_init(&dev->lock);
       register_driver("/dev/config", &mtdconfig_fops, 0666, dev);
     }
 
@@ -1806,7 +1807,7 @@ int mtdconfig_unregister(void)
 
   inode = file.f_inode;
   dev = (FAR struct mtdconfig_struct_s *)inode->i_private;
-  nxsem_destroy(&dev->exclsem);
+  nxmutex_destroy(&dev->lock);
   kmm_free(dev);
 
   file_close(&file);

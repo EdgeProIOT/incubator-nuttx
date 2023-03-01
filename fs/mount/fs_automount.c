@@ -167,7 +167,7 @@ static void automount_notify(FAR struct automounter_state_s *priv)
   ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
-      ierr("ERROR: nxmutex_lock failed: %d\n", ret);
+      ferr("ERROR: nxmutex_lock failed: %d\n", ret);
       return;
     }
 
@@ -207,7 +207,7 @@ static int automount_open(FAR struct file *filep)
   ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
-      ierr("ERROR: nxmutex_lock failed: %d\n", ret);
+      ferr("ERROR: nxmutex_lock failed: %d\n", ret);
       return ret;
     }
 
@@ -217,7 +217,7 @@ static int automount_open(FAR struct file *filep)
       sizeof(struct automounter_open_s));
   if (opriv == NULL)
     {
-      ierr("ERROR: Failed to allocate open structure\n");
+      ferr("ERROR: Failed to allocate open structure\n");
       ret = -ENOMEM;
       goto errout_with_lock;
     }
@@ -261,7 +261,7 @@ static int automount_close(FAR struct file *filep)
   ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
-      ierr("ERROR: nxmutex_lock failed: %d\n", ret);
+      ferr("ERROR: nxmutex_lock failed: %d\n", ret);
       return ret;
     }
 
@@ -274,7 +274,7 @@ static int automount_close(FAR struct file *filep)
   DEBUGASSERT(curr);
   if (curr == NULL)
     {
-      ierr("ERROR: Failed to find open entry\n");
+      ferr("ERROR: Failed to find open entry\n");
       ret = -ENOENT;
       goto errout_with_lock;
     }
@@ -328,7 +328,7 @@ static int automount_ioctl(FAR struct file *filep, int cmd,
   ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
     {
-      ierr("ERROR: nxmutex_lock failed: %d\n", ret);
+      ferr("ERROR: nxmutex_lock failed: %d\n", ret);
       return ret;
     }
 
@@ -358,14 +358,14 @@ static int automount_ioctl(FAR struct file *filep, int cmd,
               opriv->ao_notify.an_mount  = notify->an_mount;
               opriv->ao_notify.an_umount = notify->an_umount;
               opriv->ao_notify.an_event  = notify->an_event;
-              opriv->ao_pid              = getpid();
+              opriv->ao_pid              = nxsched_getpid();
               ret = OK;
             }
         }
         break;
 
       default:
-        ierr("ERROR: Unrecognized command: %d\n", cmd);
+        ferr("ERROR: Unrecognized command: %d\n", cmd);
         ret = -ENOTTY;
         break;
     }

@@ -77,11 +77,17 @@ static int tcp_find_ipv4_device(FAR struct tcp_conn_s *conn,
     {
       if (local)
         {
-          conn->dev = net_bound_device(&conn->sconn);
+#ifdef CONFIG_NET_BINDTODEVICE
+          if (conn->sconn.s_boundto != 0)
+            {
+              conn->dev = netdev_findbyindex(conn->sconn.s_boundto);
+            }
+#endif
+
           return OK;
         }
 
-      return -EINVAL;
+      return -ECONNREFUSED;
     }
 
   /* We need to select the device that is going to route the TCP packet
@@ -133,11 +139,17 @@ static int tcp_find_ipv6_device(FAR struct tcp_conn_s *conn,
     {
       if (local)
         {
-          conn->dev = net_bound_device(&conn->sconn);
+#ifdef CONFIG_NET_BINDTODEVICE
+          if (conn->sconn.s_boundto != 0)
+            {
+              conn->dev = netdev_findbyindex(conn->sconn.s_boundto);
+            }
+#endif
+
           return OK;
         }
 
-      return -EINVAL;
+      return -ECONNREFUSED;
     }
 
   /* We need to select the device that is going to route the TCP packet

@@ -27,6 +27,7 @@
 #include <string.h>
 #include <assert.h>
 #include <debug.h>
+#include <errno.h>
 
 #include <nuttx/mm/iob.h>
 #include <nuttx/net/netdev.h>
@@ -56,62 +57,58 @@ void devif_iob_send(FAR struct net_driver_s *dev, FAR struct iob_s *iob,
                     unsigned int len, unsigned int offset,
                     unsigned int target_offset)
 {
-  unsigned int limit = NETDEV_PKTSIZE(dev) -
-                       NET_LL_HDRLEN(dev) - target_offset;
   int ret;
 
-  if (dev == NULL || len == 0 || len > limit)
+  if (dev == NULL)
     {
-      if (dev->d_iob == NULL)
-        {
-          iob_free_chain(iob);
-        }
-
-      nerr("devif_iob_send error, %p, send len: %u, limit len: %u\n",
-           dev, len, limit);
-      return;
+      ret = -ENODEV;
+      goto errout;
     }
+
+  if (len == 0)
+    {
+      ret = -EINVAL;
+      goto errout;
+    }
+
+#ifndef CONFIG_NET_IPFRAG
+  if (len > NETDEV_PKTSIZE(dev) - NET_LL_HDRLEN(dev) - target_offset)
+    {
+      ret = -EMSGSIZE;
+      goto errout;
+    }
+#endif
 
   /* Append the send buffer after device buffer */
 
-  if (dev->d_iob != NULL)
+  if (len > iob_navail(false) * CONFIG_IOB_BUFSIZE)
     {
-      dev->d_sndlen = 0;
-
-      if (len > iob_navail(false) * CONFIG_IOB_BUFSIZE)
-        {
-          return;
-        }
-
-      /* Clone the iob to target device buffer */
-
-      ret = iob_clone_partial(iob, len, offset, dev->d_iob,
-                              target_offset, false, false);
-      if (ret != OK)
-        {
-          netdev_iob_release(dev);
-          nerr("devif_iob_send error, not enough iob entries, "
-              "send len: %u\n", len);
-          return;
-        }
-
-      dev->d_sndlen = len;
+      ret = -ENOMEM;
+      goto errout;
     }
-  else
+
+  /* Clone the iob to target device buffer */
+
+  ret = iob_clone_partial(iob, len, offset, dev->d_iob,
+                          target_offset, false, false);
+  if (ret != OK)
     {
-      /* Send the iob directly if no device buffer */
-
-      dev->d_iob    = iob;
-      dev->d_sndlen = len;
-      dev->d_buf    = &iob->io_data[CONFIG_NET_LL_GUARDSIZE -
-                                    NET_LL_HDRLEN(dev)];
+      netdev_iob_release(dev);
+      goto errout;
     }
+
+  dev->d_sndlen = len;
 
 #ifdef CONFIG_NET_TCP_WRBUFFER_DUMP
   /* Dump the outgoing device buffer */
 
   lib_dumpbuffer("devif_iob_send", dev->d_appdata, len);
 #endif
+
+  return;
+
+errout:
+  nerr("ERROR: devif_iob_send error: %d\n", ret);
 }
 
 #endif /* CONFIG_MM_IOB */

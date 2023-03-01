@@ -34,15 +34,16 @@
 #include <pthread.h>
 #include <time.h>
 
+#include <nuttx/addrenv.h>
 #include <nuttx/clock.h>
 #include <nuttx/irq.h>
 #include <nuttx/mutex.h>
 #include <nuttx/semaphore.h>
 #include <nuttx/queue.h>
 #include <nuttx/wdog.h>
-#include <nuttx/mm/shm.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/net/net.h>
+#include <nuttx/mm/map.h>
 
 #include <arch/arch.h>
 
@@ -95,7 +96,6 @@
 #  define TCB_FLAG_SCHED_FIFO      (0 << TCB_FLAG_POLICY_SHIFT)  /* FIFO scheding policy */
 #  define TCB_FLAG_SCHED_RR        (1 << TCB_FLAG_POLICY_SHIFT)  /* Round robin scheding policy */
 #  define TCB_FLAG_SCHED_SPORADIC  (2 << TCB_FLAG_POLICY_SHIFT)  /* Sporadic scheding policy */
-#  define TCB_FLAG_SCHED_OTHER     (3 << TCB_FLAG_POLICY_SHIFT)  /* Other scheding policy */
 #define TCB_FLAG_CPU_LOCKED        (1 << 8)                      /* Bit 7: Locked to this CPU */
 #define TCB_FLAG_SIGNAL_ACTION     (1 << 9)                      /* Bit 8: In a signal handler */
 #define TCB_FLAG_SYSCALL           (1 << 10)                     /* Bit 9: In a system call */
@@ -108,10 +108,10 @@
 /* Values for struct task_group tg_flags */
 
 #define GROUP_FLAG_NOCLDWAIT       (1 << 0)                      /* Bit 0: Do not retain child exit status */
-#define GROUP_FLAG_ADDRENV         (1 << 1)                      /* Bit 1: Group has an address environment */
-#define GROUP_FLAG_PRIVILEGED      (1 << 2)                      /* Bit 2: Group is privileged */
-#define GROUP_FLAG_DELETED         (1 << 3)                      /* Bit 3: Group has been deleted but not yet freed */
-                                                                 /* Bits 4-7: Available */
+#define GROUP_FLAG_PRIVILEGED      (1 << 1)                      /* Bit 1: Group is privileged */
+#define GROUP_FLAG_DELETED         (1 << 2)                      /* Bit 2: Group has been deleted but not yet freed */
+#define GROUP_FLAG_EXITING         (1 << 3)                      /* Bit 3: Group exit is in progress */
+                                                                 /* Bits 3-7: Available */
 
 /* Values for struct child_status_s ch_flags */
 
@@ -167,6 +167,16 @@
 #  define _SCHED_ERRVAL(r)           (-errno)
 #endif
 
+#if defined(CONFIG_BUILD_FLAT) || defined(__KERNEL__)
+#  define _SCHED_GETTID()            nxsched_gettid()
+#  define _SCHED_GETPID()            nxsched_getpid()
+#  define _SCHED_GETPPID()           nxsched_getppid()
+#else
+#  define _SCHED_GETTID()            gettid()
+#  define _SCHED_GETPID()            getpid()
+#  define _SCHED_GETPPID()           getppid()
+#endif
+
 #ifdef CONFIG_DEBUG_TCBINFO
 #  define TCB_PID_OFF                offsetof(struct tcb_s, pid)
 #  define TCB_STATE_OFF              offsetof(struct tcb_s, task_state)
@@ -179,6 +189,14 @@
 #  define TCB_REGS_OFF               offsetof(struct tcb_s, xcp.regs)
 #  define TCB_REG_OFF(reg)           (reg * sizeof(uint32_t))
 #endif
+
+/* Get a pointer to the process' memory map struct from the task_group */
+
+#define get_group_mm(group)          (group ? &group->tg_mm_map : NULL)
+
+/* Get a pointer to current the process' memory map struct */
+
+#define get_current_mm()             (get_group_mm(nxsched_self()->group))
 
 /****************************************************************************
  * Public Type Definitions
@@ -401,7 +419,7 @@ struct binary_s;                    /* Forward reference                        
 
 struct task_group_s
 {
-#if defined(HAVE_GROUP_MEMBERS) || defined(CONFIG_ARCH_ADDRENV)
+#if defined(HAVE_GROUP_MEMBERS)
   struct task_group_s *flink;       /* Supports a singly linked list            */
 #endif
   pid_t tg_pid;                     /* The ID of the task within the group      */
@@ -437,6 +455,9 @@ struct task_group_s
 #else
   uint16_t tg_nchildren;                  /* This is the number active children */
 #endif
+  /* Group exit status ******************************************************/
+
+  int tg_exitcode;                        /* Exit code (status) for group   */
 #endif /* CONFIG_SCHED_HAVE_PARENT */
 
 #if defined(CONFIG_SCHED_WAITPID) && !defined(CONFIG_SCHED_HAVE_PARENT)
@@ -475,7 +496,8 @@ struct task_group_s
 #ifndef CONFIG_DISABLE_ENVIRON
   /* Environment variables **************************************************/
 
-  FAR char **tg_envp;               /* Allocated environment strings            */
+  FAR char **tg_envp;               /* Allocated environment strings        */
+  ssize_t    tg_envc;               /* Number of environment strings        */
 #endif
 
 #ifndef CONFIG_DISABLE_POSIX_TIMERS
@@ -495,17 +517,9 @@ struct task_group_s
 
   struct filelist tg_filelist;      /* Maps file descriptor to file         */
 
-#ifdef CONFIG_ARCH_ADDRENV
-  /* Address Environment ****************************************************/
+  /* Virtual memory mapping info ********************************************/
 
-  group_addrenv_t tg_addrenv;       /* Task group address environment       */
-#endif
-
-#ifdef CONFIG_MM_SHM
-  /* Shared Memory **********************************************************/
-
-  struct group_shm_s tg_shm;        /* Task shared memory logic             */
-#endif
+  struct mm_map_s tg_mm_map;    /* Task mmappings */
 };
 
 /* struct tcb_s *************************************************************/
@@ -526,6 +540,13 @@ struct tcb_s
   /* Task Group *************************************************************/
 
   FAR struct task_group_s *group;      /* Pointer to shared task group data */
+
+  /* Address Environment ****************************************************/
+
+#ifdef CONFIG_ARCH_ADDRENV
+  FAR struct addrenv_s *addrenv_own;    /* Task (group) own memory mappings */
+  FAR struct addrenv_s *addrenv_curr;   /* Current active memory mappings   */
+#endif
 
   /* Task Management Fields *************************************************/
 
@@ -971,8 +992,7 @@ int nxtask_delete(pid_t pid);
  *   scheduler.
  *
  * Input Parameters:
- *   tcb - The TCB for the task for the task (same as the nxtask_init
- *         argument).
+ *   tcb - The TCB for the task (same as the nxtask_init argument).
  *
  * Returned Value:
  *   None
@@ -1053,6 +1073,25 @@ void nxtask_startup(main_t entrypt, int argc, FAR char *argv[]);
 FAR struct task_tcb_s *nxtask_setup_vfork(start_t retaddr);
 pid_t nxtask_start_vfork(FAR struct task_tcb_s *child);
 void nxtask_abort_vfork(FAR struct task_tcb_s *child, int errcode);
+
+/****************************************************************************
+ * Name: group_argvstr
+ *
+ * Description:
+ *   Safely read the contents of a task's argument vector, into a a safe
+ *   buffer. Function skips the process's name.
+ *
+ * Input Parameters:
+ *   tcb  - tcb of the task.
+ *   args - Output buffer for the argument vector.
+ *   size - Size of the buffer.
+ *
+ * Returned Value:
+ *   The actual string length that was written.
+ *
+ ****************************************************************************/
+
+size_t group_argvstr(FAR struct tcb_s *tcb, FAR char *args, size_t size);
 
 /****************************************************************************
  * Name: group_exitinfo
@@ -1354,12 +1393,131 @@ int nxsched_set_affinity(pid_t pid, size_t cpusetsize,
 int nxsched_get_stackinfo(pid_t pid, FAR struct stackinfo_s *stackinfo);
 
 /****************************************************************************
- * Name: nx_wait/nx_waitid/nx_waitpid
+ * Name: nxsched_get_stateinfo
+ *
+ * Description:
+ *   Report information about a thread's state
+ *
+ * Input Parameters:
+ *   tcb    - The TCB for the task (same as the nxtask_init argument).
+ *   state  - User-provided location to return the state information.
+ *   length - The size of the state
+ *
+ ****************************************************************************/
+
+void nxsched_get_stateinfo(FAR struct tcb_s *tcb, FAR char *state,
+                           size_t length);
+
+/****************************************************************************
+ * Name: nxsched_waitpid
+ *
+ * Description:
+ *   This functions will obtain status information pertaining to one
+ *   of the caller's child processes. This function will suspend
+ *   execution of the calling thread until status information for one of the
+ *   terminated child processes of the calling process is available, or until
+ *   delivery of a signal whose action is either to execute a signal-catching
+ *   function or to terminate the process. If more than one thread is
+ *   suspended in nxsched_waitpid() awaiting termination of the same process,
+ *   exactly one thread will return the process status at the time of the
+ *   target process termination. If status information is available prior to
+ *   the call to nxsched_waitpid(), return will be immediate.
+ *
+ * Input Parameters:
+ *   pid - The task ID of the thread to waid for
+ *   stat_loc - The location to return the exit status
+ *   options - ignored
+ *
+ * Returned Value:
+ *   If nxsched_waitpid() returns because the status of a child process is
+ *   available, it will return a value equal to the process ID of the child
+ *   process for which status is reported.
+ *
+ *   If nxsched_waitpid() returns due to the delivery of a signal to the
+ *   calling process, -1 will be returned and errno set to EINTR.
+ *
+ *   If nxsched_waitpid() was invoked with WNOHANG set in options, it has
+ *   at least one child process specified by pid for which status is not
+ *   available, and status is not available for any process specified by
+ *   pid, 0 is returned.
+ *
+ *   Otherwise, (pid_t)-1 will be returned, and errno set to indicate the
+ *   error:
+ *
+ *   ECHILD - The process specified by pid does not exist or is not a child
+ *            of the calling process, or the process group specified by pid
+ *            does not exist does not have any member process that is a child
+ *            of the calling process.
+ *   EINTR - The function was interrupted by a signal. The value of the
+ *           location pointed to by stat_loc is undefined.
+ *   EINVAL - The options argument is not valid.
+ *
  ****************************************************************************/
 
 #ifdef CONFIG_SCHED_WAITPID
-pid_t nx_waitpid(pid_t pid, FAR int *stat_loc, int options);
+pid_t nxsched_waitpid(pid_t pid, FAR int *stat_loc, int options);
 #endif
+
+/****************************************************************************
+ * Name: nxsched_gettid
+ *
+ * Description:
+ *   Get the thread ID of the currently executing thread.
+ *
+ * Input parameters:
+ *   None
+ *
+ * Returned Value:
+ *   On success, returns the thread ID of the calling process.
+ *
+ ****************************************************************************/
+
+pid_t nxsched_gettid(void);
+
+/****************************************************************************
+ * Name: nxsched_getpid
+ *
+ * Description:
+ *   Get the Process ID of the currently executing task.
+ *
+ * Input parameters:
+ *   None
+ *
+ * Returned Value:
+ *   Normally when called from user applications, nxsched_getpid() will
+ *   return the Process ID of the currently executing task. that is,
+ *   the main task for the task groups. There is no specification for
+ *   any errors returned from nxsched_getpid().
+ *
+ ****************************************************************************/
+
+pid_t nxsched_getpid(void);
+
+/****************************************************************************
+ * Name: nxsched_getppid
+ *
+ * Description:
+ *   Get the parent task ID of the currently executing task.
+ *
+ * Input parameters:
+ *   None
+ *
+ * Returned Value:
+ *   Normally when called from user applications, nxsched_getppid() will
+ *   return the parent task ID of the currently executing task, that is,
+ *   the task at the head of the ready-to-run list.
+ *   There is no specification for any errors returned from
+ *   nxsched_getppid().
+ *
+ *   nxsched_getppid(), however, may be called from within the OS in some
+ *   cases. There are certain situations during context switching when the
+ *   OS data structures are in flux and where the current task at the head
+ *   of the ready-to-run task list is not actually running.
+ *   In that case, nxsched_getppid() will return the error: -ESRCH
+ *
+ ****************************************************************************/
+
+pid_t nxsched_getppid(void);
 
 #undef EXTERN
 #if defined(__cplusplus)

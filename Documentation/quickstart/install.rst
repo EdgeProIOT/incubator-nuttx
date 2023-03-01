@@ -22,7 +22,7 @@ First, install the following set of system dependencies according to your Operat
     .. code-block:: console
 
       $ sudo apt install \
-      bison flex gettext texinfo libncurses5-dev libncursesw5-dev \
+      bison flex gettext texinfo libncurses5-dev libncursesw5-dev xxd \
       gperf automake libtool pkg-config build-essential gperf genromfs \
       libgmp-dev libmpc-dev libmpfr-dev libisl-dev binutils-dev libelf-dev \
       libexpat-dev gcc-multilib g++-multilib picocom u-boot-tools util-linux
@@ -80,6 +80,22 @@ NuttX configuration system uses `KConfig <https://www.kernel.org/doc/Documentati
          $ ./configure --enable-mconf --disable-nconf --disable-gconf --disable-qconf
          $ make
          $ make install
+
+NuttX also supports `kconfiglib <https://github.com/ulfalizer/Kconfiglib>` by default, which is a Kconfig tool implemented in Python 2/3. Compared with kconfig-frontends, kconfiglib provides NuttX with the possibility of multi-platform support(configure NuttX in Winodws native/Visual Studio), and also kconfiglib has a stronger Kconfig syntax check, this will help developers to avoid some Kconfig syntax errors.  Install kconfiglib via following command:
+
+   .. tabs::
+         $ pip install kconfiglib
+
+If you are a working on Windows, which also need the support of windows-curses:
+
+   .. tabs::
+         $ pip install windows-curses
+
+.. tip::
+  It should be noted that kconfiglib does not support **modules** attributes.
+  (<https://github.com/ulfalizer/Kconfiglib/blob/master/kconfiglib.py#L3239-L3254>,
+  the community seems to have stopped updating), if the features depends on
+  ``CONFIG_BUILD_LOADABLE``, kconfiglib may not be a good choice.
 
 Toolchain
 =========

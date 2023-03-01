@@ -161,8 +161,9 @@
  * headers
  */
 
-#define IPBUF(hl) ((FAR void *)\
-                   &dev->d_iob->io_data[CONFIG_NET_LL_GUARDSIZE + (hl)])
+#define IPBUF(hl) ((FAR void *)(IOB_DATA(dev->d_iob) + (hl)))
+#define NETLLBUF  ((FAR void *) \
+                   ((FAR uint8_t *)IPBUF(0) - NET_LL_HDRLEN(dev)))
 
 #define IPv4BUF ((FAR struct ipv4_hdr_s *)IPBUF(0))
 #define IPv6BUF ((FAR struct ipv6_hdr_s *)IPBUF(0))
@@ -319,6 +320,12 @@ struct net_driver_s
    */
 
   FAR struct iob_s *d_iob;
+
+  /* Remember the outgoing fragments waiting to be sent */
+
+#ifdef CONFIG_NET_IPFRAG
+  FAR struct iob_queue_s d_fragout;
+#endif
 
   /* The d_buf array is used to hold incoming and outgoing packets. The
    * device driver should place incoming data into this buffer.  When sending

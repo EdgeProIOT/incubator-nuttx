@@ -151,7 +151,7 @@
 #  elif defined(CONFIG_SAMA5_UART4)
 #    define TTYS0_DEV           g_uart4port  /* UART4 is ttyS0 */
 #    define UART4_ASSIGNED      1
-#  elif defined(CONFIG_SAMA5_USART0) 
+#  elif defined(CONFIG_SAMA5_USART0)
 #    define TTYS0_DEV           g_usart0port /* USART0 is ttyS0 */
 #    define USART0_ASSIGNED     1
 #  elif defined(CONFIG_SAMA5_USART1)
@@ -930,9 +930,11 @@ static void up_disableallints(struct up_dev_s *priv, uint32_t *imr)
  * Name: up_interrupt
  *
  * Description:
- *   This is the common USART interrupt handler.  It should call
- *   uart_transmitchars or uart_receivechar to perform the appropriate
- *   data transfers.
+ *   This is the common USART interrupt handler.  It will be invoked when an
+ *   interrupt is received on the 'irq'.  It should call uart_xmitchars or
+ *   uart_recvchars to perform the appropriate data transfers.  The
+ *   interrupt handling logic must be able to map the 'arg' to the
+ *   appropriate uart_dev_s structure in order to call these functions.
  *
  ****************************************************************************/
 

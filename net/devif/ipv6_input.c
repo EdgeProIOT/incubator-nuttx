@@ -51,47 +51,11 @@
 #include "ipforward/ipforward.h"
 #include "inet/inet.h"
 #include "devif/devif.h"
-
-/****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-#define PAYLOAD ((FAR uint8_t *)TCPIPv6BUF)
+#include "ipfrag/ipfrag.h"
 
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
-
-/****************************************************************************
- * Name: ipv6_exthdr
- *
- * Description:
- *   Return true if the next header value is an IPv6 extension header.
- *
- ****************************************************************************/
-
-static bool ipv6_exthdr(uint8_t nxthdr)
-{
-  switch (nxthdr)
-    {
-      case NEXT_HOPBYBOT_EH:    /* Hop-by-Hop Options Header */
-      case NEXT_ENCAP_EH:       /* Encapsulated IPv6 Header */
-      case NEXT_ROUTING_EH:     /* Routing Header */
-      case NEXT_FRAGMENT_EH:    /* Fragment Header */
-      case NEXT_RRSVP_EH:       /* Resource ReSerVation Protocol */
-      case NEXT_ENCAPSEC_EH:    /* Encapsulating Security Payload */
-      case NEXT_AUTH_EH:        /* Authentication Header */
-      case NEXT_DESTOPT_EH:     /* Destination Options Header */
-      case NEXT_MOBILITY_EH:    /* Mobility */
-      case NEXT_HOSTID_EH:      /* Host Identity Protocol */
-      case NEXT_SHIM6_EH:       /* Shim6 Protocol */
-        return true;
-
-      case NEXT_NOHEADER:       /* No next header */
-      default:
-        return false;
-    }
-}
 
 /****************************************************************************
  * Name: check_dev_destipaddr
@@ -228,6 +192,9 @@ static int ipv6_in(FAR struct net_driver_s *dev)
 #ifdef CONFIG_NET_IPFORWARD
   int ret;
 #endif
+#ifdef CONFIG_NET_IPFRAG
+  bool isfrag = false;
+#endif
 
   /* This is where the input processing starts. */
 
@@ -300,9 +267,9 @@ static int ipv6_in(FAR struct net_driver_s *dev)
 
   /* Parse IPv6 extension headers (parsed but ignored) */
 
-  payload  = PAYLOAD;     /* Assume payload starts right after IPv6 header */
-  iphdrlen = IPv6_HDRLEN; /* Total length of the IPv6 header */
-  nxthdr   = ipv6->proto; /* Next header determined by IPv6 header prototype */
+  payload  = IPBUF(IPv6_HDRLEN); /* Assume payload starts right after IPv6 header */
+  iphdrlen = IPv6_HDRLEN;        /* Total length of the IPv6 header */
+  nxthdr   = ipv6->proto;        /* Next header determined by IPv6 header prototype */
 
   while (ipv6_exthdr(nxthdr))
     {
@@ -312,7 +279,18 @@ static int ipv6_in(FAR struct net_driver_s *dev)
       /* Just skip over the extension header */
 
       exthdr    = (FAR struct ipv6_extension_s *)payload;
-      extlen    = EXTHDR_LEN((unsigned int)exthdr->len);
+      if (nxthdr == NEXT_FRAGMENT_EH)
+        {
+          extlen    = EXTHDR_FRAG_LEN;
+#ifdef CONFIG_NET_IPFRAG
+          isfrag    = true;
+#endif
+        }
+      else
+        {
+          extlen = EXTHDR_LEN((unsigned int)exthdr->len);
+        }
+
       payload  += extlen;
       iphdrlen += extlen;
       nxthdr    = exthdr->nxthdr;
@@ -418,6 +396,23 @@ static int ipv6_in(FAR struct net_driver_s *dev)
     }
 #endif
 
+#ifdef CONFIG_NET_IPFRAG
+  if (isfrag)
+    {
+      if (ipv6_fragin(dev) == OK)
+        {
+          return OK;
+        }
+      else
+        {
+#ifdef CONFIG_NET_STATISTICS
+          g_netstats.ipv6.fragerr++;
+#endif
+          goto drop;
+        }
+    }
+#endif
+
   /* Now process the incoming packet according to the protocol specified in
    * the next header IPv6 field.
    */
@@ -519,6 +514,11 @@ static int ipv6_in(FAR struct net_driver_s *dev)
 #ifdef CONFIG_NET_IPFORWARD
 done:
 #endif
+
+#ifdef CONFIG_NET_IPFRAG
+  ip_fragout(dev);
+#endif
+
   devif_out(dev);
 
   /* Return and let the caller do any pending transmission. */
@@ -540,6 +540,43 @@ drop:
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: ipv6_exthdr
+ *
+ * Description:
+ *   Check whether it is an IPv6 extension header.
+ *
+ * Input Parameters:
+ *   The next header value extracted from an IPv6 frame.
+ *
+ * Returned Value:
+ *   Return true if the next header value is an IPv6 extension header.
+ *
+ ****************************************************************************/
+
+bool ipv6_exthdr(uint8_t nxthdr)
+{
+  switch (nxthdr)
+    {
+      case NEXT_HOPBYBOT_EH:    /* Hop-by-Hop Options Header */
+      case NEXT_ENCAP_EH:       /* Encapsulated IPv6 Header */
+      case NEXT_ROUTING_EH:     /* Routing Header */
+      case NEXT_FRAGMENT_EH:    /* Fragment Header */
+      case NEXT_RRSVP_EH:       /* Resource ReSerVation Protocol */
+      case NEXT_ENCAPSEC_EH:    /* Encapsulating Security Payload */
+      case NEXT_AUTH_EH:        /* Authentication Header */
+      case NEXT_DESTOPT_EH:     /* Destination Options Header */
+      case NEXT_MOBILITY_EH:    /* Mobility */
+      case NEXT_HOSTID_EH:      /* Host Identity Protocol */
+      case NEXT_SHIM6_EH:       /* Shim6 Protocol */
+        return true;
+
+      case NEXT_NOHEADER:       /* No next header */
+      default:
+        return false;
+    }
+}
 
 /****************************************************************************
  * Name: ipv6_input
@@ -578,8 +615,7 @@ int ipv6_input(FAR struct net_driver_s *dev)
 
       /* Set the device buffer to l2 */
 
-      dev->d_buf = &dev->d_iob->io_data[CONFIG_NET_LL_GUARDSIZE -
-                                        NET_LL_HDRLEN(dev)];
+      dev->d_buf = NETLLBUF;
       ret = ipv6_in(dev);
 
       dev->d_buf = buf;

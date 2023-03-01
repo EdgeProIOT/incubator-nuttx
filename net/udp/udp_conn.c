@@ -64,9 +64,10 @@
 #include <nuttx/net/udp.h>
 
 #include "devif/devif.h"
+#include "inet/inet.h"
 #include "nat/nat.h"
 #include "netdev/netdev.h"
-#include "inet/inet.h"
+#include "socket/socket.h"
 #include "udp/udp.h"
 
 /****************************************************************************
@@ -75,8 +76,8 @@
 
 /* The array containing all UDP connections. */
 
-#ifndef CONFIG_NET_ALLOC_CONNS
-struct udp_conn_s g_udp_connections[CONFIG_NET_UDP_CONNS];
+#if CONFIG_NET_UDP_PREALLOC_CONNS > 0
+struct udp_conn_s g_udp_connections[CONFIG_NET_UDP_PREALLOC_CONNS];
 #endif
 
 /* A list of all free UDP connections */
@@ -98,6 +99,13 @@ static dq_queue_t g_active_udp_connections;
  * Description:
  *   Find the UDP connection that uses this local port number.
  *
+ * Input Parameters:
+ *   domain - IP domain (PF_INET or PF_INET6)
+ *   ipaddr - The IP address to use in the lookup
+ *   portno - The port to use in the lookup
+ *   opt    - The option from another conn to match the conflict conn
+ *              SO_REUSEADDR: If both sockets have this, they never confilct.
+ *
  * Assumptions:
  *   This function must be called with the network locked.
  *
@@ -105,14 +113,28 @@ static dq_queue_t g_active_udp_connections;
 
 static FAR struct udp_conn_s *udp_find_conn(uint8_t domain,
                                             FAR union ip_binding_u *ipaddr,
-                                            uint16_t portno)
+                                            uint16_t portno, sockopt_t opt)
 {
   FAR struct udp_conn_s *conn = NULL;
+#ifdef CONFIG_NET_SOCKOPTS
+  bool skip_reusable = _SO_GETOPT(opt, SO_REUSEADDR);
+#endif
 
   /* Now search each connection structure. */
 
   while ((conn = udp_nextconn(conn)) != NULL)
     {
+      /* With SO_REUSEADDR set for both sockets, we do not need to check its
+       * address and port.
+       */
+
+#ifdef CONFIG_NET_SOCKOPTS
+      if (skip_reusable && _SO_GETOPT(conn->sconn.s_options, SO_REUSEADDR))
+        {
+          continue;
+        }
+#endif
+
       /* If the port local port number assigned to the connections matches
        * AND the IP address of the connection matches, then return a
        * reference to the connection structure.  INADDR_ANY is a special
@@ -124,7 +146,7 @@ static FAR struct udp_conn_s *udp_find_conn(uint8_t domain,
       if (domain == PF_INET)
 #endif
         {
-          if (conn->lport == portno &&
+          if (conn->domain == PF_INET && conn->lport == portno &&
               (net_ipv4addr_cmp(conn->u.ipv4.laddr, ipaddr->ipv4.laddr) ||
                net_ipv4addr_cmp(conn->u.ipv4.laddr, INADDR_ANY)))
             {
@@ -138,7 +160,7 @@ static FAR struct udp_conn_s *udp_find_conn(uint8_t domain,
       else
 #endif
         {
-          if (conn->lport == portno &&
+          if (conn->domain == PF_INET6 && conn->lport == portno &&
               (net_ipv6addr_cmp(conn->u.ipv6.laddr, ipaddr->ipv6.laddr) ||
                net_ipv6addr_cmp(conn->u.ipv6.laddr, g_ipv6_unspecaddr)))
             {
@@ -440,7 +462,7 @@ static inline FAR struct udp_conn_s *
  *
  ****************************************************************************/
 
-#ifdef CONFIG_NET_ALLOC_CONNS
+#if CONFIG_NET_UDP_ALLOC_CONNS > 0
 FAR struct udp_conn_s *udp_alloc_conn(void)
 {
   FAR struct udp_conn_s *conn;
@@ -450,8 +472,16 @@ FAR struct udp_conn_s *udp_alloc_conn(void)
 
   if (dq_peek(&g_free_udp_connections) == NULL)
     {
+#if CONFIG_NET_UDP_MAX_CONNS > 0
+      if (dq_count(&g_active_udp_connections) + CONFIG_NET_UDP_ALLOC_CONNS
+          >= CONFIG_NET_UDP_MAX_CONNS)
+        {
+          return NULL;
+        }
+#endif
+
       conn = kmm_zalloc(sizeof(struct udp_conn_s) *
-                        CONFIG_NET_UDP_CONNS);
+                        CONFIG_NET_UDP_ALLOC_CONNS);
       if (conn == NULL)
         {
           return conn;
@@ -459,7 +489,7 @@ FAR struct udp_conn_s *udp_alloc_conn(void)
 
       /* Now initialize each connection structure */
 
-      for (i = 0; i < CONFIG_NET_UDP_CONNS; i++)
+      for (i = 0; i < CONFIG_NET_UDP_ALLOC_CONNS; i++)
         {
           /* Mark the connection closed and move it to the free list */
 
@@ -534,7 +564,7 @@ uint16_t udp_select_port(uint8_t domain, FAR union ip_binding_u *u)
           g_last_udp_port = 4096;
         }
     }
-  while (udp_find_conn(domain, u, HTONS(g_last_udp_port)) != NULL
+  while (udp_find_conn(domain, u, HTONS(g_last_udp_port), 0) != NULL
 #if defined(CONFIG_NET_NAT) && defined(CONFIG_NET_IPv4)
          || (domain == PF_INET &&
              ipv4_nat_port_inuse(IP_PROTO_UDP, u->ipv4.laddr,
@@ -563,10 +593,10 @@ uint16_t udp_select_port(uint8_t domain, FAR union ip_binding_u *u)
 
 void udp_initialize(void)
 {
-#ifndef CONFIG_NET_ALLOC_CONNS
+#if CONFIG_NET_UDP_PREALLOC_CONNS > 0
   int i;
 
-  for (i = 0; i < CONFIG_NET_UDP_CONNS; i++)
+  for (i = 0; i < CONFIG_NET_UDP_PREALLOC_CONNS; i++)
     {
       /* Mark the connection closed and move it to the free list */
 
@@ -592,11 +622,16 @@ FAR struct udp_conn_s *udp_alloc(uint8_t domain)
   /* The free list is protected by a mutex. */
 
   nxmutex_lock(&g_free_lock);
-#ifndef CONFIG_NET_ALLOC_CONNS
+
   conn = (FAR struct udp_conn_s *)dq_remfirst(&g_free_udp_connections);
-#else
-  conn = udp_alloc_conn();
+
+#if CONFIG_NET_UDP_ALLOC_CONNS > 0
+  if (conn == NULL)
+    {
+      conn = udp_alloc_conn();
+    }
 #endif
+
   if (conn)
     {
       /* Make sure that the connection is marked as uninitialized */
@@ -677,13 +712,24 @@ void udp_free(FAR struct udp_conn_s *conn)
 
 #endif
 
-  /* Clear the connection structure */
+  /* Free the connection.
+   * If this is a preallocated or a batch allocated connection store it in
+   * the free connections list. Else free it.
+   */
 
-  memset(conn, 0, sizeof(*conn));
+#if CONFIG_NET_UDP_ALLOC_CONNS == 1
+  if (conn < g_udp_connections || conn >= (g_udp_connections +
+      CONFIG_NET_UDP_PREALLOC_CONNS))
+    {
+      kmm_free(conn);
+    }
+  else
+#endif
+    {
+      memset(conn, 0, sizeof(*conn));
+      dq_addlast(&conn->sconn.node, &g_free_udp_connections);
+    }
 
-  /* Free the connection */
-
-  dq_addlast(&conn->sconn.node, &g_free_udp_connections);
   nxmutex_unlock(&g_free_lock);
 }
 
@@ -823,7 +869,13 @@ int udp_bind(FAR struct udp_conn_s *conn, FAR const struct sockaddr *addr)
        * and port ?
        */
 
-      if (udp_find_conn(conn->domain, &conn->u, portno) == NULL
+      if (udp_find_conn(conn->domain, &conn->u, portno,
+#ifdef CONFIG_NET_SOCKOPTS
+                        conn->sconn.s_options
+#else
+                        0
+#endif
+                       ) == NULL
 #if defined(CONFIG_NET_NAT) && defined(CONFIG_NET_IPv4)
           && !(conn->domain == PF_INET &&
                ipv4_nat_port_inuse(IP_PROTO_UDP, conn->u.ipv4.laddr,
@@ -902,7 +954,17 @@ int udp_connect(FAR struct udp_conn_s *conn, FAR const struct sockaddr *addr)
             (FAR const struct sockaddr_in *)addr;
 
           conn->rport = inaddr->sin_port;
-          net_ipv4addr_copy(conn->u.ipv4.raddr, inaddr->sin_addr.s_addr);
+
+          /* Note: 0.0.0.0 is mapped to 127.0.0.1 by convention. */
+
+          if (inaddr->sin_addr.s_addr == INADDR_ANY)
+            {
+              net_ipv4addr_copy(conn->u.ipv4.raddr, HTONL(INADDR_LOOPBACK));
+            }
+          else
+            {
+              net_ipv4addr_copy(conn->u.ipv4.raddr, inaddr->sin_addr.s_addr);
+            }
         }
 #endif /* CONFIG_NET_IPv4 */
 
@@ -915,7 +977,20 @@ int udp_connect(FAR struct udp_conn_s *conn, FAR const struct sockaddr *addr)
             (FAR const struct sockaddr_in6 *)addr;
 
           conn->rport = inaddr->sin6_port;
-          net_ipv6addr_copy(conn->u.ipv6.raddr, inaddr->sin6_addr.s6_addr16);
+
+          /* Note: ::0 is mapped to ::1 by convention. */
+
+          if (net_ipv6addr_cmp(addr, g_ipv6_unspecaddr))
+            {
+              struct in6_addr loopback_sin6_addr = IN6ADDR_LOOPBACK_INIT;
+              net_ipv6addr_copy(conn->u.ipv6.raddr,
+                                loopback_sin6_addr.s6_addr16);
+            }
+          else
+            {
+              net_ipv6addr_copy(conn->u.ipv6.raddr,
+                                inaddr->sin6_addr.s6_addr16);
+            }
         }
 #endif /* CONFIG_NET_IPv6 */
     }

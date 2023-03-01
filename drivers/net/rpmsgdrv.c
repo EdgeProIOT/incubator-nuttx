@@ -160,7 +160,7 @@ static const rpmsg_ept_cb g_net_rpmsg_drv_handler[] =
 
 static void net_rpmsg_drv_wait(FAR sem_t *sem)
 {
-  net_lockedwait_uninterruptible(sem);
+  net_sem_wait_uninterruptible(sem);
 }
 
 /****************************************************************************
@@ -1127,7 +1127,7 @@ int net_rpmsg_drv_init(FAR const char *cpuname,
 
   /* Initialize the driver structure */
 
-  strcpy(dev->d_ifname, devname);
+  strlcpy(dev->d_ifname, devname, sizeof(dev->d_ifname));
   dev->d_ifup    = net_rpmsg_drv_ifup;    /* I/F up (new IP address) callback */
   dev->d_ifdown  = net_rpmsg_drv_ifdown;  /* I/F down callback */
   dev->d_txavail = net_rpmsg_drv_txavail; /* New TX data callback */

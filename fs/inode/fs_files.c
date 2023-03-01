@@ -35,6 +35,7 @@
 #include <nuttx/kmalloc.h>
 #include <nuttx/cancelpt.h>
 #include <nuttx/mutex.h>
+#include <nuttx/sched.h>
 
 #include "inode/inode.h"
 
@@ -95,6 +96,35 @@ static int files_extend(FAR struct filelist *list, size_t row)
 
   DEBUGASSERT(list->fl_rows == row);
   return 0;
+}
+
+static void task_fssync(FAR struct tcb_s *tcb, FAR void *arg)
+{
+  FAR struct filelist *list;
+  int i;
+  int j;
+
+  list = &tcb->group->tg_filelist;
+  if (nxmutex_lock(&list->fl_lock) < 0)
+    {
+      return;
+    }
+
+  for (i = 0; i < list->fl_rows; i++)
+    {
+      for (j = 0; j < CONFIG_NFILE_DESCRIPTORS_PER_BLOCK; j++)
+        {
+          FAR struct file *filep;
+
+          filep = &list->fl_files[i][j];
+          if (filep != NULL && filep->f_inode != NULL)
+            {
+              file_fsync(filep);
+            }
+        }
+    }
+
+  nxmutex_unlock(&list->fl_lock);
 }
 
 /****************************************************************************
@@ -269,6 +299,9 @@ int files_duplist(FAR struct filelist *plist, FAR struct filelist *clist)
   int i;
   int j;
 
+  DEBUGASSERT(clist);
+  DEBUGASSERT(plist);
+
   ret = nxmutex_lock(&plist->fl_lock);
   if (ret < 0)
     {
@@ -298,7 +331,10 @@ int files_duplist(FAR struct filelist *plist, FAR struct filelist *clist)
 #endif
 
           filep = &plist->fl_files[i][j];
-          if (filep->f_inode == NULL || (filep->f_oflags & O_CLOEXEC) != 0)
+          DEBUGASSERT(filep);
+
+          if (filep && (filep->f_inode == NULL ||
+                       (filep->f_oflags & O_CLOEXEC) != 0))
             {
               continue;
             }
@@ -596,4 +632,18 @@ int close(int fd)
 
   leave_cancellation_point();
   return ret;
+}
+
+/****************************************************************************
+ * Name: sync
+ *
+ * Description:
+ *   sync() causes all pending modifications to filesystem metadata and
+ *   cached file data to be written to the underlying filesystems.
+ *
+ ****************************************************************************/
+
+void sync(void)
+{
+  nxsched_foreach(task_fssync, NULL);
 }

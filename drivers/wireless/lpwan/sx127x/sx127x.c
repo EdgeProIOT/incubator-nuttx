@@ -451,8 +451,8 @@ static const struct file_operations sx127x_fops =
   sx127x_write,   /* write */
   NULL,           /* seek */
   sx127x_ioctl,   /* ioctl */
-  NULL,           /* truncate */
   NULL,           /* mmap */
+  NULL,           /* truncate */
   sx127x_poll     /* poll */
 };
 
@@ -1121,7 +1121,7 @@ static int sx127x_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
       case SX127XIOC_SYNCWORDSET:
         {
-          ASSERT(0);
+          PANIC();
           sx127x_syncword_set(dev, NULL, 0);
           break;
         }
@@ -1130,7 +1130,7 @@ static int sx127x_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
       case SX127XIOC_SYNCWORDGET:
         {
-          ASSERT(0);
+          PANIC();
           sx127x_syncword_get(dev, NULL, 0);
           break;
         }

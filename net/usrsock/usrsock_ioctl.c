@@ -139,7 +139,7 @@ static int do_ioctl_request(FAR struct usrsock_conn_s *conn, int cmd,
     }
 #endif
 
-  return usrsock_do_request(conn, bufs, ARRAY_SIZE(bufs));
+  return usrsock_do_request(conn, bufs, nitems(bufs));
 }
 
 /****************************************************************************
@@ -227,7 +227,7 @@ int usrsock_ioctl(FAR struct socket *psock, int cmd, unsigned long arg_)
     }
 #endif
 
-  usrsock_setup_datain(conn, inbufs, ARRAY_SIZE(inbufs));
+  usrsock_setup_datain(conn, inbufs, nitems(inbufs));
 
   /* Request user-space daemon to handle ioctl. */
 
@@ -236,7 +236,7 @@ int usrsock_ioctl(FAR struct socket *psock, int cmd, unsigned long arg_)
     {
       /* Wait for completion of request. */
 
-      net_lockedwait_uninterruptible(&state.reqstate.recvsem);
+      net_sem_wait_uninterruptible(&state.reqstate.recvsem);
       ret = state.reqstate.result;
 
       DEBUGASSERT(state.valuelen <= arglen);

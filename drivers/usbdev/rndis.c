@@ -35,6 +35,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include <sys/param.h>
+
 #include <nuttx/queue.h>
 #include <nuttx/net/net.h>
 #include <nuttx/net/netdev.h>
@@ -73,9 +75,9 @@
 #define RNDIS_CONFIGIDNONE      (0)
 #define RNDIS_NINTERFACES       (2)
 
-#define RNDIS_EPINTIN_ADDR      USB_EPIN(3)
-#define RNDIS_EPBULKIN_ADDR     USB_EPIN(1)
-#define RNDIS_EPBULKOUT_ADDR    USB_EPOUT(2)
+#define RNDIS_EPINTIN_ADDR      USB_EPIN(CONFIG_RNDIS_EPINTIN)
+#define RNDIS_EPBULKIN_ADDR     USB_EPIN(CONFIG_RNDIS_EPBULKIN)
+#define RNDIS_EPBULKOUT_ADDR    USB_EPOUT(CONFIG_RNDIS_EPBULKOUT)
 #define RNDIS_NUM_EPS           (3)
 
 #define RNDIS_MANUFACTURERSTRID (1)
@@ -95,14 +97,6 @@
 /* Work queue to use for network operations. LPWORK should be used here */
 
 #define ETHWORK                 LPWORK
-
-#ifndef min
-#  define min(a,b) ((a)<(b)?(a):(b))
-#endif
-
-#ifndef max
-#  define max(a,b) ((a)>(b)?(a):(b))
-#endif
 
 /****************************************************************************
  * Private Types
@@ -813,7 +807,7 @@ static uint16_t rndis_fillrequest(FAR struct rndis_dev_s *priv,
 
   req->len = 0;
 
-  datalen = min(priv->netdev.d_len,
+  datalen = MIN(priv->netdev.d_len,
                 CONFIG_RNDIS_BULKIN_REQLEN - RNDIS_PACKET_HDR_SIZE);
   if (datalen > 0)
     {
@@ -1135,7 +1129,7 @@ static inline int rndis_recvpacket(FAR struct rndis_dev_s *priv,
         {
           size_t index = priv->current_rx_received -
                          priv->current_rx_datagram_offset;
-          size_t copysize = min(reqlen,
+          size_t copysize = MIN(reqlen,
                                 priv->current_rx_datagram_size - index);
 
           /* Check if the received packet exceeds request buffer */
@@ -1930,11 +1924,29 @@ static int usbclass_copy_epdesc(int epid, FAR struct usb_epdesc_s *epdesc,
  *
  ****************************************************************************/
 
+#ifdef CONFIG_USBDEV_DUALSPEED
+static int16_t usbclass_mkcfgdesc(FAR uint8_t *buf,
+                                  FAR struct usbdev_devinfo_s *devinfo,
+                                  uint8_t speed, uint8_t type)
+#else
 static int16_t usbclass_mkcfgdesc(FAR uint8_t *buf,
                                   FAR struct usbdev_devinfo_s *devinfo)
+#endif
 {
   FAR struct rndis_cfgdesc_s *dest = (FAR struct rndis_cfgdesc_s *)buf;
+  bool hispeed = false;
   uint16_t totallen;
+
+#ifdef CONFIG_USBDEV_DUALSPEED
+  hispeed = (speed == USB_SPEED_HIGH);
+
+  /* Check for switches between high and full speed */
+
+  if (type == USB_DESC_TYPE_OTHERSPEEDCONFIG)
+    {
+      hispeed = !hispeed;
+    }
+#endif
 
   /* This is the total length of the configuration (not necessarily the
    * size that we will be sending now).
@@ -1942,6 +1954,13 @@ static int16_t usbclass_mkcfgdesc(FAR uint8_t *buf,
 
   totallen = sizeof(g_rndis_cfgdesc);
   memcpy(dest, &g_rndis_cfgdesc, totallen);
+
+  usbclass_copy_epdesc(RNDIS_EP_INTIN_IDX, &dest->epintindesc,
+                       devinfo, hispeed);
+  usbclass_copy_epdesc(RNDIS_EP_BULKIN_IDX, &dest->epbulkindesc,
+                       devinfo, hispeed);
+  usbclass_copy_epdesc(RNDIS_EP_BULKOUT_IDX, &dest->epbulkoutdesc,
+                       devinfo, hispeed);
 
 #ifndef CONFIG_RNDIS_COMPOSITE
   /* For a stand-alone device, just fill in the total length */
@@ -1953,10 +1972,7 @@ static int16_t usbclass_mkcfgdesc(FAR uint8_t *buf,
 
   dest->assoc_desc.firstif += devinfo->ifnobase;
   dest->comm_ifdesc.ifno   += devinfo->ifnobase;
-  dest->epintindesc.addr    = USB_EPIN(devinfo->epno[RNDIS_EP_INTIN_IDX]);
   dest->data_ifdesc.ifno   += devinfo->ifnobase;
-  dest->epbulkindesc.addr   = USB_EPIN(devinfo->epno[RNDIS_EP_BULKIN_IDX]);
-  dest->epbulkoutdesc.addr  = USB_EPOUT(devinfo->epno[RNDIS_EP_BULKOUT_IDX]);
 #endif
 
   return totallen;
@@ -2340,9 +2356,17 @@ static int usbclass_setup(FAR struct usbdevclass_driver_s *driver,
                   break;
 #endif
 
+#ifdef CONFIG_USBDEV_DUALSPEED
+                case USB_DESC_TYPE_OTHERSPEEDCONFIG:
+#endif /* CONFIG_USBDEV_DUALSPEED */
                 case USB_DESC_TYPE_CONFIG:
                   {
+#ifdef CONFIG_USBDEV_DUALSPEED
+                    ret = usbclass_mkcfgdesc(ctrlreq->buf, &priv->devinfo,
+                                             dev->speed, ctrl->req);
+#else
                     ret = usbclass_mkcfgdesc(ctrlreq->buf, &priv->devinfo);
+#endif
                   }
                   break;
 
@@ -2442,7 +2466,7 @@ static int usbclass_setup(FAR struct usbdevclass_driver_s *driver,
 
   if (ret >= 0)
     {
-      ctrlreq->len   = min(len, ret);
+      ctrlreq->len   = MIN(len, ret);
       ctrlreq->flags = USBDEV_REQFLAGS_NULLPKT;
       ret            = EP_SUBMIT(dev->ep0, ctrlreq);
       if (ret < 0)
@@ -2725,7 +2749,12 @@ static int usbclass_classobject(int minor,
 
   /* Initialize the USB class driver structure */
 
+#ifdef CONFIG_USBDEV_DUALSPEED
+  drvr->drvr.speed         = USB_SPEED_HIGH;
+#else
   drvr->drvr.speed         = USB_SPEED_FULL;
+#endif
+
   drvr->drvr.ops           = &g_driverops;
   drvr->dev                = priv;
 

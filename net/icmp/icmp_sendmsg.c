@@ -99,6 +99,14 @@ static void sendto_request(FAR struct net_driver_s *dev,
 {
   FAR struct icmp_hdr_s *icmp;
 
+  /* Set-up to send that amount of data. */
+
+  devif_send(dev, pstate->snd_buf, pstate->snd_buflen, IPv4_HDRLEN);
+  if (dev->d_sndlen != pstate->snd_buflen)
+    {
+      return;
+    }
+
   IFF_SET_IPv4(dev->d_flags);
 
   /* The total length to send is the size of the application data plus the
@@ -107,29 +115,20 @@ static void sendto_request(FAR struct net_driver_s *dev,
 
   dev->d_len = IPv4_HDRLEN + pstate->snd_buflen;
 
-  /* The total size of the data (including the size of the ICMP header) */
-
-  dev->d_sndlen += pstate->snd_buflen;
-
-  /* Copy the ICMP header and payload into place after the IPv4 header */
-
-  icmp              = IPBUF(IPv4_HDRLEN);
-
-  iob_update_pktlen(dev->d_iob, IPv4_HDRLEN);
-
-  iob_copyin(dev->d_iob, pstate->snd_buf,
-             pstate->snd_buflen, IPv4_HDRLEN, false);
-
   /* Initialize the IP header. */
 
   ipv4_build_header(IPv4BUF, dev->d_len, IP_PROTO_ICMP,
                     &dev->d_ipaddr, &pstate->snd_toaddr,
-                    IP_TTL_DEFAULT, NULL);
+                    IP_TTL_DEFAULT, 0, NULL);
+
+  /* Copy the ICMP header and payload into place after the IPv4 header */
+
+  icmp = IPBUF(IPv4_HDRLEN);
 
   /* Calculate the ICMP checksum. */
 
-  icmp->icmpchksum  = 0;
-  icmp->icmpchksum  = ~icmp_chksum_iob(dev->d_iob);
+  icmp->icmpchksum = 0;
+  icmp->icmpchksum = ~icmp_chksum_iob(dev->d_iob);
   if (icmp->icmpchksum == 0)
     {
       icmp->icmpchksum = 0xffff;
@@ -204,8 +203,11 @@ static uint16_t sendto_eventhandler(FAR struct net_driver_s *dev,
           ninfo("Send ICMP request\n");
 
           sendto_request(dev, pstate);
-          pstate->snd_result = OK;
-          goto end_wait;
+          if (dev->d_sndlen > 0)
+            {
+              pstate->snd_result = OK;
+              goto end_wait;
+            }
         }
 
       /* Continue waiting */
@@ -304,7 +306,7 @@ ssize_t icmp_sendmsg(FAR struct socket *psock, FAR struct msghdr *msg,
 #ifdef CONFIG_NET_BINDTODEVICE
   if (conn->sconn.s_boundto != 0)
     {
-      dev = net_bound_device(&conn->sconn);
+      dev = netdev_findbyindex(conn->sconn.s_boundto);
     }
   else
 #endif
@@ -319,6 +321,7 @@ ssize_t icmp_sendmsg(FAR struct socket *psock, FAR struct msghdr *msg,
       goto errout;
     }
 
+#ifndef CONFIG_NET_IPFRAG
   /* Sanity check if the request len is greater than the net payload len */
 
   if (len > NETDEV_PKTSIZE(dev) - (NET_LL_HDRLEN(dev) + IPv4_HDRLEN))
@@ -326,6 +329,7 @@ ssize_t icmp_sendmsg(FAR struct socket *psock, FAR struct msghdr *msg,
       nerr("ERROR: Invalid packet length\n");
       return -EINVAL;
     }
+#endif
 
   /* If we are no longer processing the same ping ID, then flush any pending
    * packets from the read-ahead buffer.
@@ -394,10 +398,10 @@ ssize_t icmp_sendmsg(FAR struct socket *psock, FAR struct msghdr *msg,
       netdev_txnotify_dev(dev);
 
       /* Wait for either the send to complete or for timeout to occur.
-       * net_timedwait will also terminate if a signal is received.
+       * net_sem_timedwait will also terminate if a signal is received.
        */
 
-      ret = net_timedwait(&state.snd_sem,
+      ret = net_sem_timedwait(&state.snd_sem,
                           _SO_TIMEOUT(conn->sconn.s_sndtimeo));
       if (ret < 0)
         {

@@ -25,6 +25,7 @@
 #include <nuttx/config.h>
 
 #include <stdio.h>
+#include <sys/param.h>
 #include <assert.h>
 #include <debug.h>
 #include <errno.h>
@@ -40,7 +41,6 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define MIN(a, b)          (((a) < (b)) ? (a) : (b))
 #define DEVNAME_FMT        "/dev/lirc%d"
 #define DEVNAME_MAX        32
 
@@ -103,8 +103,8 @@ static const struct file_operations g_lirc_fops =
   lirc_write,  /* write */
   NULL,        /* seek */
   lirc_ioctl,  /* ioctl */
-  NULL,        /* truncate */
   NULL,        /* mmap */
+  NULL,        /* truncate */
   lirc_poll    /* poll */
 };
 

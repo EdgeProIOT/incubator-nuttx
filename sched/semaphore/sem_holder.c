@@ -700,6 +700,7 @@ void nxsem_destroyholder(FAR sem_t *sem)
 void nxsem_add_holder_tcb(FAR struct tcb_s *htcb, FAR sem_t *sem)
 {
   FAR struct semholder_s *pholder;
+  uint8_t prioinherit = sem->flags & SEM_PRIO_MASK;
 
   /* If priority inheritance is disabled for this thread or it is IDLE
    * thread, then do not add the holder.
@@ -707,7 +708,7 @@ void nxsem_add_holder_tcb(FAR struct tcb_s *htcb, FAR sem_t *sem)
    * inheritance is effectively disabled.
    */
 
-  if (!is_idle_task(htcb) && (sem->flags & PRIOINHERIT_FLAGS_ENABLE) != 0)
+  if (!is_idle_task(htcb) && prioinherit == SEM_PRIO_INHERIT)
     {
       /* Find or allocate a container for this new holder */
 
@@ -1048,6 +1049,12 @@ void nxsem_release_all(FAR struct tcb_s *htcb)
       FAR sem_t *sem = pholder->sem;
 
       nxsem_freeholder(sem, pholder);
+
+      /* Increment the count on the semaphore, to releases the count
+       * that was taken by sem_wait() or sem_post().
+       */
+
+      sem->semcount++;
     }
 }
 

@@ -1882,7 +1882,7 @@ static void tivacan_bittiming_set(struct can_dev_s *dev,
   DEBUGASSERT(timing->prescaler > TIVA_CAN_PRESCALER_MIN &&
               timing->prescaler < TIVA_CAN_PRESCALER_MAX);
   DEBUGASSERT(timing->tseg1 > TIVA_CAN_TSEG1_MIN &&
-              timing->tseg1 < TIVA_CAN_PRESCALER_MAX);
+              timing->tseg1 < TIVA_CAN_TSEG1_MAX);
   DEBUGASSERT(timing->tseg2 > TIVA_CAN_TSEG2_MIN &&
               timing->tseg2 < TIVA_CAN_TSEG2_MAX);
   DEBUGASSERT(timing->sjw > TIVA_CAN_SJW_MIN &&
@@ -2344,7 +2344,6 @@ static int  tivacan_initfilter(struct can_dev_s *dev,
 int tiva_can_initialize(char *devpath, int modnum)
 {
   struct can_dev_s *dev;
-  struct tiva_canmod_s *canmod;
   int ret;
   caninfo("tiva_can_initialize module %d\n", modnum);
 
@@ -2371,8 +2370,6 @@ int tiva_can_initialize(char *devpath, int modnum)
       return -ENODEV;
     }
 #endif
-
-  canmod = dev->cd_priv;
 
   /* Register the driver */
 

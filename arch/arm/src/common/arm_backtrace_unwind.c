@@ -470,7 +470,11 @@ int unwind_frame(struct unwind_frame_s *frame)
 
   /* Check the personality routine */
 
-  if ((*ctrl.insn & 0xff000000) == 0x80000000)
+  if (((uintptr_t)ctrl.insn & 0x3) != 0)
+    {
+      return -1;
+    }
+  else if ((*ctrl.insn & 0xff000000) == 0x80000000)
     {
       ctrl.byte = 2;
       ctrl.entries = 1;
@@ -623,16 +627,16 @@ int up_backtrace(struct tcb_s *tcb,
 #  ifdef CONFIG_SMP
           frame.stack_top = arm_intstack_top();
 #  else
-          frame.stack_top = &g_intstacktop;
+          frame.stack_top = (unsigned long)&g_intstacktop;
 #  endif /* CONFIG_SMP */
 #endif /* CONFIG_ARCH_INTERRUPTSTACK > 7 */
 
           ret = backtrace_unwind(&frame, buffer, size, &skip);
           if (ret < size)
             {
-              frame.fp = rtcb->xcp.regs[REG_FP];
-              frame.sp = rtcb->xcp.regs[REG_SP];
-              frame.pc = rtcb->xcp.regs[REG_PC];
+              frame.fp = CURRENT_REGS[REG_FP];
+              frame.sp = CURRENT_REGS[REG_SP];
+              frame.pc = CURRENT_REGS[REG_PC];
               frame.lr = 0;
               frame.stack_top = (unsigned long)rtcb->stack_base_ptr +
                                                rtcb->adj_stack_size;

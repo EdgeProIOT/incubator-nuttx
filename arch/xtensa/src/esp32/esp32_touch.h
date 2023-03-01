@@ -63,8 +63,6 @@ struct touch_config_s
   enum touch_cnt_slope_e slope;
   enum touch_tie_opt_e tie_opt;
   enum touch_fsm_mode_e fsm_mode;
-  uint16_t interrupt_threshold;
-  uint16_t logic_threshold;
   uint32_t filter_period;
 };
 
@@ -72,18 +70,18 @@ struct touch_config_s
  * Public Data
  ****************************************************************************/
 
-static const uint8_t touch_channel_to_gpio[] =
+static const uint8_t touch_channel_to_rtcio[] =
 {
-  TOUCH_PAD_NUM0_GPIO_NUM,
-  TOUCH_PAD_NUM1_GPIO_NUM,
-  TOUCH_PAD_NUM2_GPIO_NUM,
-  TOUCH_PAD_NUM3_GPIO_NUM,
-  TOUCH_PAD_NUM4_GPIO_NUM,
-  TOUCH_PAD_NUM5_GPIO_NUM,
-  TOUCH_PAD_NUM6_GPIO_NUM,
-  TOUCH_PAD_NUM7_GPIO_NUM,
-  TOUCH_PAD_NUM8_GPIO_NUM,
-  TOUCH_PAD_NUM9_GPIO_NUM
+  TOUCH_PAD_NUM0_CHANNEL_NUM,
+  TOUCH_PAD_NUM1_CHANNEL_NUM,
+  TOUCH_PAD_NUM2_CHANNEL_NUM,
+  TOUCH_PAD_NUM3_CHANNEL_NUM,
+  TOUCH_PAD_NUM4_CHANNEL_NUM,
+  TOUCH_PAD_NUM5_CHANNEL_NUM,
+  TOUCH_PAD_NUM6_CHANNEL_NUM,
+  TOUCH_PAD_NUM7_CHANNEL_NUM,
+  TOUCH_PAD_NUM8_CHANNEL_NUM,
+  TOUCH_PAD_NUM9_CHANNEL_NUM
 };
 
 #undef EXTERN
@@ -135,6 +133,97 @@ int esp32_configtouch(enum touch_pad_e tp, struct touch_config_s config);
  ****************************************************************************/
 
 bool esp32_touchread(enum touch_pad_e tp);
+
+/****************************************************************************
+ * Name: esp32_touchreadraw
+ *
+ * Description:
+ *   Read the analog value of a touch pad channel.
+ *
+ * Input Parameters:
+ *   tp - The touch pad channel.
+ *
+ * Returned Value:
+ *   The number of charge and discharge cycles done in the last measurement.
+ *
+ ****************************************************************************/
+
+uint16_t esp32_touchreadraw(enum touch_pad_e tp);
+
+/****************************************************************************
+ * Name: esp32_touchsetthreshold
+ *
+ * Description:
+ *   Configure the threshold for a touch pad channel.
+ *
+ * Input Parameters:
+ *   tp - The touch pad channel;
+ *   threshold - The threshold value.
+ *
+ * Returned Value:
+ *   None.
+ *
+ ****************************************************************************/
+
+void esp32_touchsetthreshold(enum touch_pad_e tp, uint16_t threshold);
+
+/****************************************************************************
+ * Name: esp32_touchirqenable
+ *
+ * Description:
+ *   Enable the interrupt for the specified touch pad.
+ *
+ * Input Parameters:
+ *   irq - The touch pad irq number.
+ *
+ * Returned Value:
+ *   None.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_ESP32_TOUCH_IRQ
+void esp32_touchirqenable(int irq);
+#else
+#  define esp32_touchirqenable(irq)
+#endif
+
+/****************************************************************************
+ * Name: esp32_touchirqdisable
+ *
+ * Description:
+ *   Disable the interrupt for the specified touch pad.
+ *
+ * Input Parameters:
+ *   irq - The touch pad irq number.
+ *
+ * Returned Value:
+ *   None.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_ESP32_TOUCH_IRQ
+void esp32_touchirqdisable(int irq);
+#else
+#  define esp32_touchirqdisable(irq)
+#endif
+
+/****************************************************************************
+ * Name: esp32_touchregisterreleasecb
+ *
+ * Description:
+ *   Register the release callback.
+ *
+ * Input Parameters:
+ *   func - The handler function to be used.
+ *
+ * Returned Value:
+ *   None.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_ESP32_TOUCH_IRQ
+void esp32_touchregisterreleasecb(int (*func)(int, void *, void *));
+#endif
 
 #ifdef __cplusplus
 }

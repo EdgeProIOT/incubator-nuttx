@@ -32,7 +32,6 @@
 #include <nuttx/irq.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/kmalloc.h>
-#include <nuttx/lib/lib.h>
 #include <nuttx/semaphore.h>
 #include <nuttx/sched.h>
 
@@ -52,7 +51,7 @@
  * Public Data
  ****************************************************************************/
 
-#if defined(HAVE_GROUP_MEMBERS) || defined(CONFIG_ARCH_ADDRENV)
+#if defined(HAVE_GROUP_MEMBERS)
 /* This is the head of a list of all group members */
 
 FAR struct task_group_s *g_grouphead;
@@ -165,14 +164,6 @@ int group_allocate(FAR struct task_tcb_s *tcb, uint8_t ttype)
   group->tg_mxmembers = GROUP_INITIAL_MEMBERS;
 #endif
 
-  /* Alloc task info for group  */
-
-  ret = task_init_info(group);
-  if (ret < 0)
-    {
-      goto errout_with_member;
-    }
-
   /* Attach the group to the TCB */
 
   tcb->cmn.group = group;
@@ -185,11 +176,13 @@ int group_allocate(FAR struct task_tcb_s *tcb, uint8_t ttype)
 
   files_initlist(&group->tg_filelist);
 
-#ifdef CONFIG_FILE_STREAM
-  /* Initialize file streams for the task group */
+  /* Alloc task info for group  */
 
-  lib_stream_initialize(group);
-#endif
+  ret = task_init_info(group);
+  if (ret < 0)
+    {
+      goto errout_with_member;
+    }
 
 #ifndef CONFIG_DISABLE_PTHREAD
   /* Initialize the pthread join mutex */
@@ -238,12 +231,17 @@ errout_with_group:
 void group_initialize(FAR struct task_tcb_s *tcb)
 {
   FAR struct task_group_s *group;
-#if defined(HAVE_GROUP_MEMBERS) || defined(CONFIG_ARCH_ADDRENV)
+#if defined(HAVE_GROUP_MEMBERS)
   irqstate_t flags;
 #endif
 
   DEBUGASSERT(tcb && tcb->cmn.group);
   group = tcb->cmn.group;
+
+  /* Allocate mm_map list if required */
+
+  mm_map_initialize(&group->tg_mm_map,
+                    (tcb->cmn.flags & TCB_FLAG_TTYPE_KERNEL) != 0);
 
 #ifdef HAVE_GROUP_MEMBERS
   /* Assign the PID of this new task as a member of the group. */
@@ -263,7 +261,7 @@ void group_initialize(FAR struct task_tcb_s *tcb)
 
   group->tg_nmembers = 1;
 
-#if defined(HAVE_GROUP_MEMBERS) || defined(CONFIG_ARCH_ADDRENV)
+#if defined(HAVE_GROUP_MEMBERS)
   /* Add the initialized entry to the list of groups */
 
   flags = enter_critical_section();

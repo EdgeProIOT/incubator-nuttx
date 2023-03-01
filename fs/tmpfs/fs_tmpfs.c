@@ -178,8 +178,8 @@ const struct mountpt_operations tmpfs_operations =
   tmpfs_write,      /* write */
   tmpfs_seek,       /* seek */
   NULL,             /* ioctl */
-  tmpfs_truncate,   /* truncate */
   tmpfs_mmap,       /* mmap */
+  tmpfs_truncate,   /* truncate */
 
   tmpfs_sync,       /* sync */
   tmpfs_dup,        /* dup */
@@ -1444,6 +1444,7 @@ static int tmpfs_close(FAR struct file *filep)
        * have any other references.
        */
 
+      nxrmutex_destroy(&tfo->tfo_lock);
       kmm_free(tfo->tfo_data);
       kmm_free(tfo);
       return OK;
@@ -1655,7 +1656,8 @@ static int tmpfs_mmap(FAR struct file *filep, FAR struct mm_map_entry_s *map)
 
   DEBUGASSERT(tfo != NULL);
 
-  if (map && map->offset + map->length <= tfo->tfo_size)
+  if (map->offset >= 0 && map->offset < tfo->tfo_size &&
+      map->length && map->offset + map->length <= tfo->tfo_size)
     {
       map->vaddr = tfo->tfo_data + map->offset;
       ret = OK;

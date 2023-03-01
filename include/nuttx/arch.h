@@ -644,6 +644,9 @@ void up_allocate_heap(FAR void **heap_start, size_t *heap_size);
  *   as determined by CONFIG_MM_KERNEL_HEAP=y.  This function allocates (and
  *   protects) the kernel-space heap.
  *
+ *   For Flat build (CONFIG_BUILD_FLAT=y), this function enables a separate
+ *   (although unprotected) heap for the kernel.
+ *
  ****************************************************************************/
 
 #ifdef CONFIG_MM_KERNEL_HEAP
@@ -772,7 +775,7 @@ bool up_textheap_heapmember(FAR void *p);
  * Address Environment Interfaces
  *
  * Low-level interfaces used in binfmt/ to instantiate tasks with address
- * environments.  These interfaces all operate on type group_addrenv_t which
+ * environments.  These interfaces all operate on type arch_addrenv_t which
  * is an abstract representation of a task group's address environment and
  * must be defined in arch/arch.h if CONFIG_ARCH_ADDRENV is defined.
  *
@@ -786,7 +789,6 @@ bool up_textheap_heapmember(FAR void *p);
  *                         address environment
  *   up_addrenv_heapsize - Returns the size of the initial heap allocation.
  *   up_addrenv_select   - Instantiate an address environment
- *   up_addrenv_restore  - Restore an address environment
  *   up_addrenv_clone    - Copy an address environment from one location to
  *                         another.
  *
@@ -869,7 +871,7 @@ bool up_textheap_heapmember(FAR void *p);
 
 #ifdef CONFIG_ARCH_ADDRENV
 int up_addrenv_create(size_t textsize, size_t datasize, size_t heapsize,
-                      FAR group_addrenv_t *addrenv);
+                      FAR arch_addrenv_t *addrenv);
 #endif
 
 /****************************************************************************
@@ -889,7 +891,7 @@ int up_addrenv_create(size_t textsize, size_t datasize, size_t heapsize,
  ****************************************************************************/
 
 #ifdef CONFIG_ARCH_ADDRENV
-int up_addrenv_destroy(FAR group_addrenv_t *addrenv);
+int up_addrenv_destroy(FAR arch_addrenv_t *addrenv);
 #endif
 
 /****************************************************************************
@@ -911,7 +913,7 @@ int up_addrenv_destroy(FAR group_addrenv_t *addrenv);
  ****************************************************************************/
 
 #ifdef CONFIG_ARCH_ADDRENV
-int up_addrenv_vtext(FAR group_addrenv_t *addrenv, FAR void **vtext);
+int up_addrenv_vtext(FAR arch_addrenv_t *addrenv, FAR void **vtext);
 #endif
 
 /****************************************************************************
@@ -941,7 +943,7 @@ int up_addrenv_vtext(FAR group_addrenv_t *addrenv, FAR void **vtext);
  ****************************************************************************/
 
 #ifdef CONFIG_ARCH_ADDRENV
-int up_addrenv_vdata(FAR group_addrenv_t *addrenv, uintptr_t textsize,
+int up_addrenv_vdata(FAR arch_addrenv_t *addrenv, uintptr_t textsize,
                      FAR void **vdata);
 #endif
 
@@ -964,7 +966,7 @@ int up_addrenv_vdata(FAR group_addrenv_t *addrenv, uintptr_t textsize,
  ****************************************************************************/
 
 #if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_BUILD_KERNEL)
-int up_addrenv_vheap(FAR const group_addrenv_t *addrenv, FAR void **vheap);
+int up_addrenv_vheap(FAR const arch_addrenv_t *addrenv, FAR void **vheap);
 #endif
 
 /****************************************************************************
@@ -987,7 +989,7 @@ int up_addrenv_vheap(FAR const group_addrenv_t *addrenv, FAR void **vheap);
  ****************************************************************************/
 
 #if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_BUILD_KERNEL)
-ssize_t up_addrenv_heapsize(FAR const group_addrenv_t *addrenv);
+ssize_t up_addrenv_heapsize(FAR const arch_addrenv_t *addrenv);
 #endif
 
 /****************************************************************************
@@ -1003,12 +1005,6 @@ ssize_t up_addrenv_heapsize(FAR const group_addrenv_t *addrenv);
  * Input Parameters:
  *   addrenv - The representation of the task address environment previously
  *     returned by up_addrenv_create.
- *   oldenv
- *     The address environment that was in place before up_addrenv_select().
- *     This may be used with up_addrenv_restore() to restore the original
- *     address environment that was in place before up_addrenv_select() was
- *     called.  Note that this may be a task agnostic, platform-specific
- *     representation that may or may not be different from group_addrenv_t.
  *
  * Returned Value:
  *   Zero (OK) on success; a negated errno value on failure.
@@ -1016,29 +1012,7 @@ ssize_t up_addrenv_heapsize(FAR const group_addrenv_t *addrenv);
  ****************************************************************************/
 
 #ifdef CONFIG_ARCH_ADDRENV
-int up_addrenv_select(FAR const group_addrenv_t *addrenv,
-                      FAR save_addrenv_t *oldenv);
-#endif
-
-/****************************************************************************
- * Name: up_addrenv_restore
- *
- * Description:
- *   After an address environment has been temporarily instantiated by
- *   up_addrenv_select(), this function may be called to restore the
- *   original address environment.
- *
- * Input Parameters:
- *   oldenv - The platform-specific representation of the address environment
- *     previously returned by up_addrenv_select.
- *
- * Returned Value:
- *   Zero (OK) on success; a negated errno value on failure.
- *
- ****************************************************************************/
-
-#ifdef CONFIG_ARCH_ADDRENV
-int up_addrenv_restore(FAR const save_addrenv_t *oldenv);
+int up_addrenv_select(FAR const arch_addrenv_t *addrenv);
 #endif
 
 /****************************************************************************
@@ -1058,7 +1032,7 @@ int up_addrenv_restore(FAR const save_addrenv_t *oldenv);
  ****************************************************************************/
 
 #ifdef CONFIG_ARCH_ADDRENV
-int up_addrenv_coherent(FAR const group_addrenv_t *addrenv);
+int up_addrenv_coherent(FAR const arch_addrenv_t *addrenv);
 #endif
 
 /****************************************************************************
@@ -1079,8 +1053,8 @@ int up_addrenv_coherent(FAR const group_addrenv_t *addrenv);
  ****************************************************************************/
 
 #ifdef CONFIG_ARCH_ADDRENV
-int up_addrenv_clone(FAR const group_addrenv_t *src,
-                     FAR group_addrenv_t *dest);
+int up_addrenv_clone(FAR const arch_addrenv_t *src,
+                     FAR arch_addrenv_t *dest);
 #endif
 
 /****************************************************************************
@@ -1091,13 +1065,9 @@ int up_addrenv_clone(FAR const group_addrenv_t *src,
  *   is created that needs to share the address environment of its task
  *   group.
  *
- *   NOTE: In some platforms, nothing will need to be done in this case.
- *   Simply being a member of the group that has the address environment
- *   may be sufficient.
- *
  * Input Parameters:
- *   group - The task group to which the new thread belongs.
- *   tcb   - The TCB of the thread needing the address environment.
+ *   ptcb  - The tcb of the parent task.
+ *   tcb   - The tcb of the thread needing the address environment.
  *
  * Returned Value:
  *   Zero (OK) on success; a negated errno value on failure.
@@ -1105,7 +1075,7 @@ int up_addrenv_clone(FAR const group_addrenv_t *src,
  ****************************************************************************/
 
 #ifdef CONFIG_ARCH_ADDRENV
-int up_addrenv_attach(FAR struct task_group_s *group, FAR struct tcb_s *tcb);
+int up_addrenv_attach(FAR struct tcb_s *ptcb, FAR struct tcb_s *tcb);
 #endif
 
 /****************************************************************************
@@ -1118,12 +1088,7 @@ int up_addrenv_attach(FAR struct task_group_s *group, FAR struct tcb_s *tcb);
  *   task group is itself destroyed.  Any resources unique to this thread
  *   may be destroyed now.
  *
- *   NOTE: In some platforms, nothing will need to be done in this case.
- *   Simply being a member of the group that has the address environment
- *   may be sufficient.
- *
  * Input Parameters:
- *   group - The group to which the thread belonged.
  *   tcb - The TCB of the task or thread whose the address environment will
  *     be released.
  *
@@ -1133,7 +1098,7 @@ int up_addrenv_attach(FAR struct task_group_s *group, FAR struct tcb_s *tcb);
  ****************************************************************************/
 
 #ifdef CONFIG_ARCH_ADDRENV
-int up_addrenv_detach(FAR struct task_group_s *group, FAR struct tcb_s *tcb);
+int up_addrenv_detach(FAR struct tcb_s *tcb);
 #endif
 
 /****************************************************************************
@@ -1154,7 +1119,7 @@ int up_addrenv_detach(FAR struct task_group_s *group, FAR struct tcb_s *tcb);
  ****************************************************************************/
 
 #ifdef CONFIG_ARCH_ADDRENV
-int up_addrenv_mprot(FAR group_addrenv_t *addrenv, uintptr_t addr,
+int up_addrenv_mprot(FAR arch_addrenv_t *addrenv, uintptr_t addr,
                      size_t len, int prot);
 #endif
 
@@ -1346,7 +1311,7 @@ uintptr_t up_addrenv_va_to_pa(FAR void *va);
  *
  ****************************************************************************/
 
-#ifdef CONFIG_MM_SHM
+#ifdef CONFIG_ARCH_VMA_MAPPING
 int up_shmat(FAR uintptr_t *pages, unsigned int npages, uintptr_t vaddr);
 #endif
 
@@ -1367,7 +1332,7 @@ int up_shmat(FAR uintptr_t *pages, unsigned int npages, uintptr_t vaddr);
  *
  ****************************************************************************/
 
-#ifdef CONFIG_MM_SHM
+#ifdef CONFIG_ARCH_VMA_MAPPING
 int up_shmdt(uintptr_t vaddr, unsigned int npages);
 #endif
 
@@ -1548,7 +1513,7 @@ void up_timer_initialize(void);
  *
  * Description:
  *   Return the elapsed time since power-up (or, more correctly, since
- *   the archtecture-specific timer was initialized).  This function is
+ *   the architecture-specific timer was initialized).  This function is
  *   functionally equivalent to:
  *
  *      int clock_gettime(clockid_t clockid, FAR struct timespec *ts);
@@ -2138,7 +2103,7 @@ char up_romgetc(FAR const char *ptr);
  * Name: up_mdelay and up_udelay
  *
  * Description:
- *   Some device drivers may require that the plaform-specific logic
+ *   Some device drivers may require that the platform-specific logic
  *   provides these timing loops for short delays.
  *
  ****************************************************************************/
@@ -2246,7 +2211,7 @@ void nxsched_process_cpuload_ticks(uint32_t ticks);
  * Name: irq_dispatch
  *
  * Description:
- *   This function must be called from the achitecture-specific logic in
+ *   This function must be called from the architecture-specific logic in
  *   order to dispatch an interrupt to the appropriate, registered handling
  *   logic.
  *

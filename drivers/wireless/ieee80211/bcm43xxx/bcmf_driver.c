@@ -83,13 +83,13 @@
 #define DL_END                0x0004
 
 #define WPA_OUI_LEN           3               /* WPA OUI length */
+#define WPA_VERSION           1               /* WPA version */
 #define WPA_VERSION_LEN       2               /* WPA version length */
 #define WLAN_WPA_OUI          0xf25000
 #define WLAN_WPA_OUI_TYPE     0x01
 #define WLAN_WPA_SEL(x)       (((x) << 24) | WLAN_WPA_OUI)
 #define WLAN_AKM_PSK          0x02
 #define SUITE(oui, id)        (((oui) << 8) | (id))
-#define WLAN_AKM_SUITE_PSK    SUITE(0x000FAC, WLAN_AKM_PSK)
 
 /****************************************************************************
  * Private Types
@@ -625,11 +625,6 @@ void bcmf_wl_auth_event_handler(FAR struct bcmf_dev_s *priv,
       return;
     }
 
-  if (!priv->bc_bifup)
-    {
-      return;
-    }
-
   bcmf_hexdump((uint8_t *)event, len, (unsigned long)event);
 
   if (type == WLC_E_PSK_SUP)
@@ -800,7 +795,7 @@ void bcmf_wl_scan_event_handler(FAR struct bcmf_dev_s *priv,
 
           switch (ie_buffer[ie_offset])
             {
-              case IEEE80211_ELEMID_RSN:
+              case WLAN_EID_RSN:
                 {
                   FAR wpa_rsn_t *rsn = (FAR wpa_rsn_t *)
                                        &ie_buffer[ie_offset + 2];
@@ -833,7 +828,7 @@ void bcmf_wl_scan_event_handler(FAR struct bcmf_dev_s *priv,
                   break;
                 }
 
-              case IEEE80211_ELEMID_VENDOR:
+              case WLAN_EID_VENDOR_SPECIFIC:
                 {
                   FAR wpa_ie_fixed_t *ie = (FAR wpa_ie_fixed_t *)
                                            &ie_buffer[ie_offset];
@@ -1002,7 +997,7 @@ static int bcmf_wl_scan_format_results(FAR struct bcmf_dev_s *priv,
   for (i = 0; i < priv->scan_result_entries; i++)
     {
       scan_result[i] = &priv->scan_result[i];
-      len += (min(strlen((FAR const char *)scan_result[i]->SSID),
+      len += (MIN(strlen((FAR const char *)scan_result[i]->SSID),
                          32) + 3) & ~3;
     }
 
@@ -1050,7 +1045,7 @@ static int bcmf_wl_scan_format_results(FAR struct bcmf_dev_s *priv,
       iwe = (FAR struct iw_event *)pointer;
       iwe->cmd = SIOCGIWESSID;
       iwe->u.essid.flags = 0;
-      iwe->u.essid.length = min(strlen((FAR const char *)info->SSID), 32);
+      iwe->u.essid.length = MIN(strlen((FAR const char *)info->SSID), 32);
       iwe->u.essid.pointer = (FAR void *)sizeof(iwe->u.essid);
       memcpy(&iwe->u.essid + 1, info->SSID, iwe->u.essid.length);
       iwe->len = IW_EV_LEN(essid) + ((iwe->u.essid.length + 3) & ~3);

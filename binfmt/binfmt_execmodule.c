@@ -31,10 +31,10 @@
 #include <debug.h>
 #include <errno.h>
 
+#include <nuttx/addrenv.h>
 #include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/sched.h>
-#include <nuttx/mm/shm.h>
 #include <nuttx/binfmt/binfmt.h>
 
 #include "binfmt.h"
@@ -111,13 +111,13 @@ static void exec_ctors(FAR void *arg)
  *
  ****************************************************************************/
 
-int exec_module(FAR const struct binary_s *binp,
+int exec_module(FAR struct binary_s *binp,
                 FAR const char *filename, FAR char * const *argv,
                 FAR char * const *envp)
 {
   FAR struct task_tcb_s *tcb;
 #if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_BUILD_KERNEL)
-  save_addrenv_t oldenv;
+  FAR struct arch_addrenv_s *addrenv = &binp->addrenv.addrenv;
   FAR void *vheap;
 #endif
   FAR void *stackaddr = NULL;
@@ -165,14 +165,14 @@ int exec_module(FAR const struct binary_s *binp,
 #if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_BUILD_KERNEL)
   /* Instantiate the address environment containing the user heap */
 
-  ret = up_addrenv_select(&binp->addrenv, &oldenv);
+  ret = addrenv_select(&binp->addrenv);
   if (ret < 0)
     {
-      berr("ERROR: up_addrenv_select() failed: %d\n", ret);
+      berr("ERROR: addrenv_select() failed: %d\n", ret);
       goto errout_with_envp;
     }
 
-  ret = up_addrenv_vheap(&binp->addrenv, &vheap);
+  ret = up_addrenv_vheap(addrenv, &vheap);
   if (ret < 0)
     {
       berr("ERROR: up_addrenv_vheap() failed: %d\n", ret);
@@ -180,8 +180,8 @@ int exec_module(FAR const struct binary_s *binp,
     }
 
   binfo("Initialize the user heap (heapsize=%zu)\n",
-        up_addrenv_heapsize(&binp->addrenv));
-  umm_initialize(vheap, up_addrenv_heapsize(&binp->addrenv));
+        up_addrenv_heapsize(addrenv));
+  umm_initialize(vheap, up_addrenv_heapsize(addrenv));
 #endif
 
   /* Note that tcb->flags are not modified.  0=normal task */
@@ -227,17 +227,6 @@ int exec_module(FAR const struct binary_s *binp,
     }
 #endif
 
-#ifdef CONFIG_MM_SHM
-  /* Initialize the shared memory virtual page allocator */
-
-  ret = shm_group_initialize(tcb->cmn.group);
-  if (ret < 0)
-    {
-      berr("ERROR: shm_group_initialize() failed: %d\n", ret);
-      goto errout_with_tcbinit;
-    }
-#endif
-
 #ifdef CONFIG_PIC
   /* Add the D-Space address as the PIC base address.  By convention, this
    * must be the first allocated address space.
@@ -251,18 +240,14 @@ int exec_module(FAR const struct binary_s *binp,
 #endif
 
 #ifdef CONFIG_ARCH_ADDRENV
-  /* Assign the address environment to the new task group */
+  /* Attach the address environment to the new task */
 
-  ret = up_addrenv_clone(&binp->addrenv, &tcb->cmn.group->tg_addrenv);
+  ret = addrenv_attach((FAR struct tcb_s *)tcb, &binp->addrenv);
   if (ret < 0)
     {
-      berr("ERROR: up_addrenv_clone() failed: %d\n", ret);
+      berr("ERROR: addrenv_attach() failed: %d\n", ret);
       goto errout_with_tcbinit;
     }
-
-  /* Mark that this group has an address environment */
-
-  tcb->cmn.group->tg_flags |= GROUP_FLAG_ADDRENV;
 #endif
 
 #ifdef CONFIG_BINFMT_CONSTRUCTORS
@@ -288,17 +273,17 @@ int exec_module(FAR const struct binary_s *binp,
 #if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_BUILD_KERNEL)
   /* Restore the address environment of the caller */
 
-  ret = up_addrenv_restore(&oldenv);
+  ret = addrenv_restore();
   if (ret < 0)
     {
-      berr("ERROR: up_addrenv_restore() failed: %d\n", ret);
+      berr("ERROR: addrenv_restore() failed: %d\n", ret);
       goto errout_with_tcbinit;
     }
 #endif
 
   return (int)pid;
 
-#if defined(CONFIG_ARCH_ADDRENV) || defined(CONFIG_MM_SHM)
+#if defined(CONFIG_ARCH_ADDRENV) || defined(CONFIG_ARCH_VMA_MAPPING)
 errout_with_tcbinit:
   tcb->cmn.stack_alloc_ptr = NULL;
   nxsched_release_tcb(&tcb->cmn, TCB_FLAG_TTYPE_TASK);
@@ -307,7 +292,7 @@ errout_with_tcbinit:
 
 errout_with_addrenv:
 #if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_BUILD_KERNEL)
-  up_addrenv_restore(&oldenv);
+  addrenv_restore();
 errout_with_envp:
 #endif
   binfmt_freeenv(envp);

@@ -41,8 +41,7 @@
  * Private Function Prototypes
  ****************************************************************************/
 
-static int        usrsock_sockif_setup(FAR struct socket *psock,
-                                       int protocol);
+static int        usrsock_sockif_setup(FAR struct socket *psock);
 static sockcaps_t usrsock_sockif_sockcaps(FAR struct socket *psock);
 static void       usrsock_sockif_addref(FAR struct socket *psock);
 static int        usrsock_sockif_close(FAR struct socket *psock);
@@ -67,7 +66,8 @@ const struct sock_intf_s g_usrsock_sockif =
   usrsock_recvmsg,            /* si_recvmsg */
   usrsock_sockif_close,       /* si_close */
   usrsock_ioctl,              /* si_ioctl */
-  NULL                        /* si_socketpair */
+  NULL,                       /* si_socketpair */
+  usrsock_shutdown            /* si_shutdown */
 #ifdef CONFIG_NET_SOCKOPTS
   , usrsock_getsockopt        /* si_getsockopt */
   , usrsock_setsockopt        /* si_setsockopt */
@@ -89,7 +89,6 @@ const struct sock_intf_s g_usrsock_sockif =
  * Input Parameters:
  *   psock    - A pointer to a user allocated socket structure to be
  *              initialized.
- *   protocol - (see sys/socket.h)
  *
  * Returned Value:
  *   Zero (OK) is returned on success.  Otherwise, a negated errno value is
@@ -97,7 +96,7 @@ const struct sock_intf_s g_usrsock_sockif =
  *
  ****************************************************************************/
 
-static int usrsock_sockif_setup(FAR struct socket *psock, int protocol)
+static int usrsock_sockif_setup(FAR struct socket *psock)
 {
   int ret;
 
@@ -110,7 +109,8 @@ static int usrsock_sockif_setup(FAR struct socket *psock, int protocol)
    * to open socket with kernel networking stack in this case.
    */
 
-  ret = usrsock_socket(psock->s_domain, psock->s_type, protocol, psock);
+  ret = usrsock_socket(psock->s_domain, psock->s_type, psock->s_proto,
+                       psock);
   if (ret == -ENETDOWN)
     {
       nwarn("WARNING: usrsock daemon is not running\n");

@@ -24,8 +24,10 @@
 
 #include <nuttx/config.h>
 
+#include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <limits.h>
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
@@ -548,7 +550,7 @@ static int dir_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
   if (cmd == FIOC_FILEPATH)
     {
-      strcpy((FAR char *)(uintptr_t)arg, dir->fd_path);
+      strlcpy((FAR char *)(uintptr_t)arg, dir->fd_path, PATH_MAX);
       ret = OK;
     }
 
@@ -571,6 +573,7 @@ int dir_allocate(FAR struct file *filep, FAR const char *relpath)
 {
   FAR struct fs_dirent_s *dir;
   FAR struct inode *inode = filep->f_inode;
+  char path_prefix[PATH_MAX];
   int ret;
 
   /* Is this a node in the pseudo filesystem? Or a mountpoint? */
@@ -596,7 +599,8 @@ int dir_allocate(FAR struct file *filep, FAR const char *relpath)
         }
     }
 
-  dir->fd_path = strdup(relpath);
+  inode_getpath(inode, path_prefix);
+  asprintf(&dir->fd_path, "%s%s/", path_prefix, relpath);
   filep->f_inode  = &g_dir_inode;
   filep->f_priv   = dir;
   inode_addref(&g_dir_inode);

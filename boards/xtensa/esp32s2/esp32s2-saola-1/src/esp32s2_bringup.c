@@ -58,6 +58,14 @@
 #  include "esp32s2_rt_timer.h"
 #endif
 
+#ifdef CONFIG_ESP32S2_EFUSE
+#  include "esp32s2_efuse.h"
+#endif
+
+#ifdef CONFIG_ESP32S2_LEDC
+#  include "esp32s2_ledc.h"
+#endif
+
 #ifdef CONFIG_WATCHDOG
 #  include "esp32s2_board_wdt.h"
 #endif
@@ -111,6 +119,14 @@ int esp32s2_bringup(void)
     }
 #endif
 
+#if defined(CONFIG_ESP32S2_EFUSE)
+  ret = esp32s2_efuse_initialize("/dev/efuse");
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to init EFUSE: %d\n", ret);
+    }
+#endif
+
 #ifdef CONFIG_WATCHDOG
   /* Configure watchdog timer */
 
@@ -120,6 +136,14 @@ int esp32s2_bringup(void)
       syslog(LOG_ERR, "Failed to initialize watchdog timer: %d\n", ret);
     }
 #endif
+
+#ifdef CONFIG_ESP32S2_LEDC
+  ret = esp32s2_pwm_setup();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: esp32s2_pwm_setup() failed: %d\n", ret);
+    }
+#endif /* CONFIG_ESP32S2_LEDC */
 
 #ifdef CONFIG_DEV_GPIO
   ret = esp32s2_gpio_init();
@@ -218,6 +242,16 @@ int esp32s2_bringup(void)
     {
       syslog(LOG_ERR,
              "Failed to initialize BMP180 driver for I2C0: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_INPUT_BUTTONS
+  /* Register the BUTTON driver */
+
+  ret = btn_lower_initialize("/dev/buttons");
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: btn_lower_initialize() failed: %d\n", ret);
     }
 #endif
 

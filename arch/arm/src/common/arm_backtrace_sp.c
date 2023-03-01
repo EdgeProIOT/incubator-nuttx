@@ -170,7 +170,7 @@ static int backtrace_branch(unsigned long top, unsigned long sp,
  *  The up call up_backtrace_init_code_regions() will set the start
  *  and end addresses of the customized program sections, this method
  *  will help the different boards to configure the current text
- *  sections for some complicate platfroms
+ *  sections for some complicate platforms
  *
  * Input Parameters:
  *   regions  The start and end address of the text segment
@@ -262,7 +262,7 @@ int up_backtrace(struct tcb_s *tcb,
               ret += backtrace_branch((unsigned long)
                                       rtcb->stack_base_ptr +
                                       rtcb->adj_stack_size,
-                                      rtcb->xcp.regs[REG_SP],
+                                      CURRENT_REGS[REG_SP],
                                       &buffer[ret],
                                       size - ret, &skip);
             }

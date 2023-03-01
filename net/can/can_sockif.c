@@ -48,7 +48,7 @@
  * Private Function Prototypes
  ****************************************************************************/
 
-static int  can_setup(FAR struct socket *psock, int protocol);
+static int  can_setup(FAR struct socket *psock);
 static sockcaps_t can_sockcaps(FAR struct socket *psock);
 static void can_addref(FAR struct socket *psock);
 static int  can_bind(FAR struct socket *psock,
@@ -86,7 +86,8 @@ const struct sock_intf_s g_can_sockif =
   can_recvmsg,      /* si_recvmsg */
   can_close,        /* si_close */
   NULL,             /* si_ioctl */
-  NULL              /* si_socketpair */
+  NULL,             /* si_socketpair */
+  NULL              /* si_shutdown */
 #if defined(CONFIG_NET_SOCKOPTS) && defined(CONFIG_NET_CANPROTO_OPTIONS)
   , can_getsockopt  /* si_getsockopt */
   , can_setsockopt  /* si_setsockopt */
@@ -171,7 +172,6 @@ static uint16_t can_poll_eventhandler(FAR struct net_driver_s *dev,
  * Input Parameters:
  *   psock    - A pointer to a user allocated socket structure to be
  *              initialized.
- *   protocol - CAN socket protocol (see sys/socket.h)
  *
  * Returned Value:
  *   Zero (OK) is returned on success.  Otherwise, a negated errno value is
@@ -179,16 +179,17 @@ static uint16_t can_poll_eventhandler(FAR struct net_driver_s *dev,
  *
  ****************************************************************************/
 
-static int can_setup(FAR struct socket *psock, int protocol)
+static int can_setup(FAR struct socket *psock)
 {
   int domain = psock->s_domain;
   int type = psock->s_type;
+  int proto = psock->s_proto;
 
   /* Verify that the protocol is supported */
 
-  DEBUGASSERT((unsigned int)protocol <= UINT8_MAX);
+  DEBUGASSERT((unsigned int)proto <= UINT8_MAX);
 
-  switch (protocol)
+  switch (proto)
     {
       case 0:            /* INET subsystem for netlib_ifup */
       case CAN_RAW:      /* RAW sockets */
@@ -206,7 +207,8 @@ static int can_setup(FAR struct socket *psock, int protocol)
 
   /* Verify the socket type (domain should always be PF_CAN here) */
 
-  if (domain == PF_CAN && (type == SOCK_RAW || type == SOCK_DGRAM))
+  if (domain == PF_CAN &&
+      (type == SOCK_RAW || type == SOCK_DGRAM || type == SOCK_CTRL))
     {
       /* Allocate the CAN socket connection structure and save it in the
        * new socket instance.
@@ -219,10 +221,6 @@ static int can_setup(FAR struct socket *psock, int protocol)
 
           return -ENOMEM;
         }
-
-      /* Initialize the connection instance */
-
-      conn->protocol = (uint8_t)protocol;
 
       /* Set the reference count on the connection structure.  This
        * reference count will be incremented only if the socket is

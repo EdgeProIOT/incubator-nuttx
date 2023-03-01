@@ -58,6 +58,7 @@
 #define IPPROTO_ESP           50   /* Encapsulation Security Payload protocol */
 #define IPPROTO_AH            51   /* Authentication Header protocol */
 #define IPPROTO_ICMP6         58   /* Internal Control Message Protocol v6 */
+#define IPPROTO_ICMPV6        IPPROTO_ICMP6
 #define IPPROTO_NONE          59   /* IPv6 no next header. */
 #define IPPROTO_DSTOPTS       60   /* IPv6 destination options. */
 #define IPPROTO_MTP           92   /* Multicast Transport Protocol.  */
@@ -129,6 +130,8 @@
                                                     * the incoming packet */
 #define IPV6_RECVPKTINFO      (__SO_PROTOCOL + 9)  /* It functions just same as
                                                     * IPV6_PKTINFO for now */
+#define IPV6_TCLASS           (__SO_PROTOCOL + 10) /* Access the Traffic Class
+                                                    * field */
 
 /* Values used with SIOCSIFMCFILTER and SIOCGIFMCFILTER ioctl's */
 

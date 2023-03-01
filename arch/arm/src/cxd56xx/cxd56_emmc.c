@@ -24,6 +24,7 @@
 
 #include <nuttx/config.h>
 
+#include <sys/param.h>
 #include <sys/types.h>
 #include <stdint.h>
 #include <string.h>
@@ -73,10 +74,6 @@
 
 #define EMMC_MSIZE                (6)         /* Burst size is 512B */
 #define EMMC_FIFO_DEPTH           (0x100)     /* FIFO size is 1KB */
-
-#ifndef MIN
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
-#endif
 
 /****************************************************************************
  * Private Types
@@ -676,7 +673,7 @@ static int emmc_hwinitialize(void)
 
 errout:
   up_disable_irq(CXD56_IRQ_EMMC);
-  emmc_pincontrol(true);
+  emmc_pincontrol(false);
   cxd56_emmc_clock_disable();
 
   return ret;
@@ -920,6 +917,8 @@ static int cxd56_emmc_geometry(struct inode *inode,
   DEBUGASSERT(inode && inode->i_private);
   priv = (struct cxd56_emmc_state_s *)inode->i_private;
 
+  memset(geometry, 0, sizeof(*geometry));
+
   geometry->geo_available = true;
   geometry->geo_mediachanged = false;
 #if !defined(CONFIG_MMCSD_READONLY)
@@ -932,6 +931,10 @@ static int cxd56_emmc_geometry(struct inode *inode,
 
   return OK;
 }
+
+/****************************************************************************
+ * Public Functions
+ ****************************************************************************/
 
 int cxd56_emmcinitialize(void)
 {
@@ -968,21 +971,25 @@ int cxd56_emmcinitialize(void)
     }
 
   ret = register_blockdriver("/dev/emmc0", &g_bops, 0, priv);
-  if (ret)
+  if (ret < 0)
     {
       ferr("register_blockdriver failed: %d\n", -ret);
+    }
+
+  return ret;
+}
+
+int cxd56_emmcuninitialize(void)
+{
+  int ret;
+
+  ret = unregister_blockdriver("/dev/emmc0");
+  if (ret < 0)
+    {
+      ferr("unregister_blockdriver failed: %d\n", -ret);
       return ret;
     }
 
-  return OK;
-}
-
-/****************************************************************************
- * Public Functions
- ****************************************************************************/
-
-int emmc_uninitialize(void)
-{
   /* Send power off command */
 
   emmc_switchcmd(EXTCSD_PON, EXTCSD_PON_POWERED_OFF_LONG);

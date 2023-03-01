@@ -137,7 +137,7 @@ static int do_socket_request(FAR struct usrsock_conn_s *conn, int domain,
   bufs[0].iov_base = (FAR void *)&req;
   bufs[0].iov_len = sizeof(req);
 
-  return usrsock_do_request(conn, bufs, ARRAY_SIZE(bufs));
+  return usrsock_do_request(conn, bufs, nitems(bufs));
 }
 
 /****************************************************************************
@@ -225,7 +225,7 @@ int usrsock_socket(int domain, int type, int protocol,
 
   /* Wait for completion of request. */
 
-  net_lockedwait_uninterruptible(&state.recvsem);
+  net_sem_wait_uninterruptible(&state.recvsem);
 
   if (state.result < 0)
     {

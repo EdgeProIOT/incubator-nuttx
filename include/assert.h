@@ -42,14 +42,20 @@
 #undef DEBUGASSERT  /* Like ASSERT, but only if CONFIG_DEBUG_ASSERTIONS is defined */
 #undef DEBUGVERIFY  /* Like VERIFY, but only if CONFIG_DEBUG_ASSERTIONS is defined */
 
-#ifdef CONFIG_HAVE_FILENAME
-#  define PANIC()        __assert(__FILE__, __LINE__)
-#else
-#  define PANIC()        __assert("unknown", 0)
+#ifndef CONFIG_HAVE_FILENAME
+#  define __FILE__       NULL
+#  define __LINE__       0
 #endif
 
-#define ASSERT(f)        do { if (!(f)) PANIC(); } while (0)
-#define VERIFY(f)        do { if ((f) < 0) PANIC(); } while (0)
+#define PANIC()          __assert(__FILE__, __LINE__, "panic")
+
+#ifdef CONFIG_DEBUG_ASSERTIONS_EXPRESSION
+#define ASSERT(f)        do { if (unlikely(!(f))) __assert(__FILE__, __LINE__, #f); } while (0)
+#define VERIFY(f)        do { if (unlikely((f) < 0)) __assert(__FILE__, __LINE__, #f); } while (0)
+#else
+#define ASSERT(f)        do { if (unlikely(!(f))) __assert(__FILE__, __LINE__, NULL); } while (0)
+#define VERIFY(f)        do { if (unlikely((f) < 0)) __assert(__FILE__, __LINE__, NULL); } while (0)
+#endif
 
 #ifdef CONFIG_DEBUG_ASSERTIONS
 #  define DEBUGPANIC()   PANIC()
@@ -71,6 +77,11 @@
 #else
 #  define assert(f) ASSERT(f)
 #endif
+
+/* Suppress 3rd party library redefine _assert/__assert */
+
+#define _assert _assert
+#define __assert __assert
 
 /* Definition required for C11 compile-time assertion checking.  The
  * static_assert macro simply expands to the _Static_assert keyword.
@@ -115,7 +126,7 @@ extern "C"
  *
  ****************************************************************************/
 
-void _assert(FAR const char *filename, int linenum);
+void _assert(FAR const char *filename, int linenum, FAR const char *msg);
 
 /****************************************************************************
  * Name: __assert
@@ -125,7 +136,8 @@ void _assert(FAR const char *filename, int linenum);
  *
  ****************************************************************************/
 
-void __assert(FAR const char *filename, int linenum) noreturn_function;
+void __assert(FAR const char *filename, int linenum,
+              FAR const char *msg) noreturn_function;
 
 #undef EXTERN
 #ifdef __cplusplus

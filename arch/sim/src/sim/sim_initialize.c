@@ -166,10 +166,6 @@ static int sim_loop_task(int argc, char **argv)
 
       sched_lock();
 
-      /* Handle UART data availability */
-
-      sim_uartloop();
-
 #if defined(CONFIG_SIM_TOUCHSCREEN) || defined(CONFIG_SIM_AJOYSTICK) || \
     defined(CONFIG_SIM_BUTTONS)
       /* Drive the X11 event loop */
@@ -218,7 +214,7 @@ static int sim_loop_task(int argc, char **argv)
 
       /* Sleep minimal time, let the idle run */
 
-      usleep(USEC_PER_TICK);
+      usleep(CONFIG_SIM_LOOPTASK_INTERVAL);
     }
 
   return 0;
@@ -282,8 +278,15 @@ void up_initialize(void)
 #endif
 
 #ifdef CONFIG_SIM_SOUND
-  audio_register("pcm0p", sim_audio_initialize(true));
-  audio_register("pcm0c", sim_audio_initialize(false));
+  /* Register audio normal device */
+
+  audio_register("pcm0p", sim_audio_initialize(true, false));
+  audio_register("pcm0c", sim_audio_initialize(false, false));
+
+  /* Register audio compress device */
+
+  audio_register("pcm1p", sim_audio_initialize(true, true));
+  audio_register("pcm1c", sim_audio_initialize(false, true));
 #endif
 
   kthread_create("loop_task", SCHED_PRIORITY_MAX,

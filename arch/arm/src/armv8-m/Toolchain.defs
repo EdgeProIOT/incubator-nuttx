@@ -20,32 +20,39 @@
 
 # Parametrization for ARCHCPUFLAGS
 
+ifeq ($(CONFIG_ARM_DSP),y)
+  EXTCPUFLAGS = +dsp
+endif
+
 ifeq ($(CONFIG_ARCH_CORTEXM23),y)
   TOOLCHAIN_MTUNE    := -mtune=cortex-m23
   TOOLCHAIN_MARCH    := -march=armv8-m.main
   TOOLCHAIN_MFLOAT   := -mfloat-abi=soft
+  ZARCHCPUFLAGS      := -mcpu=cortex_m23
 else ifeq ($(CONFIG_ARCH_CORTEXM33),y)
   TOOLCHAIN_MTUNE    := -mtune=cortex-m33
-  TOOLCHAIN_MARCH    := -march=armv8-m.main+dsp
+  TOOLCHAIN_MARCH    := -march=armv8-m.main$(EXTCPUFLAGS)
   ifeq ($(CONFIG_ARCH_FPU),y)
     TOOLCHAIN_MFLOAT := -mfpu=fpv5-sp-d16
   endif
 else ifeq ($(CONFIG_ARCH_CORTEXM35P),y)
   TOOLCHAIN_MTUNE    := -mtune=cortex-m35p
-  TOOLCHAIN_MARCH    := -march=armv8-m.main+dsp
+  TOOLCHAIN_MARCH    := -march=armv8-m.main$(EXTCPUFLAGS)
   ifeq ($(CONFIG_ARCH_FPU),y)
     TOOLCHAIN_MFLOAT := -mfpu=fpv5-sp-d16
   endif
+  ZARCHCPUFLAGS := -mcpu=cortex_m35p
 else ifeq ($(CONFIG_ARCH_CORTEXM55),y)
   TOOLCHAIN_MTUNE    := -mtune=cortex-m55
   ifeq ($(CONFIG_ARM_HAVE_MVE),y)
     TOOLCHAIN_MARCH  := -march=armv8.1-m.main+mve.fp+fp.dp
   else
-    TOOLCHAIN_MARCH  := -march=armv8.1-m.main+dsp
+    TOOLCHAIN_MARCH  := -march=armv8.1-m.main$(EXTCPUFLAGS)
   endif
   ifeq ($(CONFIG_ARCH_FPU),y)
     TOOLCHAIN_MFLOAT := -mfpu=fpv5-d16
   endif
+  ZARCHCPUFLAGS := -mcpu=cortex_m55
 else ifeq ($(CONFIG_ARCH_CORTEXM85),y)
   TOOLCHAIN_MTUNE    := -mtune=cortex-m85
   ifeq ($(CONFIG_ARM_HAVE_MVE),y)
@@ -56,6 +63,7 @@ else ifeq ($(CONFIG_ARCH_CORTEXM85),y)
   ifeq ($(CONFIG_ARCH_FPU),y)
     TOOLCHAIN_MFLOAT := -mfpu=fpv5-d16
   endif
+  ZARCHCPUFLAGS := -mcpu=cortex_m85
 endif
 
 ifeq ($(CONFIG_ARCH_FPU),y)

@@ -85,16 +85,20 @@
 #define sim_savestate(regs) sim_copyfullstate(regs, (xcpt_reg_t *)CURRENT_REGS)
 #define sim_restorestate(regs) (CURRENT_REGS = regs)
 
-#define sim_saveusercontext(saveregs)                           \
-    ({                                                          \
-       irqstate_t flags = up_irq_flags();                       \
-       uint32_t *env = (uint32_t *)saveregs + JB_FLAG;          \
+#define sim_saveusercontext(saveregs, ret)                      \
+    do                                                          \
+      {                                                         \
+        irqstate_t flags = up_irq_flags();                      \
+        xcpt_reg_t *env = saveregs;                             \
+        uint32_t *val = (uint32_t *)&env[JB_FLAG];              \
                                                                 \
-       env[0] = flags & UINT32_MAX;                             \
-       env[1] = (flags >> 32) & UINT32_MAX;                     \
+        val[0] = flags & UINT32_MAX;                            \
+        val[1] = (flags >> 32) & UINT32_MAX;                    \
                                                                 \
-       setjmp(saveregs);                                        \
-    })
+        ret = setjmp(saveregs);                                 \
+      }                                                         \
+    while (0)
+
 #define sim_fullcontextrestore(restoreregs)                     \
     do                                                          \
       {                                                         \
@@ -177,7 +181,8 @@ void host_mallinfo(int *aordblks, int *uordblks);
 uint64_t host_gettime(bool rtc);
 void host_sleep(uint64_t nsec);
 void host_sleepuntil(uint64_t nsec);
-int host_settimer(int *irq);
+int host_timerirq(void);
+int host_settimer(uint64_t nsec);
 
 /* sim_sigdeliver.c *********************************************************/
 
@@ -207,15 +212,14 @@ void sim_timer_update(void);
 /* sim_uart.c ***************************************************************/
 
 void sim_uartinit(void);
-void sim_uartloop(void);
 
 /* sim_hostuart.c ***********************************************************/
 
 void host_uart_start(void);
 int  host_uart_open(const char *pathname);
 void host_uart_close(int fd);
-int  host_uart_putc(int fd, int ch);
-int  host_uart_getc(int fd);
+int  host_uart_puts(int fd, const char *buf, size_t size);
+int  host_uart_gets(int fd, char *buf, size_t size);
 bool host_uart_checkin(int fd);
 bool host_uart_checkout(int fd);
 int  host_uart_setcflag(int fd, unsigned int cflag);
@@ -232,7 +236,7 @@ void sim_registerblockdevice(void);
 int sim_x11initialize(unsigned short width, unsigned short height,
                       void **fbmem, size_t *fblen, unsigned char *bpp,
                       unsigned short *stride);
-void sim_x11update(void);
+int sim_x11update(void);
 #ifdef CONFIG_FB_CMAP
 int sim_x11cmap(unsigned short first, unsigned short len,
                 unsigned char *red, unsigned char *green,
@@ -354,7 +358,7 @@ int sim_bthcisock_loop(void);
 /* sim_audio.c **************************************************************/
 
 #ifdef CONFIG_SIM_SOUND
-struct audio_lowerhalf_s *sim_audio_initialize(bool playback);
+struct audio_lowerhalf_s *sim_audio_initialize(bool playback, bool offload);
 void sim_audio_loop(void);
 #endif
 

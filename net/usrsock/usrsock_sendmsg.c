@@ -71,7 +71,8 @@ static uint16_t sendto_event(FAR struct net_driver_s *dev,
 
       pstate->result = conn->resp.result;
 
-      if (pstate->result >= 0 || pstate->result == -EAGAIN)
+      if (!(flags & USRSOCK_EVENT_SENDTO_READY) &&
+           (pstate->result >= 0 || pstate->result == -EAGAIN))
         {
           /* After reception of data, mark input not ready. Daemon will
            * send event to restore this flag.
@@ -171,7 +172,7 @@ static int do_sendto_request(FAR struct usrsock_conn_s *conn,
 
   memcpy(&bufs[2], msg->msg_iov, sizeof(struct iovec) * msg->msg_iovlen);
 
-  return usrsock_do_request(conn, bufs, ARRAY_SIZE(bufs));
+  return usrsock_do_request(conn, bufs, nitems(bufs));
 }
 
 /****************************************************************************
@@ -306,7 +307,7 @@ ssize_t usrsock_sendmsg(FAR struct socket *psock,
 
           /* Wait for send-ready (or abort, or timeout, or signal). */
 
-          ret = net_timedwait(&state.recvsem,
+          ret = net_sem_timedwait(&state.recvsem,
                               _SO_TIMEOUT(conn->sconn.s_sndtimeo));
           usrsock_teardown_request_callback(&state);
           if (ret < 0)
@@ -323,7 +324,7 @@ ssize_t usrsock_sendmsg(FAR struct socket *psock,
                 }
               else
                 {
-                  nerr("net_timedwait errno: %zd\n", ret);
+                  nerr("net_sem_timedwait errno: %zd\n", ret);
                   DEBUGPANIC();
                 }
 
@@ -371,7 +372,7 @@ ssize_t usrsock_sendmsg(FAR struct socket *psock,
         {
           /* Wait for completion of request. */
 
-          net_lockedwait_uninterruptible(&state.recvsem);
+          net_sem_wait_uninterruptible(&state.recvsem);
           ret = state.result;
         }
 

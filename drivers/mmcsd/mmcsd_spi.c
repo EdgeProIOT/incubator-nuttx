@@ -1611,6 +1611,8 @@ static int mmcsd_geometry(FAR struct inode *inode, struct geometry *geometry)
 
   /* Then return the card geometry */
 
+  memset(geometry, 0, sizeof(*geometry));
+
   geometry->geo_available =
     ((slot->state & (MMCSD_SLOTSTATUS_NOTREADY |
                      MMCSD_SLOTSTATUS_NODISK)) == 0);
@@ -1732,7 +1734,6 @@ static int mmcsd_mediainitialize(FAR struct mmcsd_slot_s *slot)
     {
       ferr("ERROR: Send CMD0 failed: R1=%02" PRIx32 "\n", result);
       SPI_SELECT(spi, SPIDEV_MMCSD(0), false);
-      mmcsd_unlock(slot);
       return -EIO;
     }
 
@@ -1863,7 +1864,6 @@ static int mmcsd_mediainitialize(FAR struct mmcsd_slot_s *slot)
         {
           ferr("ERROR: Failed to exit IDLE state\n");
           SPI_SELECT(spi, SPIDEV_MMCSD(0), false);
-          mmcsd_unlock(slot);
           return -EIO;
         }
     }
@@ -1872,7 +1872,6 @@ static int mmcsd_mediainitialize(FAR struct mmcsd_slot_s *slot)
     {
       ferr("ERROR: Failed to identify card\n");
       SPI_SELECT(spi, SPIDEV_MMCSD(0), false);
-      mmcsd_unlock(slot);
       return -EIO;
     }
 
@@ -1884,7 +1883,6 @@ static int mmcsd_mediainitialize(FAR struct mmcsd_slot_s *slot)
     {
       ferr("ERROR: mmcsd_getcsd(CMD9) failed: %" PRId32 "\n", result);
       SPI_SELECT(spi, SPIDEV_MMCSD(0), false);
-      mmcsd_unlock(slot);
       return -EIO;
     }
 

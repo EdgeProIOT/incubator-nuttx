@@ -192,6 +192,15 @@ static uint16_t sendto_eventhandler(FAR struct net_driver_s *dev,
 
       else
         {
+          /* Copy the user data into d_appdata and send it */
+
+          devif_send(dev, pstate->st_buffer,
+                     pstate->st_buflen, udpip_hdrsize(pstate->st_conn));
+          if (dev->d_sndlen == 0)
+            {
+              return flags;
+            }
+
 #ifdef NEED_IPDOMAIN_SUPPORT
           /* If both IPv4 and IPv6 support are enabled, then we will need to
            * select which one to use when generating the outgoing packet.
@@ -202,23 +211,14 @@ static uint16_t sendto_eventhandler(FAR struct net_driver_s *dev,
           sendto_ipselect(dev, pstate);
 #endif
 
-          /* Copy the user data into d_appdata and send it */
-
-          devif_send(dev, pstate->st_buffer,
-                     pstate->st_buflen, udpip_hdrsize(pstate->st_conn));
-          if (dev->d_sndlen == 0)
-            {
-              return flags;
-            }
-
           pstate->st_sndlen = pstate->st_buflen;
         }
 
       /* Don't allow any further call backs. */
 
-      pstate->st_cb->flags   = 0;
-      pstate->st_cb->priv    = NULL;
-      pstate->st_cb->event   = NULL;
+      pstate->st_cb->flags = 0;
+      pstate->st_cb->priv  = NULL;
+      pstate->st_cb->event = NULL;
 
       /* Wake up the waiting thread */
 
@@ -462,11 +462,11 @@ ssize_t psock_udp_sendto(FAR struct socket *psock, FAR const void *buf,
       netdev_txnotify_dev(state.st_dev);
 
       /* Wait for either the receive to complete or for an error/timeout to
-       * occur. NOTES:  net_timedwait will also terminate if a signal
+       * occur. NOTES:  net_sem_timedwait will also terminate if a signal
        * is received.
        */
 
-      ret = net_timedwait(&state.st_sem,
+      ret = net_sem_timedwait(&state.st_sem,
                           _SO_TIMEOUT(conn->sconn.s_sndtimeo));
       if (ret >= 0)
         {

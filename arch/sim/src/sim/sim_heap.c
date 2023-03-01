@@ -217,10 +217,10 @@ void mm_free(struct mm_heap_s *heap, void *mem)
   else
 #endif
 
-  if (gettid() < 0)
+  if (nxsched_gettid() < 0)
     {
-      /* gettid() return -ESRCH, means we are in situations
-       * during context switching(See gettid's comment).
+      /* nxsched_gettid() return -ESRCH, means we are in situations
+       * during context switching(See nxsched_gettid's comment).
        * Then add to the delay list.
        */
 
@@ -389,6 +389,21 @@ int mm_mallinfo(struct mm_heap_s *heap, struct mallinfo *info)
 }
 
 /****************************************************************************
+ * Name: mm_mallinfo_task
+ *
+ * Description:
+ *   mallinfo_task returns a copy of updated current task's heap information.
+ *
+ ****************************************************************************/
+
+int mm_mallinfo_task(struct mm_heap_s *heap, struct mallinfo_task *info)
+{
+  info->aordblks = 0;
+  info->uordblks = 0;
+  return 0;
+}
+
+/****************************************************************************
  * Name: mm_memdump
  *
  * Description:
@@ -420,7 +435,7 @@ void mm_checkcorruption(struct mm_heap_s *heap)
  * Name: malloc_size
  ****************************************************************************/
 
-size_t mm_malloc_size(void *mem)
+size_t mm_malloc_size(struct mm_heap_s *heap, void *mem)
 {
   return host_mallocsize(mem);
 }

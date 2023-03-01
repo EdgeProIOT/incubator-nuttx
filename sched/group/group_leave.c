@@ -32,7 +32,6 @@
 #include <nuttx/irq.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/net/net.h>
-#include <nuttx/lib/lib.h>
 #include <nuttx/sched.h>
 
 #ifdef CONFIG_BINFMT_LOADABLE
@@ -68,7 +67,7 @@
  *
  ****************************************************************************/
 
-#if defined(HAVE_GROUP_MEMBERS) || defined(CONFIG_ARCH_ADDRENV)
+#if defined(HAVE_GROUP_MEMBERS)
 static void group_remove(FAR struct task_group_s *group)
 {
   FAR struct task_group_s *curr;
@@ -129,11 +128,6 @@ static void group_remove(FAR struct task_group_s *group)
 
 static inline void group_release(FAR struct task_group_s *group)
 {
-#ifdef CONFIG_ARCH_ADDRENV
-  save_addrenv_t oldenv;
-  int i;
-#endif
-
 #if CONFIG_TLS_TASK_NELEM > 0
   task_tls_destruct();
 #endif
@@ -156,12 +150,6 @@ static inline void group_release(FAR struct task_group_s *group)
   pthread_release(group);
 #endif
 
-#ifdef CONFIG_FILE_STREAM
-  /* Free resource held by the stream list */
-
-  lib_stream_release(group);
-#endif /* CONFIG_FILE_STREAM */
-
   /* Free all file-related resources now.  We really need to close files as
    * soon as possible while we still have a functioning task.
    */
@@ -176,13 +164,11 @@ static inline void group_release(FAR struct task_group_s *group)
   env_release(group);
 #endif
 
-#if defined(CONFIG_BUILD_KERNEL) && defined(CONFIG_MM_SHM)
-  /* Release any resource held by shared memory virtual page allocator */
+  /* Destroy the mm_map list */
 
-  shm_group_release(group);
-#endif
+  mm_map_destroy(&group->tg_mm_map);
 
-#if defined(HAVE_GROUP_MEMBERS) || defined(CONFIG_ARCH_ADDRENV)
+#if defined(HAVE_GROUP_MEMBERS)
   /* Remove the group from the list of groups */
 
   group_remove(group);
@@ -211,47 +197,13 @@ static inline void group_release(FAR struct task_group_s *group)
     }
 #endif
 
-#ifdef CONFIG_ARCH_ADDRENV
-  /* Switch the addrenv and also save the current addrenv */
+  /* Mark the group as deleted now */
 
-  up_addrenv_select(&group->tg_addrenv, &oldenv);
+  group->tg_flags |= GROUP_FLAG_DELETED;
 
-  /* Destroy the group address environment */
+  /* Then drop the group freeing the allocated memory */
 
-  up_addrenv_destroy(&group->tg_addrenv);
-
-  /* Mark no address environment */
-
-  for (i = 0; i < CONFIG_SMP_NCPUS; i++)
-    {
-      if (group == g_group_current[i])
-        {
-          g_group_current[i] = NULL;
-        }
-    }
-
-  /* Restore the previous addrenv */
-
-  up_addrenv_restore(&oldenv);
-#endif
-
-#if defined(CONFIG_SCHED_WAITPID) && !defined(CONFIG_SCHED_HAVE_PARENT)
-  /* If there are threads waiting for this group to be freed, then we cannot
-   * yet free the memory resources.  Instead just mark the group deleted
-   * and wait for those threads complete their waits.
-   */
-
-  if (group->tg_nwaiters > 0)
-    {
-      group->tg_flags |= GROUP_FLAG_DELETED;
-    }
-  else
-#endif
-    {
-      /* Release the group container itself */
-
-      kmm_free(group);
-    }
+  group_drop(group);
 }
 
 /****************************************************************************
@@ -408,3 +360,51 @@ void group_leave(FAR struct tcb_s *tcb)
 }
 
 #endif /* HAVE_GROUP_MEMBERS */
+
+/****************************************************************************
+ * Name: group_drop
+ *
+ * Description:
+ *   Release the group's memory. This function is called whenever a reference
+ *   to the group structure is released. It is not dependent on member count,
+ *   but rather external references, which include:
+ *   - Waiter list for waitpid()
+ *
+ * Input Parameters:
+ *   group - The group that is to be dropped
+ *
+ * Returned Value:
+ *   None.
+ *
+ * Assumptions:
+ *   Called during task deletion or context switch in a safe context.  No
+ *   special precautions are required here.
+ *
+ ****************************************************************************/
+
+void group_drop(FAR struct task_group_s *group)
+{
+#if defined(CONFIG_SCHED_WAITPID) && !defined(CONFIG_SCHED_HAVE_PARENT)
+  /* If there are threads waiting for this group to be freed, then we cannot
+   * yet free the memory resources.  Instead just mark the group deleted
+   * and wait for those threads complete their waits.
+   */
+
+  if (group->tg_nwaiters > 0)
+    {
+      /* Hold the group still */
+
+      sinfo("Keep group %p (waiters > 0)\n", group);
+    }
+  else
+#endif
+
+  /* Finally, if no one needs the group and it has been deleted, remove it */
+
+  if (group->tg_flags & GROUP_FLAG_DELETED)
+    {
+      /* Release the group container itself */
+
+      kmm_free(group);
+    }
+}

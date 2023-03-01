@@ -206,17 +206,25 @@ static ssize_t usrsock_handle_event(FAR const void *buffer, size_t len)
 
         if (len < sizeof(*hdr))
           {
-            nwarn("message too short, %zu < %zu.\n", len, sizeof(*hdr));
+            nerr("message too short, %zu < %zu.\n", len, sizeof(*hdr));
             return -EINVAL;
           }
+
+        len = sizeof(*hdr);
 
         /* Get corresponding usrsock connection. */
 
         conn = usrsock_active(hdr->usockid);
         if (!conn)
           {
-            nwarn("no active connection for usockid=%d.\n", hdr->usockid);
-            return -ENOENT;
+            nerr("no active connection for usockid=%d, events=%x.\n",
+                 hdr->usockid, hdr->head.events);
+
+            /* We may receive event after socket close if message from lower
+             * layer is out of order, but it's OK to ignore such error.
+             */
+
+            return len;
           }
 
 #ifdef CONFIG_DEV_RANDOM
@@ -233,13 +241,11 @@ static ssize_t usrsock_handle_event(FAR const void *buffer, size_t len)
           {
             return ret;
           }
-
-        len = sizeof(*hdr);
       }
       break;
 
     default:
-      nwarn("Unknown event type: %d\n", common->msgid);
+      nerr("Unknown event type: %d\n", common->msgid);
       return -EINVAL;
     }
 
@@ -447,15 +453,15 @@ static ssize_t usrsock_handle_req_response(FAR const void *buffer,
       break;
 
     default:
-      nwarn("unknown message type: %d, flags: %d, xid: %" PRIu32 ", "
-            "result: %" PRId32 "\n",
-            hdr->head.msgid, hdr->head.flags, hdr->xid, hdr->result);
+      nerr("unknown message type: %d, flags: %d, xid: %" PRIu32 ", "
+           "result: %" PRId32 "\n",
+           hdr->head.msgid, hdr->head.flags, hdr->xid, hdr->result);
       return -EINVAL;
     }
 
   if (len < hdrlen)
     {
-      nwarn("message too short, %zu < %zu.\n", len, hdrlen);
+      nerr("message too short, %zu < %zu.\n", len, hdrlen);
       return -EINVAL;
     }
 
@@ -469,8 +475,8 @@ static ssize_t usrsock_handle_req_response(FAR const void *buffer,
     {
       /* No connection waiting for this message. */
 
-      nwarn("Could find connection waiting for response"
-            "with xid=%" PRIu32 "\n", hdr->xid);
+      nerr("Could find connection waiting for response"
+           "with xid=%" PRIu32 "\n", hdr->xid);
 
       ret = -EINVAL;
       goto unlock_out;
@@ -518,6 +524,7 @@ static ssize_t usrsock_handle_message(FAR const void *buffer, size_t len,
       return usrsock_handle_req_response(buffer, len, req_done);
     }
 
+  nerr("Unknown message flags %" PRIx8 ".\n", common->flags);
   return -EINVAL;
 }
 
@@ -545,8 +552,8 @@ ssize_t usrsock_response(FAR const char *buffer, size_t len,
 
       if (len < sizeof(struct usrsock_message_common_s))
         {
-          nwarn("message too short, %zu < %zu.\n", len,
-                sizeof(struct usrsock_message_common_s));
+          nerr("message too short, %zu < %zu.\n", len,
+               sizeof(struct usrsock_message_common_s));
           return -EINVAL;
         }
 
@@ -625,7 +632,7 @@ ssize_t usrsock_iovec_put(FAR struct iovec *iov, int iovcnt, size_t pos,
 }
 
 /****************************************************************************
- * Name: usrsock_request() - finish usrsock's request
+ * Name: usrsock_do_request() - finish usrsock's request
  ****************************************************************************/
 
 int usrsock_do_request(FAR struct usrsock_conn_s *conn,
@@ -641,7 +648,7 @@ int usrsock_do_request(FAR struct usrsock_conn_s *conn,
 
   /* Set outstanding request for daemon to handle. */
 
-  net_lockedwait_uninterruptible(&req->lock);
+  net_mutex_lock(&req->lock);
   if (++req->newxid == 0)
     {
       ++req->newxid;
@@ -657,13 +664,17 @@ int usrsock_do_request(FAR struct usrsock_conn_s *conn,
   req->ackxid = req_head->xid;
 
   ret = usrsock_request(iov, iovcnt);
-  if (ret == OK)
+  if (ret >= 0)
     {
       /* Wait ack for request. */
 
       ++req->nbusy; /* net_lock held. */
-      net_lockedwait_uninterruptible(&req->acksem);
+      net_sem_wait_uninterruptible(&req->acksem);
       --req->nbusy; /* net_lock held. */
+    }
+  else
+    {
+      nerr("error: usrsock request failed with %d\n", ret);
     }
 
   /* Free request line for next command. */
@@ -700,12 +711,12 @@ void usrsock_abort(void)
        * requests.
        */
 
-      ret = net_timedwait(&req->lock, 10);
+      ret = net_mutex_timedlock(&req->lock, 10);
       if (ret < 0)
         {
           if (ret != -ETIMEDOUT && ret != -EINTR)
             {
-              ninfo("net_timedwait errno: %d\n", ret);
+              ninfo("net_sem_timedwait errno: %d\n", ret);
               DEBUGASSERT(false);
             }
         }

@@ -26,6 +26,7 @@
 
 #include <inttypes.h>
 #include <stdio.h>
+#include <sys/param.h>
 #include <fcntl.h>
 
 #include <nuttx/arch.h>
@@ -45,10 +46,6 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
-
-#ifndef MAX
-#  define MAX(a,b)                  ((a) > (b) ? (a) : (b))
-#endif
 
 #ifndef ALIGN_UP
 #  define ALIGN_UP(s, a)            (((s) + (a) - 1) & ~((a) - 1))
@@ -258,7 +255,7 @@ static void rptun_wakeup_rx(FAR struct rptun_priv_s *priv)
 
 static void rptun_in_recursive(int tid, FAR void *arg)
 {
-  *((FAR bool *)arg) = (gettid() == tid);
+  *((FAR bool *)arg) = (nxsched_gettid() == tid);
 }
 
 static bool rptun_is_recursive(FAR struct rptun_priv_s *priv)
@@ -274,7 +271,7 @@ static int rptun_thread(int argc, FAR char *argv[])
   FAR struct rptun_priv_s *priv;
 
   priv = (FAR struct rptun_priv_s *)((uintptr_t)strtoul(argv[2], NULL, 0));
-  priv->tid = gettid();
+  priv->tid = nxsched_gettid();
 
   while (1)
     {
@@ -298,7 +295,7 @@ static void rptun_wakeup_rx(FAR struct rptun_priv_s *priv)
 
 static bool rptun_is_recursive(FAR struct rptun_priv_s *priv)
 {
-  return gettid() == priv->tid;
+  return nxsched_gettid() == priv->tid;
 }
 #endif
 
@@ -741,9 +738,6 @@ static int rptun_dev_start(FAR struct remoteproc *rproc)
         }
     }
 
-  /* Add priv to list */
-
-  metal_list_add_tail(&g_rptun_priv, &priv->node);
   nxrmutex_unlock(&g_rptun_lockcb);
 
   virtqueue_enable_cb(priv->rvdev.svq);
@@ -1071,6 +1065,11 @@ int rpmsg_register_callback(FAR void *priv_,
       FAR struct rptun_priv_s *priv;
 
       priv = metal_container_of(node, struct rptun_priv_s, node);
+      if (priv->rproc.state != RPROC_RUNNING)
+        {
+          continue;
+        }
+
       if (device_created)
         {
           device_created(&priv->rvdev.rdev, priv_);
@@ -1147,7 +1146,11 @@ void rpmsg_unregister_callback(FAR void *priv_,
 
           priv = metal_container_of(pnode,
                                     struct rptun_priv_s, node);
-          device_destroy(&priv->rvdev.rdev, priv_);
+
+          if (priv->rproc.state == RPROC_RUNNING)
+            {
+              device_destroy(&priv->rvdev.rdev, priv_);
+            }
         }
     }
 
@@ -1224,6 +1227,12 @@ int rptun_initialize(FAR struct rptun_dev_s *dev)
 #endif
 
   nxsem_init(&priv->semtx, 0, 0);
+
+  /* Add priv to list */
+
+  nxrmutex_lock(&g_rptun_lockcb);
+  metal_list_add_tail(&g_rptun_priv, &priv->node);
+  nxrmutex_unlock(&g_rptun_lockcb);
 
   return OK;
 

@@ -66,7 +66,7 @@ static inline void nxtask_exitstatus(FAR struct task_group_s *group,
     {
       /* No.. Find the exit status entry for this task in the parent TCB */
 
-      child = group_find_child(group, gettid());
+      child = group_find_child(group, nxsched_gettid());
       if (child)
         {
           /* Save the exit status..  For the case of HAVE_GROUP_MEMBERS,
@@ -77,10 +77,12 @@ static inline void nxtask_exitstatus(FAR struct task_group_s *group,
           child->ch_status = status;
         }
     }
+
+  group->tg_exitcode = status;
 }
 #else
 
-#  define nxtask_exitstatus(group,status)
+#  define nxtask_exitstatus(group,status) (group)->tg_exitcode = (status);
 
 #endif /* CONFIG_SCHED_CHILD_STATUS */
 
@@ -105,7 +107,7 @@ static inline void nxtask_groupexit(FAR struct task_group_s *group)
     {
       /* No.. Find the exit status entry for this task in the parent TCB */
 
-      child = group_find_child(group, gettid());
+      child = group_find_child(group, nxsched_gettid());
       if (child)
         {
           /* Mark that all members of the child task group has exited */
@@ -188,7 +190,7 @@ static inline void nxtask_sigchild(pid_t ppid, FAR struct tcb_s *ctcb,
       info.si_errno           = OK;
       info.si_value.sival_ptr = NULL;
       info.si_pid             = chgrp->tg_pid;
-      info.si_status          = status;
+      info.si_status          = pgrp->tg_exitcode;
 
       /* Send the signal to one thread in the group */
 
@@ -469,14 +471,14 @@ void nxtask_exithook(FAR struct tcb_s *tcb, int status)
     }
 #endif
 
-#ifdef CONFIG_SMP
-  leave_critical_section(flags);
-#endif
-
   /* This function can be re-entered in certain cases.  Set a flag
    * bit in the TCB to not that we have already completed this exit
    * processing.
    */
 
   tcb->flags |= TCB_FLAG_EXIT_PROCESSING;
+
+#ifdef CONFIG_SMP
+  leave_critical_section(flags);
+#endif
 }

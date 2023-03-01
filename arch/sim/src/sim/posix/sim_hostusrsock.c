@@ -26,6 +26,7 @@
 #include <sys/uio.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
+#include <sys/param.h>
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -38,12 +39,6 @@
 #include <netinet/in.h>
 
 #include "sim_hostusrsock.h"
-
-/****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
 /****************************************************************************
  * Private Data
@@ -467,6 +462,26 @@ int host_usrsock_accept(int sockfd, struct nuttx_sockaddr *addr,
 int host_usrsock_ioctl(int fd, unsigned long request, ...)
 {
   return 0;
+}
+
+int host_usrsock_shutdown(int sockfd, int how)
+{
+  switch (how)
+    {
+      case NUTTX_SHUT_RD:
+        how = SHUT_RD;
+        break;
+      case NUTTX_SHUT_WR:
+        how = SHUT_WR;
+        break;
+      case NUTTX_SHUT_RDWR:
+        how = SHUT_RDWR;
+        break;
+      default:
+        return -EINVAL;
+    }
+
+  return shutdown(sockfd, how) < 0 ? -errno : 0;
 }
 
 void host_usrsock_loop(void)

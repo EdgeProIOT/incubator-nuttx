@@ -112,7 +112,7 @@ static int do_connect_request(FAR struct usrsock_conn_s *conn,
   bufs[1].iov_base = (FAR void *)addr;
   bufs[1].iov_len = addrlen;
 
-  ret = usrsock_do_request(conn, bufs, ARRAY_SIZE(bufs));
+  ret = usrsock_do_request(conn, bufs, nitems(bufs));
   if (ret == -ENETDOWN)
     {
       ret = -ECONNABORTED;
@@ -223,7 +223,7 @@ int usrsock_connect(FAR struct socket *psock,
     {
       /* Wait for completion of request (or signal). */
 
-      ret = net_lockedwait(&state.recvsem);
+      ret = net_sem_wait(&state.recvsem);
       if (ret < 0)
         {
           /* Wait interrupted, exit early. */

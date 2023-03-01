@@ -31,6 +31,7 @@
 #include <nuttx/sched.h>
 #include <nuttx/fs/procfs.h>
 #include <nuttx/lib/math32.h>
+#include <nuttx/mm/mempool.h>
 
 #include <assert.h>
 #include <execinfo.h>
@@ -74,7 +75,7 @@
      do \
        { \
          FAR struct mm_allocnode_s *tmp = (FAR struct mm_allocnode_s *)(ptr); \
-         tmp->pid = gettid(); \
+         tmp->pid = _SCHED_GETTID(); \
        } \
      while (0)
 #elif CONFIG_MM_BACKTRACE > 0
@@ -82,20 +83,21 @@
      do \
        { \
          FAR struct mm_allocnode_s *tmp = (FAR struct mm_allocnode_s *)(ptr); \
-         kasan_unpoison(tmp, SIZEOF_MM_ALLOCNODE); \
          FAR struct tcb_s *tcb; \
-         tmp->pid = gettid(); \
+         tmp->pid = _SCHED_GETTID(); \
          tcb = nxsched_get_tcb(tmp->pid); \
          if ((heap)->mm_procfs.backtrace || (tcb && tcb->flags & TCB_FLAG_HEAP_DUMP)) \
            { \
-             memset(tmp->backtrace, 0, sizeof(tmp->backtrace)); \
-             backtrace(tmp->backtrace, CONFIG_MM_BACKTRACE); \
+             int n = backtrace(tmp->backtrace, CONFIG_MM_BACKTRACE); \
+             if (n < CONFIG_MM_BACKTRACE) \
+               { \
+                 tmp->backtrace[n] = NULL; \
+               } \
            } \
          else \
            { \
-             tmp->backtrace[0] = 0; \
+             tmp->backtrace[0] = NULL; \
            } \
-         kasan_poison(tmp, SIZEOF_MM_ALLOCNODE); \
        } \
      while (0)
 #else
@@ -117,7 +119,8 @@
  */
 
 #define MM_ALLOC_BIT     0x1
-#define MM_MASK_BIT      MM_ALLOC_BIT
+#define MM_PREVFREE_BIT  0x2
+#define MM_MASK_BIT      (MM_ALLOC_BIT | MM_PREVFREE_BIT)
 #ifdef CONFIG_MM_SMALL
 # define MMSIZE_MAX      UINT16_MAX
 #else
@@ -128,9 +131,20 @@
 
 #define SIZEOF_MM_ALLOCNODE sizeof(struct mm_allocnode_s)
 
+/* What is the overhead of the allocnode
+ * Remove the space of preceding field since it locates at the end of the
+ * previous freenode
+ */
+
+#define OVERHEAD_MM_ALLOCNODE (SIZEOF_MM_ALLOCNODE - sizeof(mmsize_t))
+
 /* What is the size of the freenode? */
 
 #define SIZEOF_MM_FREENODE sizeof(struct mm_freenode_s)
+
+/* Get the node size */
+
+#define SIZEOF_MM_NODE(node) ((node)->size & (~MM_MASK_BIT))
 
 /****************************************************************************
  * Public Types
@@ -141,7 +155,7 @@
 #ifdef CONFIG_MM_SMALL
 typedef uint16_t mmsize_t;
 #else
-typedef uint32_t mmsize_t;
+typedef size_t mmsize_t;
 #endif
 
 /* This describes an allocated chunk.  An allocated chunk is
@@ -151,28 +165,28 @@ typedef uint32_t mmsize_t;
 
 struct mm_allocnode_s
 {
+  mmsize_t preceding;                       /* Size of the preceding chunk */
+  mmsize_t size;                            /* Size of this chunk */
 #if CONFIG_MM_BACKTRACE >= 0
   pid_t pid;                                /* The pid for caller */
 #  if CONFIG_MM_BACKTRACE > 0
   FAR void *backtrace[CONFIG_MM_BACKTRACE]; /* The backtrace buffer for caller */
 #  endif
 #endif
-  mmsize_t size;                            /* Size of this chunk */
-  mmsize_t preceding;                       /* Size of the preceding chunk */
 };
 
 /* This describes a free chunk */
 
 struct mm_freenode_s
 {
+  mmsize_t preceding;                       /* Size of the preceding chunk */
+  mmsize_t size;                            /* Size of this chunk */
 #if CONFIG_MM_BACKTRACE >= 0
   pid_t pid;                                /* The pid for caller */
 #  if CONFIG_MM_BACKTRACE > 0
   FAR void *backtrace[CONFIG_MM_BACKTRACE]; /* The backtrace buffer for caller */
 #  endif
 #endif
-  mmsize_t size;                            /* Size of this chunk */
-  mmsize_t preceding;                       /* Size of the preceding chunk */
   FAR struct mm_freenode_s *flink;          /* Supports a doubly linked list */
   FAR struct mm_freenode_s *blink;
 };
@@ -225,6 +239,12 @@ struct mm_heap_s
 
   FAR struct mm_delaynode_s *mm_delaylist[CONFIG_SMP_NCPUS];
 
+  /* The is a multiple mempool of the heap */
+
+#if CONFIG_MM_HEAP_MEMPOOL_THRESHOLD != 0
+  FAR struct mempool_multiple_s *mm_mpool;
+#endif
+
 #if defined(CONFIG_FS_PROCFS) && !defined(CONFIG_FS_PROCFS_EXCLUDE_MEMINFO)
   struct procfs_meminfo_entry_s mm_procfs;
 #endif
@@ -232,7 +252,7 @@ struct mm_heap_s
 
 /* This describes the callback for mm_foreach */
 
-typedef CODE void (*mmchunk_handler_t)(FAR struct mm_allocnode_s *node,
+typedef CODE void (*mm_node_handler_t)(FAR struct mm_allocnode_s *node,
                                        FAR void *arg);
 
 /****************************************************************************
@@ -260,7 +280,7 @@ int mm_size2ndx(size_t size);
 
 /* Functions contained in mm_foreach.c **************************************/
 
-void mm_foreach(FAR struct mm_heap_s *heap, mmchunk_handler_t handler,
+void mm_foreach(FAR struct mm_heap_s *heap, mm_node_handler_t handler,
                 FAR void *arg);
 
 #endif /* __MM_MM_HEAP_MM_H */

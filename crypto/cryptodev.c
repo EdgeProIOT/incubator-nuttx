@@ -110,6 +110,10 @@ static int cryptof_poll(FAR struct file *filep,
 static int cryptof_close(FAR struct file *filep);
 
 static int cryptoopen(FAR struct file *filep);
+static ssize_t cryptoread(FAR struct file *filep,
+                          FAR char *buffer, size_t len);
+static ssize_t cryptowrite(FAR struct file *filep,
+                           FAR const char *buffer, size_t len);
 static int cryptoclose(FAR struct file *filep);
 static int cryptoioctl(FAR struct file *filep, int cmd, unsigned long arg);
 
@@ -125,8 +129,8 @@ static const struct file_operations g_cryptofops =
   cryptof_write,       /* write  */
   NULL,                /* seek   */
   cryptof_ioctl,       /* ioctl  */
+  NULL,                /* mmap   */
   NULL,                /* truncate */
-  NULL,                /* mmap */
   cryptof_poll         /* poll   */
 };
 
@@ -134,12 +138,12 @@ static const struct file_operations g_cryptoops =
 {
   cryptoopen,          /* open   */
   cryptoclose,         /* close  */
-  NULL,                /* read   */
-  NULL,                /* write  */
+  cryptoread,          /* read   */
+  cryptowrite,         /* write  */
   NULL,                /* seek   */
   cryptoioctl,         /* ioctl  */
+  NULL,                /* mmap   */
   NULL,                /* truncate */
-  NULL,                /* mmap */
   NULL                 /* poll   */
 };
 
@@ -448,6 +452,14 @@ int cryptodev_op(FAR struct csession *cse,
       crda->crd_alg = cse->mac;
       crda->crd_key = cse->mackey;
       crda->crd_klen = cse->mackeylen * 8;
+      if (cop->flags & COP_FLAG_UPDATE)
+        {
+          crda->crd_flags |= CRD_F_UPDATE;
+        }
+      else
+        {
+          crda->crd_flags &= ~CRD_F_UPDATE;
+        }
     }
 
   if (crde)
@@ -481,10 +493,13 @@ int cryptodev_op(FAR struct csession *cse,
           goto bail;
         }
 
-      memcpy(cse->tmp_iv, cop->iv, cse->txform->blocksize);
-      bcopy(cse->tmp_iv, crde->crd_iv, cse->txform->blocksize);
-      crde->crd_flags |= CRD_F_IV_EXPLICIT | CRD_F_IV_PRESENT;
-      crde->crd_skip = 0;
+      if (!(crde->crd_flags & CRD_F_IV_EXPLICIT))
+        {
+          memcpy(cse->tmp_iv, cop->iv, cse->txform->blocksize);
+          bcopy(cse->tmp_iv, crde->crd_iv, cse->txform->blocksize);
+          crde->crd_flags |= CRD_F_IV_EXPLICIT | CRD_F_IV_PRESENT;
+          crde->crd_skip = 0;
+        }
     }
   else if (crde)
     {
@@ -548,6 +563,11 @@ dispatch:
   crp->crp_flags = CRYPTO_F_IOV;
   crypto_invoke(crp);
 processed:
+
+  if ((cop->flags & COP_FLAG_UPDATE) == 0)
+    {
+      crde->crd_flags &= ~CRD_F_IV_EXPLICIT;
+    }
 
   if (cse->error)
     {
@@ -730,6 +750,18 @@ static int cryptoopen(FAR struct file *filep)
     }
 
   return 0;
+}
+
+static ssize_t cryptoread(FAR struct file *filep,
+                          FAR char *buffer, size_t len)
+{
+  return 0;
+}
+
+static ssize_t cryptowrite(FAR struct file *filep,
+                           FAR const char *buffer, size_t len)
+{
+  return len;
 }
 
 static int cryptoclose(FAR struct file *filep)

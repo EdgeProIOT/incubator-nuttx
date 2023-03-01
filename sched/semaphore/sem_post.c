@@ -89,7 +89,11 @@ int nxsem_post(FAR sem_t *sem)
 
   /* Check the maximum allowable value */
 
-  DEBUGASSERT(sem_count < SEM_VALUE_MAX);
+  if (sem_count >= SEM_VALUE_MAX)
+    {
+      leave_critical_section(flags);
+      return -EOVERFLOW;
+    }
 
   /* Perform the semaphore unlock operation, releasing this task as a
    * holder then also incrementing the count on the semaphore.
@@ -121,8 +125,8 @@ int nxsem_post(FAR sem_t *sem)
    * will do nothing.
    */
 
-  prioinherit = sem->flags & PRIOINHERIT_FLAGS_ENABLE;
-  if (prioinherit != 0)
+  prioinherit = sem->flags & SEM_PRIO_MASK;
+  if (prioinherit == SEM_PRIO_INHERIT)
     {
       sched_lock();
     }
@@ -188,7 +192,7 @@ int nxsem_post(FAR sem_t *sem)
    */
 
 #ifdef CONFIG_PRIORITY_INHERITANCE
-  if (prioinherit != 0)
+  if (prioinherit == SEM_PRIO_INHERIT)
     {
       nxsem_restore_baseprio(stcb, sem);
       sched_unlock();

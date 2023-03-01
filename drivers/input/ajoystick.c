@@ -135,8 +135,8 @@ static const struct file_operations ajoy_fops =
   NULL,       /* write */
   NULL,       /* seek */
   ajoy_ioctl, /* ioctl */
-  NULL,       /* truncate */
   NULL,       /* mmap */
+  NULL,       /* truncate */
   ajoy_poll   /* poll */
 };
 
@@ -557,7 +557,7 @@ static int ajoy_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
             opriv->ao_notify.an_press   = notify->an_press;
             opriv->ao_notify.an_release = notify->an_release;
             opriv->ao_notify.an_event   = notify->an_event;
-            opriv->ao_pid               = getpid();
+            opriv->ao_pid               = nxsched_getpid();
 
             /* Enable/disable interrupt handling */
 

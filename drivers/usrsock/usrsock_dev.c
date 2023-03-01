@@ -103,8 +103,8 @@ static const struct file_operations g_usrsockdevops =
   usrsockdev_write,   /* write */
   usrsockdev_seek,    /* seek */
   NULL,               /* ioctl */
-  NULL,               /* truncate */
   NULL,               /* mmap */
+  NULL,               /* truncate */
   usrsockdev_poll     /* poll */
 };
 
@@ -436,7 +436,7 @@ static int usrsockdev_poll(FAR struct file *filep, FAR struct pollfd *fds,
        * slot for the poll structure reference
        */
 
-      for (i = 0; i < ARRAY_SIZE(dev->pollfds); i++)
+      for (i = 0; i < nitems(dev->pollfds); i++)
         {
           /* Find an available slot */
 
@@ -450,7 +450,7 @@ static int usrsockdev_poll(FAR struct file *filep, FAR struct pollfd *fds,
             }
         }
 
-      if (i >= ARRAY_SIZE(dev->pollfds))
+      if (i >= nitems(dev->pollfds))
         {
           fds->priv = NULL;
           ret = -EBUSY;
@@ -470,7 +470,7 @@ static int usrsockdev_poll(FAR struct file *filep, FAR struct pollfd *fds,
           eventset |= POLLIN;
         }
 
-      poll_notify(dev->pollfds, ARRAY_SIZE(dev->pollfds), eventset);
+      poll_notify(dev->pollfds, nitems(dev->pollfds), eventset);
     }
   else
     {
@@ -510,7 +510,7 @@ int usrsock_request(FAR struct iovec *iov, unsigned int iovcnt)
 
   /* Set outstanding request for daemon to handle. */
 
-  net_lockedwait_uninterruptible(&dev->devlock);
+  net_mutex_lock(&dev->devlock);
 
   if (usrsockdev_is_opened(dev))
     {
@@ -521,7 +521,7 @@ int usrsock_request(FAR struct iovec *iov, unsigned int iovcnt)
 
       /* Notify daemon of new request. */
 
-      poll_notify(dev->pollfds, ARRAY_SIZE(dev->pollfds), POLLIN);
+      poll_notify(dev->pollfds, nitems(dev->pollfds), POLLIN);
     }
   else
     {

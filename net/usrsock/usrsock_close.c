@@ -106,7 +106,7 @@ static int do_close_request(FAR struct usrsock_conn_s *conn)
   bufs[0].iov_base = (FAR void *)&req;
   bufs[0].iov_len = sizeof(req);
 
-  return usrsock_do_request(conn, bufs, ARRAY_SIZE(bufs));
+  return usrsock_do_request(conn, bufs, nitems(bufs));
 }
 
 /****************************************************************************
@@ -163,7 +163,7 @@ int usrsock_close(FAR struct usrsock_conn_s *conn)
     {
       /* Wait for completion of request. */
 
-      net_lockedwait_uninterruptible(&state.recvsem);
+      net_sem_wait_uninterruptible(&state.recvsem);
 
       ret = state.result;
       if (ret < 0)

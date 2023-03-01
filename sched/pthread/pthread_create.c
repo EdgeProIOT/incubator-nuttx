@@ -59,16 +59,6 @@
 const pthread_attr_t g_default_pthread_attr = PTHREAD_ATTR_INITIALIZER;
 
 /****************************************************************************
- * Private Data
- ****************************************************************************/
-
-#if CONFIG_TASK_NAME_SIZE > 0
-/* This is the name for name-less pthreads */
-
-static const char g_pthreadname[] = "<pthread>";
-#endif
-
-/****************************************************************************
  * Private Functions
  ****************************************************************************/
 
@@ -95,13 +85,14 @@ static const char g_pthreadname[] = "<pthread>";
  ****************************************************************************/
 
 static inline void pthread_tcb_setup(FAR struct pthread_tcb_s *ptcb,
+                                     FAR struct tcb_s *parent,
                                      pthread_trampoline_t trampoline,
                                      pthread_addr_t arg)
 {
 #if CONFIG_TASK_NAME_SIZE > 0
   /* Copy the pthread name into the TCB */
 
-  strncpy(ptcb->cmn.name, g_pthreadname, CONFIG_TASK_NAME_SIZE);
+  strncpy(ptcb->cmn.name, parent->name, CONFIG_TASK_NAME_SIZE);
   ptcb->cmn.name[CONFIG_TASK_NAME_SIZE] = '\0';
 #endif /* CONFIG_TASK_NAME_SIZE */
 
@@ -189,6 +180,7 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
 {
   FAR struct pthread_tcb_s *ptcb;
   struct sched_param param;
+  FAR struct tcb_s *parent;
   int policy;
   int errcode;
   pid_t pid;
@@ -228,7 +220,7 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
 #ifdef CONFIG_ARCH_ADDRENV
   /* Share the address environment of the parent task group. */
 
-  ret = up_addrenv_attach(ptcb->cmn.group, this_task());
+  ret = addrenv_join(this_task(), (FAR struct tcb_s *)ptcb);
   if (ret < 0)
     {
       errcode = -ret;
@@ -403,11 +395,14 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
     }
 #endif
 
+  parent = this_task();
+  DEBUGASSERT(parent != NULL);
+
   /* Configure the TCB for a pthread receiving on parameter
    * passed by value
    */
 
-  pthread_tcb_setup(ptcb, trampoline, arg);
+  pthread_tcb_setup(ptcb, parent, trampoline, arg);
 
   /* Join the parent's task group */
 
@@ -426,12 +421,12 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
   switch (policy)
     {
       default:
-        DEBUGPANIC();
       case SCHED_FIFO:
         ptcb->cmn.flags    |= TCB_FLAG_SCHED_FIFO;
         break;
 
 #if CONFIG_RR_INTERVAL > 0
+      case SCHED_OTHER:
       case SCHED_RR:
         ptcb->cmn.flags    |= TCB_FLAG_SCHED_RR;
         ptcb->cmn.timeslice = MSEC2TICK(CONFIG_RR_INTERVAL);
@@ -441,12 +436,6 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
 #ifdef CONFIG_SCHED_SPORADIC
       case SCHED_SPORADIC:
         ptcb->cmn.flags    |= TCB_FLAG_SCHED_SPORADIC;
-        break;
-#endif
-
-#if 0 /* Not supported */
-      case SCHED_OTHER:
-        ptcb->cmn.flags    |= TCB_FLAG_SCHED_OTHER;
         break;
 #endif
     }
@@ -471,9 +460,6 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
    * We avoid this here by boosting the priority of the (inactive) pthread
    * so it has the same priority as the parent thread.
    */
-
-  FAR struct tcb_s *parent = this_task();
-  DEBUGASSERT(parent != NULL);
 
   if (ptcb->cmn.sched_priority < parent->sched_priority)
     {

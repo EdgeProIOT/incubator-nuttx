@@ -50,6 +50,7 @@
 
 #include <nuttx/config.h>
 
+#include <sys/param.h>
 #include <sys/types.h>
 
 #include <inttypes.h>
@@ -125,16 +126,6 @@
 #  define TSD_PENUP_INVALID (TOUCH_UP | TOUCH_ID_VALID)
 #  define TSD_PENDOWN       (TOUCH_DOWN | TOUCH_ID_VALID | TOUCH_POS_VALID)
 #  define TSD_PENMOVE       (TOUCH_MOVE | TOUCH_ID_VALID | TOUCH_POS_VALID)
-#endif
-
-/* Ever-present MIN and MAX macros */
-
-#ifndef MIN
-#  define MIN(a,b) (((a) < (b)) ? (a) : (b))
-#endif
-
-#ifndef MAX
-#  define MAX(a,b) (((a) > (b)) ? (a) : (b))
 #endif
 
 #ifndef BOARD_TSSCTIM
@@ -249,8 +240,8 @@ static const struct file_operations g_tsdops =
   NULL,            /* write */
   NULL,            /* seek */
   sam_tsd_ioctl,   /* ioctl */
-  NULL,            /* truncate */
   NULL,            /* mmap */
+  NULL,            /* truncate */
   sam_tsd_poll     /* poll */
 };
 
@@ -1573,7 +1564,7 @@ static void sam_tsd_initialize(struct sam_tsd_s *priv)
    * been initialised. It's the only option allowed and that works.
    */
 
-#ifndef SAMA5_TSD_PENDET_TRIG_ALLOWED  
+#ifndef SAMA5_TSD_PENDET_TRIG_ALLOWED
   /* if we're allowed to use pendet trigger no need to do this */
 
   regval  = sam_adc_getreg(priv, SAM_ADC_TRGR);
