@@ -505,6 +505,38 @@ static const char *g_white_list[] =
 
   "NimMain",
 
+  /* Ref:
+   * sim/posix/sim_rawgadget.c
+   */
+
+  "bRequestType",
+  "bRequest",
+  "wValue",
+  "wIndex",
+  "wLength",
+  "bLength",
+  "bDescriptorType",
+  "bEndpointAddress",
+  "bmAttributes",
+  "wMaxPacketSize",
+  "bInterval",
+
+  /* Ref:
+   * sim/posix/sim_libusb.c
+   */
+
+  "bNumConfigurations",
+  "bDeviceClass",
+  "idVendor",
+  "idProduct",
+
+  /* Ref:
+   * arch/arm/src/nrf52/sdc/nrf.h
+   * arch/arm/src/nrf53/sdc/nrf.h
+   */
+
+  "IRQn_Type",
+
   NULL
 };
 

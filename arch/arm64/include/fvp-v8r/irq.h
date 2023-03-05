@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm/src/nrf52/sdc/core_cm4.h
+ * arch/arm64/include/fvp-v8r/irq.h
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -18,24 +18,17 @@
  *
  ****************************************************************************/
 
-#ifndef __ARCH_ARM_SRC_NRF52_SDC_CORE_CM4_H
-#define __ARCH_ARM_SRC_NRF52_SDC_CORE_CM4_H
+/* This file should never be included directly but, rather,
+ * only indirectly through nuttx/irq.h
+ */
+
+#ifndef __ARCH_ARM64_INCLUDE_FVP_V8R_IRQ_H
+#define __ARCH_ARM64_INCLUDE_FVP_V8R_IRQ_H
 
 /****************************************************************************
- * Preprocessor Definitions
+ * Pre-processor Definitions
  ****************************************************************************/
 
-/* These are the definitions needed from CMSIS */
+#define NR_IRQS                 220  /* Total number of interrupts */
 
-#ifdef __cplusplus
-#  define   __I     volatile
-#else
-#  define   __I     volatile const
-#endif
-#define     __O     volatile
-#define     __IO    volatile
-#define     __IM    volatile const
-#define     __OM    volatile
-#define     __IOM   volatile
-
-#endif /* __ARCH_ARM_SRC_NRF52_SDC_CORE_CM4_H */
+#endif /* __ARCH_ARM64_INCLUDE_FVP_V8R_IRQ_H */
