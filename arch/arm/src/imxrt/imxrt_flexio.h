@@ -236,18 +236,18 @@ enum flexio_shifter_buffer_type_e
 struct flexio_timer_config_s
 {
   uint32_t trigger_select;
-  enum flexio_timer_trigger_polarity_e trigger_polarity;
-  enum flexio_timer_trigger_source_e trigger_source;
-  enum flexio_pin_config_e pin_config;
-  uint32_t pin_select;
-  enum flexio_pin_polarity_e pin_polarity;
-  enum flexio_timer_mode_e timer_mode;
-  enum flexio_timer_output_e timer_output;
-  enum flexio_timer_decrement_source_e timer_decrement;
-  enum flexio_timer_reset_condition_e timer_reset;
-  enum flexio_timer_disable_condition_e timer_disable;
-  enum flexio_timer_enable_condition_e timer_enable;
-  enum flexio_timer_stop_bit_condition_e timer_stop;
+  enum flexio_timer_trigger_polarity_e    trigger_polarity;
+  enum flexio_timer_trigger_source_e      trigger_source;
+  enum flexio_pin_config_e                pin_config;
+  uint32_t                                pin_select;
+  enum flexio_pin_polarity_e              pin_polarity;
+  enum flexio_timer_mode_e                timer_mode;
+  enum flexio_timer_output_e              timer_output;
+  enum flexio_timer_decrement_source_e    timer_decrement;
+  enum flexio_timer_reset_condition_e     timer_reset;
+  enum flexio_timer_disable_condition_e   timer_disable;
+  enum flexio_timer_enable_condition_e    timer_enable;
+  enum flexio_timer_stop_bit_condition_e  timer_stop;
   enum flexio_timer_start_bit_condition_e timer_start;
   uint32_t timer_compare;
 };
@@ -255,15 +255,15 @@ struct flexio_timer_config_s
 struct flexio_shifter_config_s
 {
   uint32_t timer_select;
-  enum flexio_shifter_timer_polarity_e timer_polarity;
-  enum flexio_pin_config_e pin_config;
-  uint32_t pin_select;
-  enum flexio_pin_polarity_e pin_polarity;
-  enum flexio_shifter_mode_e shifter_mode;
-  uint32_t parallel_width;
-  enum flexio_shifter_input_source_e input_source;
-  enum flexio_shifter_stop_bit_e shifter_stop;
-  enum flexio_shifter_start_bit_e shifter_start;
+  enum flexio_shifter_timer_polarity_e    timer_polarity;
+  enum flexio_pin_config_e                pin_config;
+  uint32_t                                pin_select;
+  enum flexio_pin_polarity_e              pin_polarity;
+  enum flexio_shifter_mode_e              shifter_mode;
+  uint32_t                                parallel_width;
+  enum flexio_shifter_input_source_e      input_source;
+  enum flexio_shifter_stop_bit_e          shifter_stop;
+  enum flexio_shifter_start_bit_e         shifter_start;
 };
 
 
