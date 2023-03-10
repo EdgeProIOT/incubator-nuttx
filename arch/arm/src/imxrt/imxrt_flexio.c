@@ -51,7 +51,6 @@
 
 #ifdef CONFIG_IMXRT_FLEXIO
 
-
 /****************************************************************************
  * Private Types
  ****************************************************************************/
@@ -60,85 +59,87 @@
 
 struct imxrt_flexiodev_s
 {
-  struct flexio_dev_s flexio; /* Externally visible part of the FlexIO
-                                 interface */
-  struct struct flexio_type_s_s *base; /* FlexIO controller register base address */
-  bool initialized;            /* TRUE: Controller has been initialized */
-  mutex_t lock;                /* Assures mutually exclusive access to
-                                  FlexIO */
+  struct flexio_dev_s     flexio;       /* Externally visible part of the FlexIO interface */
+  struct flexio_type_s    *base;        /* FlexIO controller register base address */
+  bool                    initialized;  /* TRUE: Controller has been initialized */
+  mutex_t                 lock;         /* Assures mutually exclusive access to FlexIO */
 };
 
 struct flexio_config_s
 {
-  bool enable_flexio;     /* Enable/disable FlexIO module */
-  bool enable_indoze;     /* Enable/disable FlexIO operation in doze mode */
-  bool enable_indebug;    /* Enable/disable FlexIO operation in debug mode */
-  bool enable_fast_access; /* Enable/disable fast access to FlexIO registers, fast access requires
-                              the FlexIO clock to be at least twice the frequency of the bus clock. */
+  bool enable_flexio;                   /* Enable/disable FlexIO module */
+  bool enable_indoze;                   /* Enable/disable FlexIO operation in doze mode */
+  bool enable_indebug;                  /* Enable/disable FlexIO operation in debug mode */
+  bool enable_fast_access;              /* Enable/disable fast access to FlexIO registers, fast access requires
+                                         * the FlexIO clock to be at least twice the frequency of the bus clock. */
 };
 
 /****************************************************************************
  * Private Data
  ****************************************************************************/
 
-/* FlexIO driver operations */
-
-static const struct flexio_ops_s g_flexio_ops =
-{
-
-};
-
+#ifdef CONFIG_IMXRT_FLEXIO1
 static struct imxrt_flexiodev_s g_flexio1_dev =
 {
-  .flexio =
-  {
-    .ops = &g_flexio_ops,
-  },
-  .base = (struct struct flexio_type_s_s *)IMXRT_FLEXIO1_BASE,
+  .base = (struct flexio_type_s *)IMXRT_FLEXIO1_BASE,
   .lock = NXMUTEX_INITIALIZER,
 };
+#endif
 
+#ifdef CONFIG_IMXRT_FLEXIO2
 static struct imxrt_flexiodev_s g_flexio2_dev =
 {
-  .flexio =
-  {
-    .ops = &g_flexio_ops,
-  },
-  .base = (struct struct flexio_type_s_s *)IMXRT_FLEXIO2_BASE,
+  .base = (struct flexio_type_s *)IMXRT_FLEXIO2_BASE,
   .lock = NXMUTEX_INITIALIZER,
 };
+#endif
 
+#ifdef CONFIG_IMXRT_FLEXIO3
 static struct imxrt_flexiodev_s g_flexio3_dev =
 {
-  .flexio =
-  {
-    .ops = &g_flexio_ops,
-  },
-  .base = (struct struct flexio_type_s_s *)IMXRT_FLEXIO3_BASE,
+  .base = (struct flexio_type_s *)IMXRT_FLEXIO3_BASE,
   .lock = NXMUTEX_INITIALIZER,
 };
+#endif
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
 
-/* Configures the FlexIO with a FlexIO configuration. The configuration structure
- * can be filled by the user or be set with default values by imxrt_flexio_get_default_config().
+/* Resets the FlexIO module.
+ *
+ * param base FlexIO peripheral base address
+ */
+
+void imxrt_flexio_reset(struct flexio_type_s *base)
+{
+  /* do software reset, software reset operation affect all other FLEXIO
+   * registers except CTRL
+   */
+
+  base->CTRL |= FLEXIO_CTRL_SWRST_MASK;
+  base->CTRL = 0;
+}
+
+/* Configures the FlexIO with a FlexIO configuration. The configuration
+ * structure can be filled by the user or be set with default values by
+ * imxrt_flexio_get_default_config().
  *
  * Example
-   code
-   struct flexio_config_s config = {
-   .enable_flexio = true,
-   .enable_indoze = false,
-   .enable_indebug = true,
-   .enable_fast_access = false
-   };
-   imxrt_flexio_init(base, &config);
-   endcode
+ * code
+ * struct flexio_config_s config = {
+ * .enable_flexio = true,
+ * .enable_indoze = false,
+ * .enable_indebug = true,
+ * .enable_fast_access = false
+ * };
+ * imxrt_flexio_init(base, &config);
+ * endcode
  *
  * param base FlexIO peripheral base address
  * param user_config pointer to flexio_config_s structure
-*/
+ */
+
 void imxrt_flexio_init(struct flexio_type_s *base,
                        const struct flexio_config_s *user_config)
 {
@@ -165,10 +166,10 @@ void imxrt_flexio_init(struct flexio_type_s *base,
 /* Gets the default configuration to configure the FlexIO module.
  *
  * Example:
-   code
-   struct flexio_config_s config;
-   imxrt_flexio_get_default_config(&config);
-   endcode
+ * code
+ * struct flexio_config_s config;
+ * imxrt_flexio_get_default_config(&config);
+ * endcode
  *
  * param user_config pointer to flexio_config_s structure
  */
@@ -183,20 +184,6 @@ void imxrt_flexio_get_default_config(struct flexio_config_s *user_config)
   user_config->enable_indoze      = false;
   user_config->enable_indebug     = true;
   user_config->enable_fast_access = false;
-}
-
-/* Resets the FlexIO module.
- *
- * param base FlexIO peripheral base address
- */
-
-void imxrt_flexio_reset(struct flexio_type_s *base)
-{
-  /* do software reset, software reset operation affect all other FLEXIO
-     registers except CTRL */
-
-  base->CTRL |= FLEXIO_CTRL_SWRST_MASK;
-  base->CTRL = 0;
 }
 
 /* Gets the shifter buffer address for the DMA transfer usage.
@@ -234,55 +221,51 @@ uint32_t imxrt_flexio_get_shifter_buffer_address(
       address = (uint32_t) & (base->SHIFTBUFBBS[index]);
       break;
 
-#if defined(CONFIG_FLEXIO_HAS_SHFT_BUFFER_NIBBLE_BYTE_SWAP) &&
-      CONFIG_FLEXIO_HAS_SHFT_BUFFER_NIBBLE_BYTE_SWAP
     case FLEXIO_SHIFTER_BUFFER_NIBBLE_BYTE_SWAPPED:
       address = (uint32_t) & (base->SHIFTBUFNBS[index]);
       break;
-#endif
-#if defined(CONFIG_FLEXIO_HAS_SHFT_BUFFER_HALF_WORD_SWAP) &&
-      CONFIG_FLEXIO_HAS_SHFT_BUFFER_HALF_WORD_SWAP
+
     case FLEXIO_SHIFTER_BUFFER_HALF_WORD_SWAPPED:
       address = (uint32_t) & (base->SHIFTBUFHWS[index]);
       break;
-#endif
-#if defined(CONFIG_FLEXIO_HAS_SHFT_BUFFER_NIBBLE_SWAP) &&
-      CONFIG_FLEXIO_HAS_SHFT_BUFFER_NIBBLE_SWAP
+
     case FLEXIO_SHIFTER_BUFFER_NIBBLE_SWAPPED:
       address = (uint32_t) & (base->SHIFTBUFNIS[index]);
       break;
-#endif
+
     default:
       address = (uint32_t) & (base->SHIFTBUF[index]);
       break;
     }
+
   return address;
 }
 
-/* Configures the shifter with the shifter configuration. The configuration structure
- * covers both the SHIFTCTL and SHIFTCFG registers. To configure the shifter to the proper
- * mode, select which timer controls the shifter to shift, whether to generate start bit/stop
- *  bit, and the polarity of start bit and stop bit.
+/* Configures the shifter with the shifter configuration. The configuration
+ * structure covers both the SHIFTCTL and SHIFTCFG registers. To configure
+ * the shifter to the proper mode, select which timer controls the shifter
+ * to shift, whether to generate start bit/stop bit, and the polarity of
+ * start bit and stop bit.
  *
  * Example
-   code
-   struct flexio_shifter_config_s config = {
-   .timer_select = 0,
-   .timer_polarity = FLEXIO_SHIFTER_TIMER_POLARITY_ON_POSITIVE,
-   .pin_config = FLEXIO_PIN_CONFIG_OPEN_DRAIN_OR_BIDIRECTION,
-   .pin_polarity = FLEXIO_PIN_ACTIVE_LOW,
-   .shifter_mode = FLEXIO_SHIFTER_MODE_TRANSMIT,
-   .input_source = FLEXIO_SHIFTER_INPUT_FROM_PIN,
-   .shifter_stop = FLEXIO_SHIFTER_STOP_BIT_HIGH,
-   .shifter_start = FLEXIO_SHIFTER_START_BIT_LOW
-   };
-   imxrt_flexio_set_shifter_config(base, &config);
-   endcode
+ * code
+ * struct flexio_shifter_config_s config = {
+ * .timer_select = 0,
+ * .timer_polarity = FLEXIO_SHIFTER_TIMER_POLARITY_ON_POSITIVE,
+ * .pin_config = FLEXIO_PIN_CONFIG_OPEN_DRAIN_OR_BIDIRECTION,
+ * .pin_polarity = FLEXIO_PIN_ACTIVE_LOW,
+ * .shifter_mode = FLEXIO_SHIFTER_MODE_TRANSMIT,
+ * .input_source = FLEXIO_SHIFTER_INPUT_FROM_PIN,
+ * .shifter_stop = FLEXIO_SHIFTER_STOP_BIT_HIGH,
+ * .shifter_start = FLEXIO_SHIFTER_START_BIT_LOW
+ * };
+ * imxrt_flexio_set_shifter_config(base, &config);
+ * endcode
  *
  * param base FlexIO peripheral base address
  * param index Shifter index
  * param shifter_config Pointer to flexio_shifter_config_s structure
-*/
+ */
 
 void imxrt_flexio_set_shifter_config(
   struct flexio_type_s *base,
@@ -291,9 +274,7 @@ void imxrt_flexio_set_shifter_config(
 {
   base->SHIFTCFG[index] =
     FLEXIO_SHIFTCFG_INSRC(shifter_config->input_source)
-#if CONFIG_FLEXIO_HAS_PARALLEL_WIDTH
     | FLEXIO_SHIFTCFG_PWIDTH(shifter_config->parallel_width)
-#endif
     | FLEXIO_SHIFTCFG_SSTOP(shifter_config->shifter_stop)
     | FLEXIO_SHIFTCFG_SSTART(shifter_config->shifter_start);
 
@@ -306,35 +287,38 @@ void imxrt_flexio_set_shifter_config(
     FLEXIO_SHIFTCTL_SMOD(shifter_config->shifter_mode);
 }
 
-/* Configures the timer with the timer configuration. The configuration structure
- * covers both the TIMCTL and TIMCFG registers. To configure the timer to the proper
- * mode, select trigger source for timer and the timer pin output and the timing for timer.
+/* Configures the timer with the timer configuration. The configuration
+ * structure covers both the TIMCTL and TIMCFG registers. To configure the
+ * timer to the proper mode, select trigger source for timer and the timer
+ * pin output and the timing for timer.
  *
  * Example
-   code
-   struct flexio_timer_config_s config = {
-   .trigger_select = FLEXIO_TIMER_TRIGGER_SEL_SHIFTnSTAT(0),
-   .trigger_polarity = FLEXIO_TIMER_TRIGGER_POLARITY_ACTIVE_LOW,
-   .trigger_source = FLEXIO_TIMER_TRIGGER_SOURCE_INTERNAL,
-   .pin_config = FLEXIO_PIN_CONFIG_OPEN_DRAIN_OR_BIDIRECTION,
-   .pin_select = 0,
-   .pin_polarity = FLEXIO_PIN_ACTIVE_HIGH,
-   .timer_mode = FLEXIO_TIMER_MODE_DUAL8_BIT_BAUD_BIT,
-   .timer_output = FLEXIO_TIMER_OUTPUT_ZERO_NOT_AFFECTED_BY_RESET,
-   .timer_decrement = FLEXIO_TIMER_DEC_SRC_ON_FLEX_IO_CLOCK_SHIFT_TIMER_OUTPUT,
-   .timer_reset = FLEXIO_TIMER_RESET_ON_TIMER_PIN_EQUAL_TO_TIMER_OUTPUT,
-   .timer_disable = FLEXIO_TIMER_DISABLE_ON_TIMER_COMPARE,
-   .timer_enable = FLEXIO_TIMER_ENABLE_ON_TRIGGER_HIGH,
-   .timer_stop = FLEXIO_TIMER_STOP_BIT_ENABLE_ON_TIMER_DISABLE,
-   .timer_start = FLEXIO_TIMER_START_BIT_ENABLED
-   };
-   imxrt_flexio_set_timer_config(base, &config);
-   endcode
+ * code
+ * struct flexio_timer_config_s config = {
+ * .trigger_select = FLEXIO_TIMER_TRIGGER_SEL_SHIFTnSTAT(0),
+ * .trigger_polarity = FLEXIO_TIMER_TRIGGER_POLARITY_ACTIVE_LOW,
+ * .trigger_source = FLEXIO_TIMER_TRIGGER_SOURCE_INTERNAL,
+ * .pin_config = FLEXIO_PIN_CONFIG_OPEN_DRAIN_OR_BIDIRECTION,
+ * .pin_select = 0,
+ * .pin_polarity = FLEXIO_PIN_ACTIVE_HIGH,
+ * .timer_mode = FLEXIO_TIMER_MODE_DUAL8_BIT_BAUD_BIT,
+ * .timer_output = FLEXIO_TIMER_OUTPUT_ZERO_NOT_AFFECTED_BY_RESET,
+ * .timer_decrement =
+ *    FLEXIO_TIMER_DEC_SRC_ON_FLEX_IO_CLOCK_SHIFT_TIMER_OUTPUT,
+ * .timer_reset = FLEXIO_TIMER_RESET_ON_TIMER_PIN_EQUAL_TO_TIMER_OUTPUT,
+ * .timer_disable = FLEXIO_TIMER_DISABLE_ON_TIMER_COMPARE,
+ * .timer_enable = FLEXIO_TIMER_ENABLE_ON_TRIGGER_HIGH,
+ * .timer_stop = FLEXIO_TIMER_STOP_BIT_ENABLE_ON_TIMER_DISABLE,
+ * .timer_start = FLEXIO_TIMER_START_BIT_ENABLED
+ * };
+ * imxrt_flexio_set_timer_config(base, &config);
+ * endcode
  *
  * param base FlexIO peripheral base address
  * param index Timer index
  * param timer_config Pointer to the flexio_timer_config_s structure
-*/
+ */
+
 void imxrt_flexio_set_timer_config(
   struct flexio_type_s *base,
   uint8_t index,
@@ -352,12 +336,12 @@ void imxrt_flexio_set_timer_config(
   base->TIMCMP[index] = FLEXIO_TIMCMP_CMP(timer_config->timer_compare);
 
   base->TIMCTL[index] = FLEXIO_TIMCTL_TRGSEL(timer_config->trigger_select) |
-                        FLEXIO_TIMCTL_TRGPOL(timer_config->trigger_polarity) |
-                        FLEXIO_TIMCTL_TRGSRC(timer_config->trigger_source) |
-                        FLEXIO_TIMCTL_PINCFG(timer_config->pin_config) |
-                        FLEXIO_TIMCTL_PINSEL(timer_config->pin_select) |
-                        FLEXIO_TIMCTL_PINPOL(timer_config->pin_polarity) |
-                        FLEXIO_TIMCTL_TIMOD(timer_config->timer_mode);
+    FLEXIO_TIMCTL_TRGPOL(timer_config->trigger_polarity) |
+    FLEXIO_TIMCTL_TRGSRC(timer_config->trigger_source) |
+    FLEXIO_TIMCTL_PINCFG(timer_config->pin_config) |
+    FLEXIO_TIMCTL_PINSEL(timer_config->pin_select) |
+    FLEXIO_TIMCTL_PINPOL(timer_config->pin_polarity) |
+    FLEXIO_TIMCTL_TIMOD(timer_config->timer_mode);
 }
 
 /****************************************************************************
@@ -370,11 +354,11 @@ void imxrt_flexio_set_timer_config(
  *   intf - Interface number(must be zero)
  *
  * Returned Value:
- *   Valid FlexIO device structure reference on success; a NULL on failure
+ *   OK on success; Negated errno on failure.
  *
  ****************************************************************************/
 
-struct flexio_dev_s *imxrt_flexio_initialize(int intf)
+int imxrt_flexio_initialize(int intf)
 {
   struct imxrt_flexiodev_s *priv;
   struct flexio_config_s flexio_config;
@@ -400,7 +384,7 @@ struct flexio_dev_s *imxrt_flexio_initialize(int intf)
       break;
 #endif
     default:
-      return NULL;
+      return -ENODEV;
     }
 
   /* Has the FlexSPI hardware been initialized? */
@@ -421,8 +405,7 @@ struct flexio_dev_s *imxrt_flexio_initialize(int intf)
       priv->initialized = true;
     }
 
-  return &priv->flexio;
+  return 0;
 }
-
 
 #endif /* CONFIG_IMXRT_FLEXIO */
