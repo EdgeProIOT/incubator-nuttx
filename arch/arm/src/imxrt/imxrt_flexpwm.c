@@ -806,7 +806,7 @@ static int pwm_change_freq(struct pwm_lowerhalf_s *dev,
 {
   struct imxrt_flexpwm_s *priv = (struct imxrt_flexpwm_s *)dev;
 #ifdef CONFIG_PWM_MULTICHAN
-  uint8_t shift = info->channels[channel].channel >> 1;
+  uint8_t shift = (info->channels[channel].channel - 1) >> 1;
 #else
   uint8_t shift = priv->modules[0].module - 1;
 #endif
@@ -888,7 +888,7 @@ static int pwm_set_output(struct pwm_lowerhalf_s *dev, uint8_t channel,
   uint16_t period;
   uint16_t width;
   uint16_t regval;
-  uint8_t shift = channel >> 1;  /* Shift submodle offset addresses */
+  uint8_t shift = (channel - 1) >> 1;  /* Shift submodule offset addresses */
 
   /* Get the period value */
 
@@ -905,7 +905,7 @@ static int pwm_set_output(struct pwm_lowerhalf_s *dev, uint8_t channel,
   regval |= MCTRL_CLDOK(1 << shift);
   putreg16(regval, priv->base + IMXRT_FLEXPWM_MCTRL_OFFSET);
 
-  if (channel % 2)
+  if ((channel - 1) % 2)
     {
       for (int i = 0; i < priv->modules_num; i++)
         {
@@ -1262,7 +1262,7 @@ static int pwm_start(struct pwm_lowerhalf_s *dev,
 
           /* Remember the channel number in bitmap */
 
-          ldok_map |= 1 << (info->channels[i].channel >> 1);
+          ldok_map |= 1 << ((info->channels[i].channel - 1) >> 1);
         }
     }
 #else

@@ -133,9 +133,9 @@
 
 #define RGBLED_PWM1         1
 #define RGBLED_PWM2         2
-#define RGBLED_RPWMCHANNEL  5
-#define RGBLED_GPWMCHANNEL  6
-#define RGBLED_BPWMCHANNEL  7
+#define RGBLED_RPWMCHANNEL  6
+#define RGBLED_GPWMCHANNEL  7
+#define RGBLED_BPWMCHANNEL  8
 
 /* PIO Disambiguation *******************************************************/
 
