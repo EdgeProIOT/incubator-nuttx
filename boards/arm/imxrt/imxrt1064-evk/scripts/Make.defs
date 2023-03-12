@@ -30,7 +30,11 @@ ifeq ($(CONFIG_IMXRT_APP_FORMAT_MCUBOOT),y)
   endif
 else
   ifeq ($(CONFIG_BOOT_RUNFROMFLASH),y)
-    LDSCRIPT = flash.ld
+    ifeq ($(CONFIG_ARMV7M_DTCM),y)
+      LDSCRIPT = flash-dtcm.ld
+    else  
+      LDSCRIPT = flash.ld
+    endif
   else ifeq ($(CONFIG_BOOT_RUNFROMISRAM),y)
     LDSCRIPT = flash-ocram.ld
   endif
