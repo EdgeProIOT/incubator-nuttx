@@ -97,5 +97,6 @@ endif
 ifeq ($(CONFIG_BOARDCTL_BOOT_IMAGE),y)
 CSRCS += imxrt_boot_image.c
 endif
+CSRCS += imxrt_ads1278.c
 
 include $(TOPDIR)/boards/Board.mk

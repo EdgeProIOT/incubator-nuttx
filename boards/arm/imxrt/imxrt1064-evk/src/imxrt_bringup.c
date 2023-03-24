@@ -33,6 +33,7 @@
 #include <nuttx/video/fb.h>
 #include <imxrt_lpi2c.h>
 #include <imxrt_lpspi.h>
+#include <imxrt_flexio.h>
 #include <nuttx/input/buttons.h>
 
 #ifdef CONFIG_IMXRT_USDHC
