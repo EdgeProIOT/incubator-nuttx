@@ -46,8 +46,6 @@
 
 #include <arch/board/board.h>
 
-#ifdef CONFIG_IMXRT_ADS1278
-
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
@@ -144,7 +142,7 @@ static void ads1278_initialize(struct imxrt_ads1278_s *priv)
   shifter_config.shifter_mode   = FLEXIO_SHIFTER_MODE_RECEIVE;
   shifter_config.input_source   = FLEXIO_SHIFTER_INPUT_FROM_PIN;
   shifter_config.shifter_stop   = FLEXIO_TIMER_STOP_BIT_DISABLED;
-  shifter_config.shifter_Start  =
+  shifter_config.shifter_start  =
     FLEXIO_SHIFTER_START_BIT_DISABLED_LOAD_DATA_ON_ENABLE;
 
   flexio->ops->set_shifter_config(
@@ -165,8 +163,8 @@ static void ads1278_initialize(struct imxrt_ads1278_s *priv)
   timer_config.trigger_select   =
     FLEXIO_TIMER_TRIGGER_SEL_SHIFTnSTAT(FLEXIO_RX_SHIFTER_INDEX);
   timer_config.trigger_polarity = FLEXIO_TIMER_TRIGGER_POLARITY_ACTIVE_LOW;
-  timer_config.trigger_Source   = FLEXIO_TIMER_TRIGGER_SOURCE_INTERNAL;
-  timer_config.pin_Select       = FLEXIO_BCLK_PIN;
+  timer_config.trigger_source   = FLEXIO_TIMER_TRIGGER_SOURCE_INTERNAL;
+  timer_config.pin_select       = FLEXIO_BCLK_PIN;
   timer_config.pin_config       = FLEXIO_PIN_CONFIG_OUTPUT;
   timer_config.pin_polarity     = FLEXIO_PIN_ACTIVE_HIGH;
   timer_config.timer_mode       = FLEXIO_TIMER_MODE_DUAL8_BIT_BAUD_BIT;
@@ -195,7 +193,7 @@ static void ads1278_initialize(struct imxrt_ads1278_s *priv)
   timer_config.pin_config       = FLEXIO_PIN_CONFIG_OUTPUT;
   timer_config.pin_select       = FLEXIO_FRAME_SYNC_PIN;
   timer_config.pin_polarity     = FLEXIO_PIN_ACTIVE_LOW;
-  timer_config.timer_mode       = FLEXIO_TIMER_MODE_SINGLE16_BIT;
+  timer_config.timer_mode       = FLEXIO_TIMER_MODE_DUAL8_BIT_PWM;
   timer_config.timer_output     =
     FLEXIO_TIMER_OUTPUT_ONE_NOT_AFFECTED_BY_RESET;
   timer_config.timer_decrement  =
@@ -205,7 +203,7 @@ static void ads1278_initialize(struct imxrt_ads1278_s *priv)
   timer_config.timer_enable     = FLEXIO_TIMER_ENABLE_ON_PREV_TIMER_ENABLE;
   timer_config.timer_start      = FLEXIO_TIMER_START_BIT_DISABLED;
   timer_config.timer_stop       = FLEXIO_TIMER_STOP_BIT_DISABLED;
-  timer_config.timer_compare    = FLEXIO_ADS1278_WORD_WIDTH * tim_div - 1U;
+  timer_config.timer_compare    = (255U | (255U << 8U));
 
   flexio->ops->set_timer_config(
     flexio,
@@ -238,8 +236,7 @@ static void ads1278_recv(
   void *rxbuffer,
   size_t nwords)
 {
-  int       ret;
-  uint32_t  regval;
+  struct flexio_dev_s *flexio = priv->flexio;
 
   DEBUGASSERT(priv != NULL);
   
@@ -253,7 +250,10 @@ static void ads1278_recv(
 
   struct imxrt_edma_xfrconfig_s config;
 
-  config.saddr  = priv->spibase + IMXRT_LPSPI_RDR_OFFSET;
+  config.saddr  = flexio->ops->get_shifter_buffer_address(
+                    flexio,
+                    FLEXIO_SHIFTER_BUFFER_BIT_SWAPPED,
+                    FLEXIO_RX_SHIFTER_INDEX);
   config.daddr  = (uint32_t)rxbuffer;
   config.soff   = 0;
   config.doff   = 0;
@@ -313,7 +313,6 @@ static int ads1278_dmarxwait(struct imxrt_ads1278_s *priv)
 
   return ret;
 }
-#endif
 
 /****************************************************************************
  * Name: ads1278_dmarxwakeup
@@ -386,10 +385,8 @@ void imxrt_ads1278_initialize(void)
   imxrt_config_gpio(GPIO_FLEXIO3_RX);       /* GPIO_AD_B1_06 */
 
   flexio = imxrt_flexio_initialize(3);
-  if (flexio == NULL)
-    {
-      DEBUGASSERT(flexio_dev);
-    }
+  
+  DEBUGASSERT(flexio);
 
   priv->flexio = flexio;
 
@@ -409,6 +406,3 @@ void imxrt_ads1278_initialize(void)
 
   ads1278_initialize(priv);
 }
-
-
-#endif /* CONFIG_IMXRT_ADS1278 */

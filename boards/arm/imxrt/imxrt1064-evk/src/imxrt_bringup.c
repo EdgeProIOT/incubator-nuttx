@@ -297,6 +297,7 @@ int imxrt_bringup(void)
     }
 #endif /* HAVE_PROGMEM_CHARDEV */
 #endif /* CONFIG_MTD */
+  imxrt_ads1278_initialize();
 
   UNUSED(ret);
   return OK;
