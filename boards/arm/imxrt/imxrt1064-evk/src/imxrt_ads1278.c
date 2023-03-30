@@ -24,12 +24,22 @@
 
 #include <nuttx/config.h>
 
-#include <syslog.h>
+#include <sys/types.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <unistd.h>
+#include <string.h>
+#include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
+#include <debug.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/mutex.h>
+#include <nuttx/fs/fs.h>
+#include <nuttx/irq.h>
+#include <nuttx/analog/adc.h>
+#include <nuttx/analog/ioctl.h>
 
 #include "imxrt_config.h"
 #include "imxrt_gpio.h"
@@ -59,54 +69,557 @@
 
 #define FLEXIO_SRC_CLK_HZ               30000000U
 #define FLEXIO_ADS1278_WORD_WIDTH       32U
-#define FLEXIO_ADS1278_SAMPLE_RATE_HZ   10190U
+#define FLEXIO_ADS1278_SAMPLE_RATE_HZ   9765U
 
 /****************************************************************************
  * Private Types
  ****************************************************************************/
 
-struct imxrt_ads1278_s
-{
-  struct flexio_dev_s *flexio;
-  mutex_t lock;                       /* Held while chip is selected for mutual exclusion */
+/* This describes on ADC message */
 
-  volatile uint32_t rx_result;        /* Result of the RX DMA */
-  const uint16_t    rx_ch;            /* The RX DMA channel number */
-  DMACH_HANDLE      rx_dma;           /* DMA channel handle for RX transfers */
-  sem_t             rx_sem;           /* Wait for RX DMA to complete */
+begin_packed_struct struct ads1278_data_s
+{
+  int32_t data[8];
+} end_packed_struct;
+
+/* This describes a FIFO of ADS1278 samples */
+
+struct ads1278_fifo_s
+{
+  sem_t   sem;                          /* Counting semaphore */
+  uint8_t head;                         /* Index to the head [IN] index in the circular buffer */
+  uint8_t tail;                         /* Index to the tail [OUT] index in the circular buffer */
+
+  struct ads1278_data_s buffer[CONFIG_ADS1278_FIFOSIZE];
+};
+
+struct ads1278_dev_s
+{
+  struct flexio_dev_s   *flexio;
+
+  volatile uint32_t     rxresult;       /* Result of the RX DMA */
+  const uint16_t        rxch;           /* The RX DMA channel number */
+  DMACH_HANDLE          rxdma;          /* DMA channel handle for RX transfers */
+  sem_t                 rxsem;          /* Wait for RX DMA to complete */
+
+  uint32_t              rxbuf[2][16];   /* RX buffer scheme */
+  uint8_t               index;          /* RX buffer index */
+
+  uint8_t               ocount;         /* The number of times the device has been opened */
+  uint8_t               nrxwaiters;     /* Number of threads waiting to enqueue a message */
+  mutex_t               closelock;      /* Locks out new opens while close is in progress */
+  struct ads1278_fifo_s recv;           /* Describes receive FIFO */
+  bool                  isovr;          /* Flag to indicate an ADC overrun */
+
+  /* The following is a list of poll structures of threads waiting for
+   * driver events.  The 'struct pollfd' reference for each open is also
+   * retained in the f_priv field of the 'struct file'.
+   */
+
+  struct pollfd *fds[CONFIG_ADS1278_NPOLLWAITERS];
 
 };
 
 
 /****************************************************************************
- * Private Function Ptototypes
+ * Private Function Prototypes
  ****************************************************************************/
 
-/* DMA support */
+static int          ads1278_dmarxwait(struct ads1278_dev_s *dev);
+static inline void  ads1278_dmarxwakeup(struct ads1278_dev_s *dev);
+static void         ads1278_dmarxcallback(DMACH_HANDLE handle, void *arg,
+    bool done, int result);
+static inline void  ads1278_dmarxstart(struct ads1278_dev_s *dev);
+static void         ads1278_dmasetup(struct ads1278_dev_s *dev);
 
-static int         ads1278_dmarxwait(struct imxrt_ads1278_s *priv);
-static inline void ads1278_dmarxwakeup(struct imxrt_ads1278_s *priv);
-static void        ads1278_dmarxcallback(DMACH_HANDLE handle, void *arg,
-                                         bool done, int result);
-static inline void ads1278_dmarxstart(struct imxrt_ads1278_s *priv);
+static int          ads1278_open(FAR struct file *filep);
+static int          ads1278_close(FAR struct file *filep);
+static ssize_t      ads1278_read(FAR struct file *fielp, FAR char *buffer,
+                                 size_t buflen);
+static int          ads1278_ioctl(FAR struct file *filep, int cmd,
+                                  unsigned long arg);
+static int          ads1278_receive(FAR struct ads1278_dev_s *dev,
+                                    struct ads1278_data_s *data);
+static void         ads1278_notify(FAR struct ads1278_dev_s *dev);
+static int          ads1278_poll(FAR struct file *filep, struct pollfd *fds,
+                                 bool setup);
+static int          ads1278_reset_fifo(FAR struct ads1278_dev_s *dev);
 
+static void         ads1278_initialize(struct ads1278_dev_s *dev);
 
 /****************************************************************************
  * Private Data
  ****************************************************************************/
 
-static struct imxrt_ads1278_s g_ads1278 =
+static const struct file_operations g_ads1278_fops =
 {
+  ads1278_open,   /* open */
+  ads1278_close,  /* close */
+  ads1278_read,   /* read */
+  NULL,           /* write */
+  NULL,           /* seek */
+  ads1278_ioctl,  /* ioctl */
+  NULL,           /* mmap */
+  NULL,           /* truncate */
+  ads1278_poll    /* poll */
+};
 
-  .lock   = NXMUTEX_INITIALIZER,
-  .rx_ch  = IMXRT_DMACHAN_FLEXIO2,
-  .rx_sem = SEM_INITIALIZER(0),
+static struct ads1278_dev_s g_ads1278 =
+{
+  .rxch  = IMXRT_DMACHAN_FLEXIO2,
+  .rxsem = SEM_INITIALIZER(0),
 };
 
 
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: ads1278_open
+ *
+ * Description:
+ *   This function is called whenever the ADS1278 device is opened.
+ *
+ ****************************************************************************/
+
+static int ads1278_open(FAR struct file *filep)
+{
+  FAR struct inode     *inode = filep->f_inode;
+  FAR struct ads1278_dev_s *dev = inode->i_private;
+  uint8_t               tmp;
+  int                   ret;
+
+  /* If the port is the middle of closing, wait until the close is
+   * finished.
+   */
+
+  ret = nxmutex_lock(&dev->closelock);
+  if (ret >= 0)
+    {
+      /* Increment the count of references to the device. If this is the
+       * first time that the driver has been opened for this device, then
+       * initialize the device.
+       */
+
+      tmp = dev->ocount + 1;
+      if (tmp == 0)
+        {
+          /* More than 255 opens; uint8_t overflows to zero */
+
+          ret = -EMFILE;
+        }
+      else
+        {
+          /* Check if this is the first time that the driver has been
+           * opened.
+           */
+
+          if (tmp == 1)
+            {
+              /* Yes.. perform one time hardware initialization. */
+
+              irqstate_t flags = enter_critical_section();
+
+              ads1278_initialize(dev);
+
+              /* Mark the FIFOs empty */
+
+              dev->recv.head = 0;
+              dev->recv.tail = 0;
+
+              /* Clear overrun indicator */
+
+              dev->isovr = false;
+
+              leave_critical_section(flags);
+            }
+
+          /* Save the new open count on success */
+
+          dev->ocount = tmp;
+        }
+
+      nxmutex_unlock(&dev->closelock);
+    }
+
+  return ret;
+}
+
+/****************************************************************************
+ * Name: ads1278_close
+ *
+ * Description:
+ *   This routine is called when the ADS1278 device is closed.
+ *
+ ****************************************************************************/
+
+static int ads1278_close(FAR struct file *filep)
+{
+  FAR struct inode     *inode = filep->f_inode;
+  FAR struct ads1278_dev_s *dev = inode->i_private;
+  irqstate_t            flags;
+  int                   ret;
+
+  ret = nxmutex_lock(&dev->closelock);
+  if (ret >= 0)
+    {
+      /* Decrement the references to the driver. If the reference count will
+       * decrement to 0, then uninitialize the driver.
+       */
+
+      if (dev->ocount > 1)
+        {
+          dev->ocount--;
+          nxmutex_unlock(&dev->closelock);
+        }
+      else
+        {
+          /* There are no more references to the port */
+
+          dev->ocount = 0;
+
+          /* Free the IRQ and disable the ADC device */
+
+          flags = enter_critical_section();    /* Disable interrupts */
+
+          /* TODO: Disable the ADS1278 */
+
+          leave_critical_section(flags);
+
+          nxmutex_unlock(&dev->closelock);
+        }
+    }
+
+  return ret;
+}
+
+/****************************************************************************
+ * Name: ads1278_read
+ ****************************************************************************/
+
+static ssize_t ads1278_read(FAR struct file *filep, FAR char *buffer,
+                            size_t buflen)
+{
+  FAR struct inode     *inode = filep->f_inode;
+  FAR struct ads1278_dev_s *dev = inode->i_private;
+  size_t                nread;
+  irqstate_t            flags;
+  int                   ret = 0;
+  int                   datalen = sizeof(struct ads1278_data_s);
+
+  ainfo("buflen: %d\n", (int)buflen);
+
+  if (buflen >= datalen)
+    {
+      /* Interrupts must be disabled while accessing the receive FIFO */
+
+      flags = enter_critical_section();
+
+      while (dev->recv.head == dev->recv.tail)
+        {
+          /* Check if there was an overrun, if set we need to return EIO */
+
+          if (dev->isovr)
+            {
+              dev->isovr = false;
+              ret = -EIO;
+              goto return_with_irqdisabled;
+            }
+
+          /* The receive FIFO is empty -- was non-blocking mode selected? */
+
+          if (filep->f_oflags & O_NONBLOCK)
+            {
+              ret = -EAGAIN;
+              goto return_with_irqdisabled;
+            }
+
+          /* Wait for a data to be received */
+
+          dev->nrxwaiters++;
+          ret = nxsem_wait(&dev->recv.sem);
+          dev->nrxwaiters--;
+          if (ret < 0)
+            {
+              goto return_with_irqdisabled;
+            }
+        }
+
+      /* The receive FIFO is not empty. Copy all buffered data that will fit
+       * in the user buffer.
+       */
+
+      nread = 0;
+
+      do
+        {
+          FAR struct ads1278_data_s *data =
+              &dev->recv.buffer[dev->recv.head];
+
+          /* Will the next data in the FIFO fit into the user buffer? */
+
+          if (nread + datalen > buflen)
+            {
+              /* No, break out of the loop now with nread equal to the
+               * actual number of bytes transferred.
+               */
+
+              break;
+            }
+
+          /* Copy the data to the user buffer */
+
+          memcpy(&buffer[nread + 1], data, sizeof(struct ads1278_data_s));
+
+          nread += datalen;
+
+          /* Increment the head of the circular data buffer */
+
+          if (++dev->recv.head >= CONFIG_ADS1278_FIFOSIZE)
+            {
+              dev->recv.head = 0;
+            }
+        }
+      while (dev->recv.head != dev->recv.tail);
+
+      /* All of the data have been transferred. Return the number of
+       * bytes that were read.
+       */
+
+      ret = nread;
+
+return_with_irqdisabled:
+      leave_critical_section(flags);
+    }
+
+  ainfo("Returning: %d\n", ret);
+  return ret;
+}
+
+/****************************************************************************
+ * Name: ads1278_ioctl
+ ****************************************************************************/
+
+static int ads1278_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
+{
+  FAR struct inode *inode = filep->f_inode;
+  FAR struct ads1278_dev_s *dev = inode->i_private;
+  int ret;
+
+  switch (cmd)
+    {
+    case ANIOC_RESET_FIFO:
+    {
+      ret = ads1278_reset_fifo(dev);
+    }
+    break;
+
+    default:
+      break;
+    }
+
+  return ret;
+}
+
+/****************************************************************************
+ * Name: ads1278_receive
+ ****************************************************************************/
+
+static int ads1278_receive(
+  FAR struct ads1278_dev_s *dev,
+  struct ads1278_data_s *data)
+{
+  FAR struct ads1278_fifo_s *fifo = &dev->recv;
+  int nexttail;
+  int errcode = -ENOMEM;
+
+  /* Check if adding this new message would over-run the drivers ability to
+   * enqueue read data.
+   */
+
+  nexttail = fifo->tail + 1;
+  if (nexttail >= CONFIG_ADS1278_FIFOSIZE)
+    {
+      nexttail = 0;
+    }
+
+  /* Refuse the new data if the FIFO is full */
+
+  if (nexttail != fifo->head)
+    {
+      /* Add the new, decoded ADS1278 sample at the tail of the FIFO */
+
+      memcpy(&fifo->buffer[fifo->tail], data, sizeof(struct ads1278_data_s));
+
+      /* Increment the tail of the circular buffer */
+
+      fifo->tail = nexttail;
+
+      ads1278_notify(dev);
+
+      errcode = OK;
+    }
+
+  return errcode;
+}
+
+/****************************************************************************
+ * Name: ads1278_notify
+ ****************************************************************************/
+
+static void ads1278_notify(FAR struct ads1278_dev_s *dev)
+{
+  FAR struct ads1278_fifo_s *fifo = &dev->recv;
+
+  /* If there are threads waiting on poll() for data to become available,
+   * then wake them up now.
+   */
+
+  poll_notify(dev->fds, CONFIG_ADS1278_NPOLLWAITERS, POLLIN);
+
+  /* If there are threads waiting for read data, then signal one of them
+   * that the read data is available.
+   */
+
+  if (dev->nrxwaiters > 0)
+    {
+      nxsem_post(&fifo->sem);
+    }
+}
+
+/****************************************************************************
+ * Name: ads1278_poll
+ ****************************************************************************/
+
+static int ads1278_poll(
+  FAR struct file *filep,
+  struct pollfd *fds,
+  bool setup)
+{
+  FAR struct inode     *inode = filep->f_inode;
+  FAR struct ads1278_dev_s *dev = inode->i_private;
+  irqstate_t flags;
+  int ret = 0;
+  int i;
+
+  /* Interrupts must be disabled while accessing the list of poll structures
+   * and ad_recv FIFO.
+   */
+
+  flags = enter_critical_section();
+
+  if (setup)
+    {
+      /* Ignore waits that do not include POLLIN */
+
+      if ((fds->events & POLLIN) == 0)
+        {
+          ret = -EDEADLK;
+          goto return_with_irqdisabled;
+        }
+
+      /* This is a request to set up the poll.  Find an available
+       * slot for the poll structure reference
+       */
+
+      for (i = 0; i < CONFIG_ADS1278_NPOLLWAITERS; i++)
+        {
+          /* Find an available slot */
+
+          if (!dev->fds[i])
+            {
+              /* Bind the poll structure and this slot */
+
+              dev->fds[i] = fds;
+              fds->priv   = &dev->fds[i];
+              break;
+            }
+        }
+
+      if (i >= CONFIG_ADS1278_NPOLLWAITERS)
+        {
+          fds->priv    = NULL;
+          ret          = -EBUSY;
+          goto return_with_irqdisabled;
+        }
+
+      /* Should we immediately notify on any of the requested events? */
+
+      if (dev->recv.head != dev->recv.tail)
+        {
+          poll_notify(dev->fds, CONFIG_ADS1278_NPOLLWAITERS, POLLIN);
+        }
+    }
+  else if (fds->priv)
+    {
+      /* This is a request to tear down the poll. */
+
+      struct pollfd **slot = (struct pollfd **)fds->priv;
+
+      /* Remove all memory of the poll setup */
+
+      *slot                = NULL;
+      fds->priv            = NULL;
+    }
+
+return_with_irqdisabled:
+  leave_critical_section(flags);
+  return ret;
+}
+
+/****************************************************************************
+ * Name: ads1278_reset_fifo
+ ****************************************************************************/
+
+static int ads1278_reset_fifo(FAR struct ads1278_dev_s *dev)
+{
+  irqstate_t flags;
+  FAR struct ads1278_fifo_s *fifo = &dev->recv;
+
+  /* Interrupts must be disabled while accessing the receive FIFO */
+
+  flags = enter_critical_section();
+
+  fifo->head = fifo->tail;
+
+  leave_critical_section(flags);
+
+  return OK;
+}
+
+/****************************************************************************
+ * Name: ads1278_register
+ ****************************************************************************/
+
+static int ads1278_register(
+  FAR const char *path,
+  FAR struct ads1278_dev_s *dev)
+{
+  int ret;
+
+  DEBUGASSERT(path != NULL && dev != NULL);
+
+  /* Initialize the ADS1278 device structure */
+
+  dev->ocount = 0;
+
+  /* Initialize semaphores & mutex */
+
+  nxsem_init(&dev->recv.sem, 0, 0);
+  nxmutex_init(&dev->closelock);
+
+  /* Register the ADS1278 character driver */
+
+  ret = register_driver(path, &g_ads1278_fops, 0444, dev);
+  if (ret < 0)
+    {
+      nxsem_destroy(&dev->recv.sem);
+      nxmutex_destroy(&dev->closelock);
+    }
+
+  return ret;
+}
 
 /****************************************************************************
  * Name: ads1278_initialize
@@ -116,21 +629,18 @@ static struct imxrt_ads1278_s g_ads1278 =
  *   (Master, 32-bit, etc.)
  *
  * Input Parameters:
- *   priv - private ADS1278 device structure
+ *   dev - private ADS1278 device structure
  *
  * Returned Value:
  *   None
  *
  ****************************************************************************/
 
-static void ads1278_initialize(struct imxrt_ads1278_s *priv)
+static void ads1278_initialize(struct ads1278_dev_s *dev)
 {
-  struct flexio_dev_s *flexio = priv->flexio;
+  struct flexio_dev_s *flexio = dev->flexio;
   struct flexio_shifter_config_s shifter_config = {0};
   struct flexio_timer_config_s timer_config     = {0};
-  uint32_t tim_div  = FLEXIO_SRC_CLK_HZ /
-    (FLEXIO_ADS1278_SAMPLE_RATE_HZ * FLEXIO_ADS1278_WORD_WIDTH * 2U);
-  uint32_t bclk_div = 0;
 
   flexio->ops->reset(flexio);
 
@@ -150,14 +660,6 @@ static void ads1278_initialize(struct imxrt_ads1278_s *priv)
     FLEXIO_RX_SHIFTER_INDEX,
     &shifter_config);
 
-  if ((tim_div % 2UL) != 0UL)
-    {
-        tim_div += 1U;
-    }
-
-  bclk_div = ((tim_div / 2U - 1U) |
-              ((FLEXIO_ADS1278_WORD_WIDTH * 2UL - 1UL) << 8U));
-
   /* Set Timer for bit clock */
 
   timer_config.trigger_select   =
@@ -167,7 +669,7 @@ static void ads1278_initialize(struct imxrt_ads1278_s *priv)
   timer_config.pin_select       = FLEXIO_BCLK_PIN;
   timer_config.pin_config       = FLEXIO_PIN_CONFIG_OUTPUT;
   timer_config.pin_polarity     = FLEXIO_PIN_ACTIVE_HIGH;
-  timer_config.timer_mode       = FLEXIO_TIMER_MODE_DUAL8_BIT_BAUD_BIT;
+  timer_config.timer_mode       = FLEXIO_TIMER_MODE_SINGLE16_BIT;
   timer_config.timer_output     =
     FLEXIO_TIMER_OUTPUT_ONE_NOT_AFFECTED_BY_RESET;
   timer_config.timer_decrement  =
@@ -177,7 +679,7 @@ static void ads1278_initialize(struct imxrt_ads1278_s *priv)
   timer_config.timer_enable     = FLEXIO_TIMER_ENABLED_ALWAYS;
   timer_config.timer_start      = FLEXIO_TIMER_START_BIT_DISABLED;
   timer_config.timer_stop       = FLEXIO_TIMER_STOP_BIT_DISABLED;
-  timer_config.timer_compare    = bclk_div;
+  timer_config.timer_compare    = 2; /* 5MHz BCLK frequency */
 
   flexio->ops->set_timer_config(
     flexio,
@@ -188,12 +690,12 @@ static void ads1278_initialize(struct imxrt_ads1278_s *priv)
 
   timer_config.trigger_select   =
     FLEXIO_TIMER_TRIGGER_SEL_TIMn(FLEXIO_BCLK_TIMER_INDEX);
-  timer_config.trigger_polarity = FLEXIO_TIMER_TRIGGER_POLARITY_ACTIVE_LOW;
-  timer_config.trigger_source   = FLEXIO_TIMER_TRIGGER_SOURCE_EXTERNAL;
-  timer_config.pin_config       = FLEXIO_PIN_CONFIG_OUTPUT;
+  timer_config.trigger_polarity = FLEXIO_TIMER_TRIGGER_POLARITY_ACTIVE_HIGH;
+  timer_config.trigger_source   = FLEXIO_TIMER_TRIGGER_SOURCE_INTERNAL;
   timer_config.pin_select       = FLEXIO_FRAME_SYNC_PIN;
-  timer_config.pin_polarity     = FLEXIO_PIN_ACTIVE_LOW;
-  timer_config.timer_mode       = FLEXIO_TIMER_MODE_DUAL8_BIT_PWM;
+  timer_config.pin_config       = FLEXIO_PIN_CONFIG_OUTPUT;
+  timer_config.pin_polarity     = FLEXIO_PIN_ACTIVE_HIGH;
+  timer_config.timer_mode       = FLEXIO_TIMER_MODE_SINGLE16_BIT;
   timer_config.timer_output     =
     FLEXIO_TIMER_OUTPUT_ONE_NOT_AFFECTED_BY_RESET;
   timer_config.timer_decrement  =
@@ -203,7 +705,7 @@ static void ads1278_initialize(struct imxrt_ads1278_s *priv)
   timer_config.timer_enable     = FLEXIO_TIMER_ENABLE_ON_PREV_TIMER_ENABLE;
   timer_config.timer_start      = FLEXIO_TIMER_START_BIT_DISABLED;
   timer_config.timer_stop       = FLEXIO_TIMER_STOP_BIT_DISABLED;
-  timer_config.timer_compare    = (255U | (255U << 8U));
+  timer_config.timer_compare    = 512U - 1; /* 512 BCLK periods for one FSYNC */
 
   flexio->ops->set_timer_config(
     flexio,
@@ -214,13 +716,13 @@ static void ads1278_initialize(struct imxrt_ads1278_s *priv)
 }
 
 /****************************************************************************
- * Name: ads1278_recv (with DMA capability)
+ * Name: ads1278_dmasetup
  *
  * Description:
- *   Receive a block of data from ADS1278 using DMA
+ *   Setup DMA transfer from ADS1278
  *
  * Input Parameters:
- *   priv     - Device-specific state data
+ *   dev     - Device-specific state data
  *   rxbuffer - A pointer to a buffer in which to receive data
  *   nwords   - the length of data to be exchanged in units of words.
  *              The wordsize is determined by the number of bits-per-word
@@ -231,20 +733,14 @@ static void ads1278_initialize(struct imxrt_ads1278_s *priv)
  *
  ****************************************************************************/
 
-static void ads1278_recv(
-  struct imxrt_ads1278_s *priv,
-  void *rxbuffer,
-  size_t nwords)
+static void ads1278_dmasetup(struct ads1278_dev_s *dev)
 {
-  struct flexio_dev_s *flexio = priv->flexio;
+  struct flexio_dev_s *flexio = dev->flexio;
 
-  DEBUGASSERT(priv != NULL);
-  
-  if (rxbuffer)
-    {
-      up_invalidate_dcache((uintptr_t)rxbuffer,
-                           (uintptr_t)rxbuffer + nwords);
-    }
+  DEBUGASSERT(dev != NULL);
+
+  up_invalidate_dcache((uintptr_t)dev->rxbuf,
+                       (uintptr_t)dev->rxbuf + 32U);
 
   /* Set up the DMA */
 
@@ -254,33 +750,50 @@ static void ads1278_recv(
                     flexio,
                     FLEXIO_SHIFTER_BUFFER_BIT_SWAPPED,
                     FLEXIO_RX_SHIFTER_INDEX);
-  config.daddr  = (uint32_t)rxbuffer;
+  config.daddr  = (uint32_t)dev->rxbuf[0];
   config.soff   = 0;
   config.doff   = 0;
-  config.iter   = nwords;
+  config.iter   = 16;
   config.flags  = EDMA_CONFIG_LINKTYPE_LINKNONE;
   config.ssize  = EDMA_32BIT;
   config.dsize  = EDMA_32BIT;
   config.nbytes = 4;
 
-  imxrt_dmach_xfrsetup(priv->rx_dma, &config);
+  imxrt_dmach_xfrsetup(dev->rxdma, &config);
 
-  /* Start the DMAs */
+  config.saddr  = flexio->ops->get_shifter_buffer_address(
+                    flexio,
+                    FLEXIO_SHIFTER_BUFFER_BIT_SWAPPED,
+                    FLEXIO_RX_SHIFTER_INDEX);
+  config.daddr  = (uint32_t)dev->rxbuf[1];
+  config.soff   = 0;
+  config.doff   = 0;
+  config.iter   = 16;
+  config.flags  = EDMA_CONFIG_LINKTYPE_LINKNONE;
+  config.ssize  = EDMA_32BIT;
+  config.dsize  = EDMA_32BIT;
+  config.nbytes = 4;
 
-  ads1278_dmarxstart(priv);
+  imxrt_dmach_xfrsetup(dev->rxdma, &config);
 
-  /* Invoke FlexIO DMA */
+  dev->index = 0;
 
-  
+  if (dev->rxch)
+    {
+      if (dev->rxdma == NULL)
+        {
+          dev->rxdma = imxrt_dmach_alloc(dev->rxch | DMAMUX_CHCFG_ENBL, 0);
+          DEBUGASSERT(dev->rxdma);
+        }
+    }
+  else
+    {
+      dev->rxdma = NULL;
+    }
 
-  /* Then wait for each to complete */
+  /* Start the DMA */
 
-  ads1278_dmarxwait(priv);
-
-  /* Reset any status */
-
-  /* Disable DMA */
-
+  ads1278_dmarxstart(dev);
 }
 
 /****************************************************************************
@@ -291,7 +804,7 @@ static void ads1278_recv(
  *
  ****************************************************************************/
 
-static int ads1278_dmarxwait(struct imxrt_ads1278_s *priv)
+static int ads1278_dmarxwait(struct ads1278_dev_s *dev)
 {
   int ret;
 
@@ -301,7 +814,7 @@ static int ads1278_dmarxwait(struct imxrt_ads1278_s *priv)
 
   do
     {
-      ret = nxsem_wait_uninterruptible(&priv->rx_sem);
+      ret = nxsem_wait_uninterruptible(&dev->rxsem);
 
       /* The only expected error is ECANCELED which would occur if the
        * calling thread were canceled.
@@ -309,7 +822,7 @@ static int ads1278_dmarxwait(struct imxrt_ads1278_s *priv)
 
       DEBUGASSERT(ret == OK || ret == -ECANCELED);
     }
-  while (priv->rx_result == 0 && ret == OK);
+  while (dev->rxresult == 0 && ret == OK);
 
   return ret;
 }
@@ -322,9 +835,9 @@ static int ads1278_dmarxwait(struct imxrt_ads1278_s *priv)
  *
  ****************************************************************************/
 
-static inline void ads1278_dmarxwakeup(struct imxrt_ads1278_s *priv)
+static inline void ads1278_dmarxwakeup(struct ads1278_dev_s *dev)
 {
-  nxsem_post(&priv->rx_sem);
+  nxsem_post(&dev->rxsem);
 }
 
 /****************************************************************************
@@ -338,10 +851,10 @@ static inline void ads1278_dmarxwakeup(struct imxrt_ads1278_s *priv)
 static void ads1278_dmarxcallback(DMACH_HANDLE handle, void *arg, bool done,
                                   int result)
 {
-  struct imxrt_ads1278_s *priv = (struct imxrt_ads1278_s *)arg;
+  struct ads1278_dev_s *dev = (struct ads1278_dev_s *)arg;
 
-  priv->rx_result = result | 0x80000000;  /* assure non-zero */
-  ads1278_dmarxwakeup(priv);
+  dev->rxresult = result | 0x80000000;  /* assure non-zero */
+  ads1278_dmarxwakeup(dev);
 }
 
 /****************************************************************************
@@ -352,13 +865,11 @@ static void ads1278_dmarxcallback(DMACH_HANDLE handle, void *arg, bool done,
  *
  ****************************************************************************/
 
-static inline void ads1278_dmarxstart(struct imxrt_ads1278_s *priv)
+static inline void ads1278_dmarxstart(struct ads1278_dev_s *dev)
 {
-  priv->rx_result = 0;
-  imxrt_dmach_start(priv->rx_dma, ads1278_dmarxcallback, priv);
+  dev->rxresult = 0;
+  imxrt_dmach_start(dev->rxdma, ads1278_dmarxcallback, dev);
 }
-
-
 
 /****************************************************************************
  * Public Functions
@@ -377,32 +888,25 @@ static inline void ads1278_dmarxstart(struct imxrt_ads1278_s *priv)
 
 void imxrt_ads1278_initialize(void)
 {
-  struct imxrt_ads1278_s *priv = &g_ads1278;
+  struct ads1278_dev_s *dev = &g_ads1278;
   struct flexio_dev_s *flexio;
+  int ret;
 
   imxrt_config_gpio(GPIO_FLEXIO3_FSYNC);    /* GPIO_AD_B1_04 */
   imxrt_config_gpio(GPIO_FLEXIO3_BCLK);     /* GPIO_AD_B1_05 */
   imxrt_config_gpio(GPIO_FLEXIO3_RX);       /* GPIO_AD_B1_06 */
 
   flexio = imxrt_flexio_initialize(3);
-  
+
   DEBUGASSERT(flexio);
 
-  priv->flexio = flexio;
+  dev->flexio = flexio;
 
-  if (priv->rx_ch)
-    {
-      if (priv->rx_dma == NULL)
-        {
-          priv->rx_dma = imxrt_dmach_alloc(priv->rx_ch | DMAMUX_CHCFG_ENBL,
-                                           0);
-          DEBUGASSERT(priv->rx_dma);
-        }
-    }
-  else
-    {
-      priv->rx_dma = NULL;
-    }
+  /* Register the ADS1278 driver at "/dev/ads" */
 
-  ads1278_initialize(priv);
+  ret = ads1278_register("/dev/ads", dev);
+  if (ret < 0)
+    {
+      aerr("ERROR: ads1278_register ads failed: %d\n", ret);
+    }
 }

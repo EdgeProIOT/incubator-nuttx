@@ -24,4 +24,32 @@ config IMXRT1064_EVK_SDRAM
 	---help---
 		Activate DCD configuration of SDRAM
 
+config IMXRT_ADS1278
+	bool "Enable ADS1278 device"
+	default n
+	select IMXRT_FLEXIO
+	select IMXRT_EDMA
+	---help---
+		Activate ADS1278 device
+
+if IMXRT_ADS1278
+
+config ADS1278_FIFOSIZE
+	int "ADS1278 FIFO size"
+	default 64
+	---help---
+		This variable defines the size of the ADS1278 ring buffer that is used
+		to queue received ADS1278 data until they can be retrieved by the
+		application by reading from the ADS character device.  NOTE:  Since
+		this is a ring buffer, the actual number of bytes that can be
+		retained in buffer is (ADS1278_FIFOSIZE - 1).
+
+config ADS1278_NPOLLWAITERS
+	int "Number of poll waiters"
+	default 2
+	---help---
+		Maximum number of threads that can be waiting on poll.
+
+endif # IMXRT_ADS1278
+
 endif
