@@ -647,7 +647,7 @@ static void ads1278_initialize(struct ads1278_dev_s *dev)
 
   shifter_config.timer_select   = FLEXIO_BCLK_TIMER_INDEX;
   shifter_config.pin_select     = FLEXIO_RX_DATA_PIN;
-  shifter_config.timer_polarity = FLEXIO_SHIFTER_TIMER_POLARITY_ON_POSITIVE;
+  shifter_config.timer_polarity = FLEXIO_SHIFTER_TIMER_POLARITY_ON_NEGATIVE;
   shifter_config.pin_config     = FLEXIO_PIN_CONFIG_OUTPUT_DISABLED;
   shifter_config.pin_polarity   = FLEXIO_PIN_ACTIVE_HIGH;
   shifter_config.shifter_mode   = FLEXIO_SHIFTER_MODE_RECEIVE;
