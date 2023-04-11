@@ -370,7 +370,7 @@ static ssize_t ads1278_read(FAR struct file *filep, FAR char *buffer,
 
           /* Copy the data to the user buffer */
 
-          memcpy(&buffer[nread + 1], data, sizeof(struct ads1278_data_s));
+          memcpy(&buffer[nread], data, sizeof(struct ads1278_data_s));
 
           nread += datalen;
 
@@ -862,7 +862,7 @@ static int ads1278_interrupt(int irq, void *context, void *arg)
     case 0xff:
       dev->rxbuf.data[7] |= (data & 0x80000000) >> 31;
       SIGN_EXTEND_24BIT(dev->rxbuf.data[7]);
-      //ads1278_receive(dev, &dev->rxbuf);
+      ads1278_receive(dev, &dev->rxbuf);
       break;
     default:
       break;
@@ -953,16 +953,20 @@ void imxrt_ads1278_initialize(void)
     }
 
   ////////////TEST
-  {
-    int fd;
-    uint32_t buffer[8];
+  // {
+  //   int fd;
+  //   uint32_t buffer[8];
 
-    fd  = open("/dev/ads", O_RDONLY);
-    ret = read(fd, buffer, 32);
-    if (ret < 0)
-      {
-        aerr("ERROR: ads1278 read failed: %d\n", ret);
-      }
-  }
+  //   fd  = open("/dev/ads", O_RDONLY);
+  //   while (1)
+  //     {
+  //       ret = read(fd, buffer, 32);
+  //       if (ret < 0)
+  //         {
+  //           ret = 0;
+  //           aerr("ERROR: ads1278 read failed: %d\n", ret);
+  //         }
+  //     }
+  // }
   ////////////END TEST
 }
