@@ -60,16 +60,18 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define FLEXIO_BCLK_PIN                 (5U)
-#define FLEXIO_FRAME_SYNC_PIN           (4U)
-#define FLEXIO_RX_DATA_PIN              (6U)
+#define FLEXIO_BCLK_PIN                 (5u)
+#define FLEXIO_FRAME_SYNC_PIN           (4u)
+#define FLEXIO_RX_DATA_PIN              (11u)
 #define FLEXIO_BCLK_TIMER_INDEX         0
 #define FLEXIO_FS_TIMER_INDEX           1
 #define FLEXIO_RX_SHIFTER_INDEX         0
 
-#define FLEXIO_SRC_CLK_HZ               30000000U
-#define FLEXIO_ADS1278_WORD_WIDTH       32U
-#define FLEXIO_ADS1278_SAMPLE_RATE_HZ   9765U
+#define FLEXIO_SRC_CLK_HZ               30000000u
+#define FLEXIO_ADS1278_WORD_WIDTH       32u
+#define FLEXIO_ADS1278_SAMPLE_RATE_HZ   9766u
+
+#define SIGN_EXTEND_24BIT(x)            (x) = ((x) << 8) >> 8
 
 /****************************************************************************
  * Private Types
@@ -96,15 +98,14 @@ struct ads1278_fifo_s
 struct ads1278_dev_s
 {
   struct flexio_dev_s   *flexio;
-
-  volatile uint32_t     rxresult;       /* Result of the RX DMA */
+  uint32_t              irq;            /* FlexIO interrupt */
+#ifdef CONFIG_ADS1278_DMA
   const uint16_t        rxch;           /* The RX DMA channel number */
   DMACH_HANDLE          rxdma;          /* DMA channel handle for RX transfers */
-  sem_t                 rxsem;          /* Wait for RX DMA to complete */
-
-  uint32_t              rxbuf[2][16];   /* RX buffer scheme */
-  uint8_t               index;          /* RX buffer index */
-
+  struct ads1278_data_s rxbuf2;         /* RX buffer scheme */
+#endif
+  struct ads1278_data_s rxbuf;
+  uint16_t              sync;
   uint8_t               ocount;         /* The number of times the device has been opened */
   uint8_t               nrxwaiters;     /* Number of threads waiting to enqueue a message */
   mutex_t               closelock;      /* Locks out new opens while close is in progress */
@@ -124,14 +125,13 @@ struct ads1278_dev_s
 /****************************************************************************
  * Private Function Prototypes
  ****************************************************************************/
-
-static int          ads1278_dmarxwait(struct ads1278_dev_s *dev);
-static inline void  ads1278_dmarxwakeup(struct ads1278_dev_s *dev);
+#ifdef CONFIG_ADS1278_DMA
 static void         ads1278_dmarxcallback(DMACH_HANDLE handle, void *arg,
     bool done, int result);
 static inline void  ads1278_dmarxstart(struct ads1278_dev_s *dev);
-static void         ads1278_dmasetup(struct ads1278_dev_s *dev);
-
+#endif
+static int          ads1278_interrupt(int irq, void *context,
+                                      void *arg);
 static int          ads1278_open(FAR struct file *filep);
 static int          ads1278_close(FAR struct file *filep);
 static ssize_t      ads1278_read(FAR struct file *fielp, FAR char *buffer,
@@ -166,8 +166,10 @@ static const struct file_operations g_ads1278_fops =
 
 static struct ads1278_dev_s g_ads1278 =
 {
+  .irq   = IMXRT_IRQ_FLEXIO3,
+#ifdef CONFIG_ADS1278_DMA
   .rxch  = IMXRT_DMACHAN_FLEXIO2,
-  .rxsem = SEM_INITIALIZER(0),
+#endif
 };
 
 
@@ -221,8 +223,6 @@ static int ads1278_open(FAR struct file *filep)
 
               irqstate_t flags = enter_critical_section();
 
-              ads1278_initialize(dev);
-
               /* Mark the FIFOs empty */
 
               dev->recv.head = 0;
@@ -231,6 +231,8 @@ static int ads1278_open(FAR struct file *filep)
               /* Clear overrun indicator */
 
               dev->isovr = false;
+
+              ads1278_initialize(dev);
 
               leave_critical_section(flags);
             }
@@ -278,8 +280,6 @@ static int ads1278_close(FAR struct file *filep)
           /* There are no more references to the port */
 
           dev->ocount = 0;
-
-          /* Free the IRQ and disable the ADC device */
 
           flags = enter_critical_section();    /* Disable interrupts */
 
@@ -497,7 +497,7 @@ static int ads1278_poll(
   struct pollfd *fds,
   bool setup)
 {
-  FAR struct inode     *inode = filep->f_inode;
+  FAR struct inode *inode = filep->f_inode;
   FAR struct ads1278_dev_s *dev = inode->i_private;
   irqstate_t flags;
   int ret = 0;
@@ -641,12 +641,13 @@ static void ads1278_initialize(struct ads1278_dev_s *dev)
   struct flexio_dev_s *flexio = dev->flexio;
   struct flexio_shifter_config_s shifter_config = {0};
   struct flexio_timer_config_s timer_config     = {0};
+  int ret = 0;
 
   flexio->ops->reset(flexio);
 
   shifter_config.timer_select   = FLEXIO_BCLK_TIMER_INDEX;
   shifter_config.pin_select     = FLEXIO_RX_DATA_PIN;
-  shifter_config.timer_polarity = FLEXIO_SHIFTER_TIMER_POLARITY_ON_NEGATIVE;
+  shifter_config.timer_polarity = FLEXIO_SHIFTER_TIMER_POLARITY_ON_POSITIVE;
   shifter_config.pin_config     = FLEXIO_PIN_CONFIG_OUTPUT_DISABLED;
   shifter_config.pin_polarity   = FLEXIO_PIN_ACTIVE_HIGH;
   shifter_config.shifter_mode   = FLEXIO_SHIFTER_MODE_RECEIVE;
@@ -662,14 +663,13 @@ static void ads1278_initialize(struct ads1278_dev_s *dev)
 
   /* Set Timer for bit clock */
 
-  timer_config.trigger_select   =
-    FLEXIO_TIMER_TRIGGER_SEL_SHIFTnSTAT(FLEXIO_RX_SHIFTER_INDEX);
-  timer_config.trigger_polarity = FLEXIO_TIMER_TRIGGER_POLARITY_ACTIVE_LOW;
+  timer_config.trigger_select   = 0;
+  timer_config.trigger_polarity = FLEXIO_TIMER_TRIGGER_POLARITY_ACTIVE_HIGH;
   timer_config.trigger_source   = FLEXIO_TIMER_TRIGGER_SOURCE_INTERNAL;
   timer_config.pin_select       = FLEXIO_BCLK_PIN;
   timer_config.pin_config       = FLEXIO_PIN_CONFIG_OUTPUT;
   timer_config.pin_polarity     = FLEXIO_PIN_ACTIVE_HIGH;
-  timer_config.timer_mode       = FLEXIO_TIMER_MODE_SINGLE16_BIT;
+  timer_config.timer_mode       = FLEXIO_TIMER_MODE_DUAL8_BIT_BAUD_BIT;
   timer_config.timer_output     =
     FLEXIO_TIMER_OUTPUT_ONE_NOT_AFFECTED_BY_RESET;
   timer_config.timer_decrement  =
@@ -679,7 +679,7 @@ static void ads1278_initialize(struct ads1278_dev_s *dev)
   timer_config.timer_enable     = FLEXIO_TIMER_ENABLED_ALWAYS;
   timer_config.timer_start      = FLEXIO_TIMER_START_BIT_DISABLED;
   timer_config.timer_stop       = FLEXIO_TIMER_STOP_BIT_DISABLED;
-  timer_config.timer_compare    = 2; /* 5MHz BCLK frequency */
+  timer_config.timer_compare    = 63 << 8 | 2; /* 5MHz BCLK frequency */
 
   flexio->ops->set_timer_config(
     flexio,
@@ -712,72 +712,7 @@ static void ads1278_initialize(struct ads1278_dev_s *dev)
     FLEXIO_FS_TIMER_INDEX,
     &timer_config);
 
-  flexio->ops->enable(flexio, true);
-}
-
-/****************************************************************************
- * Name: ads1278_dmasetup
- *
- * Description:
- *   Setup DMA transfer from ADS1278
- *
- * Input Parameters:
- *   dev     - Device-specific state data
- *   rxbuffer - A pointer to a buffer in which to receive data
- *   nwords   - the length of data to be exchanged in units of words.
- *              The wordsize is determined by the number of bits-per-word
- *              selected for the ADS1278 interface.
- *
- * Returned Value:
- *   None
- *
- ****************************************************************************/
-
-static void ads1278_dmasetup(struct ads1278_dev_s *dev)
-{
-  struct flexio_dev_s *flexio = dev->flexio;
-
-  DEBUGASSERT(dev != NULL);
-
-  up_invalidate_dcache((uintptr_t)dev->rxbuf,
-                       (uintptr_t)dev->rxbuf + 32U);
-
-  /* Set up the DMA */
-
-  struct imxrt_edma_xfrconfig_s config;
-
-  config.saddr  = flexio->ops->get_shifter_buffer_address(
-                    flexio,
-                    FLEXIO_SHIFTER_BUFFER_BIT_SWAPPED,
-                    FLEXIO_RX_SHIFTER_INDEX);
-  config.daddr  = (uint32_t)dev->rxbuf[0];
-  config.soff   = 0;
-  config.doff   = 0;
-  config.iter   = 16;
-  config.flags  = EDMA_CONFIG_LINKTYPE_LINKNONE;
-  config.ssize  = EDMA_32BIT;
-  config.dsize  = EDMA_32BIT;
-  config.nbytes = 4;
-
-  imxrt_dmach_xfrsetup(dev->rxdma, &config);
-
-  config.saddr  = flexio->ops->get_shifter_buffer_address(
-                    flexio,
-                    FLEXIO_SHIFTER_BUFFER_BIT_SWAPPED,
-                    FLEXIO_RX_SHIFTER_INDEX);
-  config.daddr  = (uint32_t)dev->rxbuf[1];
-  config.soff   = 0;
-  config.doff   = 0;
-  config.iter   = 16;
-  config.flags  = EDMA_CONFIG_LINKTYPE_LINKNONE;
-  config.ssize  = EDMA_32BIT;
-  config.dsize  = EDMA_32BIT;
-  config.nbytes = 4;
-
-  imxrt_dmach_xfrsetup(dev->rxdma, &config);
-
-  dev->index = 0;
-
+#ifdef CONFIG_ADS1278_DMA
   if (dev->rxch)
     {
       if (dev->rxdma == NULL)
@@ -791,53 +726,149 @@ static void ads1278_dmasetup(struct ads1278_dev_s *dev)
       dev->rxdma = NULL;
     }
 
+  up_invalidate_dcache((uintptr_t)dev->rxbuf,
+                       (uintptr_t)dev->rxbuf + 16U);
+
+  /* Set up the DMA */
+
+  struct imxrt_edma_xfrconfig_s config;
+
+  config.saddr  = flexio->ops->get_shifter_buffer_address(
+                    flexio,
+                    FLEXIO_SHIFTER_BUFFER,
+                    FLEXIO_RX_SHIFTER_INDEX);
+  config.daddr  = (uint32_t)&dev->rxbuf;
+  config.soff   = 0;
+  config.doff   = 0;
+  config.iter   = 16;
+  config.flags  = EDMA_CONFIG_LINKTYPE_LINKNONE;
+  config.ssize  = EDMA_32BIT;
+  config.dsize  = EDMA_32BIT;
+  config.nbytes = 4;
+
+  imxrt_dmach_xfrsetup(dev->rxdma, &config);
+
+  up_invalidate_dcache((uintptr_t)dev->rxbuf2,
+                       (uintptr_t)dev->rxbuf2 + 16U);
+
+  config.saddr  = flexio->ops->get_shifter_buffer_address(
+                    flexio,
+                    FLEXIO_SHIFTER_BUFFER,
+                    FLEXIO_RX_SHIFTER_INDEX);
+  config.daddr  = (uint32_t)&dev->rxbuf2;
+  config.soff   = 0;
+  config.doff   = 0;
+  k
+  config.iter   = 16;
+  config.flags  = EDMA_CONFIG_LINKTYPE_LINKNONE;
+  config.ssize  = EDMA_32BIT;
+  config.dsize  = EDMA_32BIT;
+  config.nbytes = 4;
+
+  imxrt_dmach_xfrsetup(dev->rxdma, &config);
+
   /* Start the DMA */
 
   ads1278_dmarxstart(dev);
-}
+#else
 
-/****************************************************************************
- * Name: ads1278_dmarxwait
- *
- * Description:
- *   Wait for DMA to complete.
- *
- ****************************************************************************/
+  /* Attach and enable the IRQ */
 
-static int ads1278_dmarxwait(struct ads1278_dev_s *dev)
-{
-  int ret;
-
-  /* Take the semaphore (perhaps waiting). If the result is zero, then the
-   * DMA must not really have completed.
-   */
-
-  do
+  ret = irq_attach(dev->irq, ads1278_interrupt, dev);
+  if (ret == OK)
     {
-      ret = nxsem_wait_uninterruptible(&dev->rxsem);
-
-      /* The only expected error is ECANCELED which would occur if the
-       * calling thread were canceled.
-       */
-
-      DEBUGASSERT(ret == OK || ret == -ECANCELED);
+      up_enable_irq(dev->irq);
     }
-  while (dev->rxresult == 0 && ret == OK);
 
-  return ret;
+  flexio->ops->enable_shifter_status_interrupts(
+    flexio,
+    1u << FLEXIO_RX_SHIFTER_INDEX);
+#endif
+
+  dev->sync = 0;
+
+  flexio->ops->enable(flexio, true);
 }
 
 /****************************************************************************
- * Name: ads1278_dmarxwakeup
+ * Function: ads1278_interrupt
  *
  * Description:
- *   Signal that DMA is complete
+ *   FlexIO interrupt routine
+ *
+ * Input Parameters:
+ *   irq     - Number of the IRQ that generated the interrupt
+ *   context - Interrupt register state save info (architecture-specific)
+ *
+ * Returned Value:
+ *   OK on success
+ *
+ * Assumptions:
  *
  ****************************************************************************/
 
-static inline void ads1278_dmarxwakeup(struct ads1278_dev_s *dev)
+static int ads1278_interrupt(int irq, void *context, void *arg)
 {
-  nxsem_post(&dev->rxsem);
+  struct ads1278_dev_s *dev = (struct ads1278_dev_s *)arg;
+  struct flexio_dev_s *flexio = dev->flexio;
+  volatile uint32_t pin  = flexio->ops->read_pin_input(flexio);
+  volatile uint32_t addr = flexio->ops->get_shifter_buffer_address(
+                             flexio,
+                             FLEXIO_SHIFTER_BUFFER_BIT_SWAPPED,
+                             FLEXIO_RX_SHIFTER_INDEX);
+  uint32_t data = *(volatile uint32_t *)addr;
+
+  dev->sync = (pin & (1u << FLEXIO_FRAME_SYNC_PIN)) ?
+              ((dev->sync << 1) | 1u) : dev->sync << 1;
+
+  /* Extract 8x24 bits information from 512 (16x32) bit stream with
+   * 1 bit delay.
+   */
+ 
+  switch (dev->sync & 0xffu)
+    {
+    case 0x03:
+      dev->rxbuf.data[0]  = (data & 0x7fffff80) >> 7;
+      dev->rxbuf.data[1]  = (data & 0x0000007f) << 17;
+      SIGN_EXTEND_24BIT(dev->rxbuf.data[0]);
+      break;
+    case 0x07:
+      dev->rxbuf.data[1] |= (data & 0xffff8000) >> 15;
+      dev->rxbuf.data[2]  = (data & 0x00007fff) << 9;
+      SIGN_EXTEND_24BIT(dev->rxbuf.data[1]);
+      break;
+    case 0x0f:
+      dev->rxbuf.data[2] |= (data & 0xff800000) >> 23;
+      dev->rxbuf.data[3]  = (data & 0x007fffff) << 1;
+      SIGN_EXTEND_24BIT(dev->rxbuf.data[2]);
+      break;
+    case 0x1f:
+      dev->rxbuf.data[3] |= (data & 0x80000000) >> 31;
+      dev->rxbuf.data[4]  = (data & 0x7fffff80) >> 7;
+      dev->rxbuf.data[5]  = (data & 0x0000007f) << 17;
+      SIGN_EXTEND_24BIT(dev->rxbuf.data[3]);
+      SIGN_EXTEND_24BIT(dev->rxbuf.data[4]);
+      break;
+    case 0x3f:
+      dev->rxbuf.data[5] |= (data & 0xffff8000) >> 15;
+      dev->rxbuf.data[6]  = (data & 0x00007fff) << 9;
+      SIGN_EXTEND_24BIT(dev->rxbuf.data[5]);
+      break;
+    case 0x7f:
+      dev->rxbuf.data[6] |= (data & 0xff800000) >> 23;
+      dev->rxbuf.data[7]  = (data & 0x007fffff) << 1;
+      SIGN_EXTEND_24BIT(dev->rxbuf.data[6]);
+      break;
+    case 0xff:
+      dev->rxbuf.data[7] |= (data & 0x80000000) >> 31;
+      SIGN_EXTEND_24BIT(dev->rxbuf.data[7]);
+      //ads1278_receive(dev, &dev->rxbuf);
+      break;
+    default:
+      break;
+    }
+
+  return OK;
 }
 
 /****************************************************************************
@@ -848,14 +879,14 @@ static inline void ads1278_dmarxwakeup(struct ads1278_dev_s *dev)
  *
  ****************************************************************************/
 
+#ifdef CONFIG_ADS1278_DMA
 static void ads1278_dmarxcallback(DMACH_HANDLE handle, void *arg, bool done,
                                   int result)
 {
   struct ads1278_dev_s *dev = (struct ads1278_dev_s *)arg;
 
-  dev->rxresult = result | 0x80000000;  /* assure non-zero */
-  ads1278_dmarxwakeup(dev);
 }
+#endif
 
 /****************************************************************************
  * Name: ads1278_dmarxstart
@@ -865,11 +896,22 @@ static void ads1278_dmarxcallback(DMACH_HANDLE handle, void *arg, bool done,
  *
  ****************************************************************************/
 
+#ifdef CONFIG_ADS1278_DMA
 static inline void ads1278_dmarxstart(struct ads1278_dev_s *dev)
 {
-  dev->rxresult = 0;
+  struct flexio_dev_s *flexio = dev->flexio;
+
+  flexio->ops->enable_shifter_status_dma(
+    flexio,
+    1u << FLEXIO_RX_SHIFTER_INDEX,
+    true);
+  flexio->ops->clear_shifter_status_flags(
+    flexio,
+    1u << FLEXIO_RX_SHIFTER_INDEX);
+
   imxrt_dmach_start(dev->rxdma, ads1278_dmarxcallback, dev);
 }
+#endif
 
 /****************************************************************************
  * Public Functions
@@ -894,7 +936,7 @@ void imxrt_ads1278_initialize(void)
 
   imxrt_config_gpio(GPIO_FLEXIO3_FSYNC);    /* GPIO_AD_B1_04 */
   imxrt_config_gpio(GPIO_FLEXIO3_BCLK);     /* GPIO_AD_B1_05 */
-  imxrt_config_gpio(GPIO_FLEXIO3_RX);       /* GPIO_AD_B1_06 */
+  imxrt_config_gpio(GPIO_FLEXIO3_RX);       /* GPIO_AD_B1_11 */
 
   flexio = imxrt_flexio_initialize(3);
 
@@ -909,4 +951,18 @@ void imxrt_ads1278_initialize(void)
     {
       aerr("ERROR: ads1278_register ads failed: %d\n", ret);
     }
+
+  ////////////TEST
+  {
+    int fd;
+    uint32_t buffer[8];
+
+    fd  = open("/dev/ads", O_RDONLY);
+    ret = read(fd, buffer, 32);
+    if (ret < 0)
+      {
+        aerr("ERROR: ads1278 read failed: %d\n", ret);
+      }
+  }
+  ////////////END TEST
 }
