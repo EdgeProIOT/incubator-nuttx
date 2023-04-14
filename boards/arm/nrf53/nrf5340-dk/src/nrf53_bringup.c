@@ -31,6 +31,10 @@
 #  include <nuttx/leds/userled.h>
 #endif
 
+#ifdef CONFIG_INPUT_BUTTONS
+#  include <nuttx/input/buttons.h>
+#endif
+
 #ifdef CONFIG_NRF53_SOFTDEVICE_CONTROLLER
 #  include "nrf53_sdc.h"
 #endif
@@ -79,6 +83,16 @@ int nrf53_bringup(void)
     }
 #endif
 
+#ifdef CONFIG_INPUT_BUTTONS
+  /* Register the BUTTON driver */
+
+  ret = btn_lower_initialize("/dev/buttons");
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: btn_lower_initialize() failed: %d\n", ret);
+    }
+#endif
+
 #ifdef CONFIG_RPTUN
 #ifdef CONFIG_NRF53_APPCORE
   nrf53_rptun_init("nrf53-shmem", "appcore");
@@ -107,6 +121,18 @@ int nrf53_bringup(void)
     {
       syslog(LOG_ERR,
              "ERROR: Failed to initialize PWM driver: %d\n",
+             ret);
+    }
+#endif
+
+#ifdef CONFIG_ADC
+  /* Configure ADC driver */
+
+  ret = nrf53_adc_setup();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR,
+             "ERROR: Failed to initialize ADC driver: %d\n",
              ret);
     }
 #endif
