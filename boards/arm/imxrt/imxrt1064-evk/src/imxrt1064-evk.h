@@ -213,6 +213,10 @@
 //#define GPIO_FLEXIO3_OUT          (GPIO_FLEXIO3_FLEXIO06_1 | IOMUX_FLEXIO_DEFAULT)
 #define GPIO_FLEXIO3_RX           (GPIO_FLEXIO3_FLEXIO11_1 | IOMUX_FLEXIO_DEFAULT)
 
+
+#define GPIO_DEBUG_PIN            (GPIO_OUTPUT | IOMUX_LED_DEFAULT | \
+                                   GPIO_OUTPUT_ZERO | GPIO_PORT1 | GPIO_PIN22)  /* AD_B1_06 */
+
 /****************************************************************************
  * Public Types
  ****************************************************************************/

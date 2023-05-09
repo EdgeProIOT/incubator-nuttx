@@ -27,17 +27,20 @@
 #include <sys/types.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
 #include <debug.h>
+#include <math.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/mutex.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/irq.h>
+#include <nuttx/wqueue.h>
 #include <nuttx/analog/adc.h>
 #include <nuttx/analog/ioctl.h>
 
@@ -99,6 +102,7 @@ struct ads1278_dev_s
 {
   struct flexio_dev_s   *flexio;
   uint32_t              irq;            /* FlexIO interrupt */
+  struct work_s         work;           /* Supports ISR "bottom half" */
 #ifdef CONFIG_ADS1278_DMA
   const uint16_t        rxch;           /* The RX DMA channel number */
   DMACH_HANDLE          rxdma;          /* DMA channel handle for RX transfers */
@@ -132,6 +136,7 @@ static inline void  ads1278_dmarxstart(struct ads1278_dev_s *dev);
 #endif
 static int          ads1278_interrupt(int irq, void *context,
                                       void *arg);
+static void         ads1278_worker(FAR void *arg);
 static int          ads1278_open(FAR struct file *filep);
 static int          ads1278_close(FAR struct file *filep);
 static ssize_t      ads1278_read(FAR struct file *fielp, FAR char *buffer,
@@ -176,6 +181,18 @@ static struct ads1278_dev_s g_ads1278 =
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: ads1278_worker
+ ****************************************************************************/
+
+static void ads1278_worker(FAR void *arg)
+{
+  FAR struct ads1278_dev_s *dev = (FAR struct ads1278_dev_s *)arg;
+
+  DEBUGASSERT(dev != NULL);
+  ads1278_notify(dev);
+}
 
 /****************************************************************************
  * Name: ads1278_open
@@ -308,8 +325,6 @@ static ssize_t ads1278_read(FAR struct file *filep, FAR char *buffer,
   int                   ret = 0;
   int                   datalen = sizeof(struct ads1278_data_s);
 
-  ainfo("buflen: %d\n", (int)buflen);
-
   if (buflen >= datalen)
     {
       /* Interrupts must be disabled while accessing the receive FIFO */
@@ -338,7 +353,9 @@ static ssize_t ads1278_read(FAR struct file *filep, FAR char *buffer,
           /* Wait for a data to be received */
 
           dev->nrxwaiters++;
+          leave_critical_section(flags);
           ret = nxsem_wait(&dev->recv.sem);
+          flags = enter_critical_section();
           dev->nrxwaiters--;
           if (ret < 0)
             {
@@ -393,7 +410,6 @@ return_with_irqdisabled:
       leave_critical_section(flags);
     }
 
-  ainfo("Returning: %d\n", ret);
   return ret;
 }
 
@@ -426,9 +442,8 @@ static int ads1278_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
  * Name: ads1278_receive
  ****************************************************************************/
 
-static int ads1278_receive(
-  FAR struct ads1278_dev_s *dev,
-  struct ads1278_data_s *data)
+static int ads1278_receive(FAR struct ads1278_dev_s *dev,
+                           struct ads1278_data_s *data)
 {
   FAR struct ads1278_fifo_s *fifo = &dev->recv;
   int nexttail;
@@ -455,8 +470,15 @@ static int ads1278_receive(
       /* Increment the tail of the circular buffer */
 
       fifo->tail = nexttail;
-
+#if 1
+      errcode = work_queue(HPWORK, &dev->work, ads1278_worker, dev, 0);
+      if (errcode != 0)
+        {
+          _err("ERROR: Failed to queue work: %d\n", errcode);
+        }
+#else
       ads1278_notify(dev);
+#endif
 
       errcode = OK;
     }
@@ -705,7 +727,7 @@ static void ads1278_initialize(struct ads1278_dev_s *dev)
   timer_config.timer_enable     = FLEXIO_TIMER_ENABLE_ON_PREV_TIMER_ENABLE;
   timer_config.timer_start      = FLEXIO_TIMER_START_BIT_DISABLED;
   timer_config.timer_stop       = FLEXIO_TIMER_STOP_BIT_DISABLED;
-  timer_config.timer_compare    = 512U - 1; /* 512 BCLK periods for one FSYNC */
+  timer_config.timer_compare    = 512U - 1; /* 512 BCLK periods for one FSYNC (pos and neg edge) */
 
   flexio->ops->set_timer_config(
     flexio,
@@ -816,53 +838,58 @@ static int ads1278_interrupt(int irq, void *context, void *arg)
                              flexio,
                              FLEXIO_SHIFTER_BUFFER_BIT_SWAPPED,
                              FLEXIO_RX_SHIFTER_INDEX);
+
   uint32_t data = *(volatile uint32_t *)addr;
 
-  dev->sync = (pin & (1u << FLEXIO_FRAME_SYNC_PIN)) ?
-              ((dev->sync << 1) | 1u) : dev->sync << 1;
+  if ((dev->sync++ > 8) && pin & (1u << FLEXIO_FRAME_SYNC_PIN))
+    {
+      dev->sync = 0;
+    }
 
   /* Extract 8x24 bits information from 512 (16x32) bit stream with
    * 1 bit delay.
    */
  
-  switch (dev->sync & 0xffu)
+  switch (dev->sync)
     {
-    case 0x03:
+    case 1:
       dev->rxbuf.data[0]  = (data & 0x7fffff80) >> 7;
       dev->rxbuf.data[1]  = (data & 0x0000007f) << 17;
       SIGN_EXTEND_24BIT(dev->rxbuf.data[0]);
       break;
-    case 0x07:
+    case 2:
       dev->rxbuf.data[1] |= (data & 0xffff8000) >> 15;
       dev->rxbuf.data[2]  = (data & 0x00007fff) << 9;
       SIGN_EXTEND_24BIT(dev->rxbuf.data[1]);
       break;
-    case 0x0f:
+    case 3:
       dev->rxbuf.data[2] |= (data & 0xff800000) >> 23;
       dev->rxbuf.data[3]  = (data & 0x007fffff) << 1;
       SIGN_EXTEND_24BIT(dev->rxbuf.data[2]);
       break;
-    case 0x1f:
+    case 4:
       dev->rxbuf.data[3] |= (data & 0x80000000) >> 31;
       dev->rxbuf.data[4]  = (data & 0x7fffff80) >> 7;
       dev->rxbuf.data[5]  = (data & 0x0000007f) << 17;
       SIGN_EXTEND_24BIT(dev->rxbuf.data[3]);
       SIGN_EXTEND_24BIT(dev->rxbuf.data[4]);
       break;
-    case 0x3f:
+    case 5:
       dev->rxbuf.data[5] |= (data & 0xffff8000) >> 15;
       dev->rxbuf.data[6]  = (data & 0x00007fff) << 9;
       SIGN_EXTEND_24BIT(dev->rxbuf.data[5]);
       break;
-    case 0x7f:
+    case 6:
       dev->rxbuf.data[6] |= (data & 0xff800000) >> 23;
       dev->rxbuf.data[7]  = (data & 0x007fffff) << 1;
       SIGN_EXTEND_24BIT(dev->rxbuf.data[6]);
       break;
-    case 0xff:
+    case 7:
+      imxrt_gpio_write(GPIO_DEBUG_PIN, 1);
       dev->rxbuf.data[7] |= (data & 0x80000000) >> 31;
       SIGN_EXTEND_24BIT(dev->rxbuf.data[7]);
       ads1278_receive(dev, &dev->rxbuf);
+      imxrt_gpio_write(GPIO_DEBUG_PIN, 0);
       break;
     default:
       break;
@@ -938,6 +965,12 @@ void imxrt_ads1278_initialize(void)
   imxrt_config_gpio(GPIO_FLEXIO3_BCLK);     /* GPIO_AD_B1_05 */
   imxrt_config_gpio(GPIO_FLEXIO3_RX);       /* GPIO_AD_B1_11 */
 
+  /* REMOVE: Debugging*/
+
+  imxrt_config_gpio(GPIO_DEBUG_PIN);        /* GPIO_AD_B1_06 */
+
+  /* End Debugging */
+
   flexio = imxrt_flexio_initialize(3);
 
   DEBUGASSERT(flexio);
@@ -949,7 +982,7 @@ void imxrt_ads1278_initialize(void)
   ret = ads1278_register("/dev/ads", dev);
   if (ret < 0)
     {
-      aerr("ERROR: ads1278_register ads failed: %d\n", ret);
+      _err("ERROR: ads1278_register ads failed: %d\n", ret);
     }
 
   ////////////TEST
@@ -964,7 +997,7 @@ void imxrt_ads1278_initialize(void)
   //       if (ret < 0)
   //         {
   //           ret = 0;
-  //           aerr("ERROR: ads1278 read failed: %d\n", ret);
+  //           _err("ERROR: ads1278 read failed: %d\n", ret);
   //         }
   //     }
   // }
