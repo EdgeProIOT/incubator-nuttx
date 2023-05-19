@@ -78,8 +78,8 @@
  *   GPIO OUTPUT 01.. ...G GGG. ....  .... .... .... ....
  */
 
-#define GPIO_PORT_SHIFT        (21)      /* Bits 21-23: GPIO port index */
-#define GPIO_PORT_MASK         (7 << GPIO_PORT_SHIFT)
+#define GPIO_PORT_SHIFT        (21)      /* Bits 21-24: GPIO port index */
+#define GPIO_PORT_MASK         (15 << GPIO_PORT_SHIFT)
 #  define GPIO_PORT1           (GPIO1 << GPIO_PORT_SHIFT) /* GPIO1 */
 #  define GPIO_PORT2           (GPIO2 << GPIO_PORT_SHIFT) /* GPIO2 */
 #  define GPIO_PORT3           (GPIO3 << GPIO_PORT_SHIFT) /* GPIO3 */

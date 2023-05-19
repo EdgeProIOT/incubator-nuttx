@@ -91,4 +91,8 @@ ifeq ($(CONFIG_IMXRT1170_FLEXSPI_FRAM),y)
 CSRCS += imxrt_flexspi_fram.c
 endif
 
+ifeq ($(CONFIG_IMXRT_ADS1278),y)
+CSRCS += imxrt_ads1278.c
+endif
+
 include $(TOPDIR)/boards/Board.mk

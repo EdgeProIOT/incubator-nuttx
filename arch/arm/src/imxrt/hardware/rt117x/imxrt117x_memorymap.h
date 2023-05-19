@@ -154,6 +154,7 @@
 #define IMXRT_IEE_BASE             (0x4006c000) /*  16 KB, IEE */
 #define IMXRT_EDMA_BASE            (0x40070000) /*  16 KB, EDMA */
 #define IMXRT_DMAMUX0_BASE         (0x40074000) /*  16 KB, DMAMUX0 */
+#define IMXRT_DMAMUX_BASE          IMXRT_DMAMUX0_BASE
 
                                 /* (0x40078000)     16 KB, Reserved */
 

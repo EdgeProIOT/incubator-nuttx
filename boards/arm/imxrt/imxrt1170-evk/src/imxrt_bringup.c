@@ -292,6 +292,10 @@ int imxrt_bringup(void)
     }
 #endif /* CONFIG_IMXRT1170_FLEXSPI_FRAM */
 
+#ifdef CONFIG_IMXRT_ADS1278
+  imxrt_ads1278_initialize();
+#endif /* CONFIG_IMXRT_ADS1278 */
+
   UNUSED(ret);
   return OK;
 }

@@ -201,6 +201,26 @@
 #define GPIO_USBOTG1_ID  (GPIO_USB_OTG1_ID_1 | IOMUX_USBOTG_ID_DEFAULT)  /* GPIO_AD_09 */
 #define GPIO_USBOTG2_ID  (GPIO_USB_OTG2_ID_1 | IOMUX_USBOTG_ID_DEFAULT)  /* GPIO_AD_08 */
 
+/* ADS1278
+ */
+
+#define GPIO_FLEXIO2_FLEXIO12     (GPIO_PERIPH | GPIO_ALT8 | \
+                                   GPIO_PADMUX(IMXRT_PADMUX_GPIO_AD_12_INDEX))
+#define GPIO_FLEXIO2_FLEXIO13     (GPIO_PERIPH | GPIO_ALT8 | \
+                                   GPIO_PADMUX(IMXRT_PADMUX_GPIO_AD_13_INDEX))
+#define GPIO_FLEXIO2_FLEXIO10     (GPIO_PERIPH | GPIO_ALT8 | \
+                                   GPIO_PADMUX(IMXRT_PADMUX_GPIO_AD_10_INDEX))
+
+#define GPIO_FLEXIO2_FSYNC        (GPIO_FLEXIO2_FLEXIO12 | \
+                                   IOMUX_FLEXIO_DEFAULT)
+#define GPIO_FLEXIO2_BCLK         (GPIO_FLEXIO2_FLEXIO13 | \
+                                   IOMUX_FLEXIO_DEFAULT)
+#define GPIO_FLEXIO2_RX           (GPIO_FLEXIO2_FLEXIO10 | \
+                                   IOMUX_FLEXIO_DEFAULT)
+
+#define GPIO_DEBUG_PIN            (GPIO_OUTPUT | IOMUX_LED_DEFAULT | \
+                                   GPIO_OUTPUT_ZERO | GPIO_PORT3 | GPIO_PIN13)
+
 /****************************************************************************
  * Public Types
  ****************************************************************************/

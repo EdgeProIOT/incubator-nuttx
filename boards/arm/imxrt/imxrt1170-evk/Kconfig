@@ -35,4 +35,22 @@ config IMXRT1170_FLEXSPI_FRAM
 	depends on IMXRT_FLEXSPI
 	select MTD
 
+config IMXRT_ADS1278
+	bool "Enable ADS1278 device"
+	default n
+	select IMXRT_FLEXIO
+	select IMXRT_EDMA
+	---help---
+		Activate ADS1278 device
+
+if IMXRT_ADS1278
+
+config ADS1278_NPOLLWAITERS
+	int "Number of poll waiters"
+	default 2
+	---help---
+		Maximum number of threads that can be waiting on poll.
+
+endif # IMXRT_ADS1278
+
 endif

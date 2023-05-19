@@ -61,7 +61,11 @@
 #define imxrt_clockoff_csu()              imxrt_periphclk_configure(CCM_CCGR_CSU, CCM_CG_OFF)
 #define imxrt_clockoff_dcdc()             imxrt_periphclk_configure(CCM_CCGR_DCDC, CCM_CG_OFF)
 #define imxrt_clockoff_dcp()              imxrt_periphclk_configure(CCM_CCGR_DCP, CCM_CG_OFF)
-#define imxrt_clockoff_dma()              imxrt_periphclk_configure(CCM_CCGR_DMA, CCM_CG_OFF)
+#ifndef CONFIG_ARCH_FAMILY_IMXRT117x
+#  define imxrt_clockoff_dma()              imxrt_periphclk_configure(CCM_CCGR_DMA, CCM_CG_OFF)
+#else
+#  define imxrt_clockoff_dma()              imxrt_periphclk_configure(CCM_CCGR_EDMA, CCM_CG_OFF)
+#endif
 #define imxrt_clockoff_enc1()             imxrt_periphclk_configure(CCM_CCGR_ENC1, CCM_CG_OFF)
 #define imxrt_clockoff_enc2()             imxrt_periphclk_configure(CCM_CCGR_ENC2, CCM_CG_OFF)
 #define imxrt_clockoff_enc3()             imxrt_periphclk_configure(CCM_CCGR_ENC3, CCM_CG_OFF)
@@ -205,7 +209,11 @@
 #define imxrt_clockrun_csu()              imxrt_periphclk_configure(CCM_CCGR_CSU, CCM_CG_RUN)
 #define imxrt_clockrun_dcdc()             imxrt_periphclk_configure(CCM_CCGR_DCDC, CCM_CG_RUN)
 #define imxrt_clockrun_dcp()              imxrt_periphclk_configure(CCM_CCGR_DCP, CCM_CG_RUN)
-#define imxrt_clockrun_dma()              imxrt_periphclk_configure(CCM_CCGR_DMA, CCM_CG_RUN)
+#ifndef CONFIG_ARCH_FAMILY_IMXRT117x
+#  define imxrt_clockrun_dma()              imxrt_periphclk_configure(CCM_CCGR_DMA, CCM_CG_RUN)
+#else
+#  define imxrt_clockrun_dma()              imxrt_periphclk_configure(CCM_CCGR_EDMA, CCM_CG_RUN)
+#endif
 #define imxrt_clockrun_enc1()             imxrt_periphclk_configure(CCM_CCGR_ENC1, CCM_CG_RUN)
 #define imxrt_clockrun_enc2()             imxrt_periphclk_configure(CCM_CCGR_ENC2, CCM_CG_RUN)
 #define imxrt_clockrun_enc3()             imxrt_periphclk_configure(CCM_CCGR_ENC3, CCM_CG_RUN)
@@ -349,7 +357,11 @@
 #define imxrt_clockall_csu()              imxrt_periphclk_configure(CCM_CCGR_CSU, CCM_CG_ALL)
 #define imxrt_clockall_dcdc()             imxrt_periphclk_configure(CCM_CCGR_DCDC, CCM_CG_ALL)
 #define imxrt_clockall_dcp()              imxrt_periphclk_configure(CCM_CCGR_DCP, CCM_CG_ALL)
-#define imxrt_clockall_dma()              imxrt_periphclk_configure(CCM_CCGR_DMA, CCM_CG_ALL)
+#ifndef CONFIG_ARCH_FAMILY_IMXRT117x
+#  define imxrt_clockall_dma()              imxrt_periphclk_configure(CCM_CCGR_DMA, CCM_CG_ALL)
+#else
+#  define imxrt_clockall_dma()              imxrt_periphclk_configure(CCM_CCGR_EDMA, CCM_CG_ALL)
+#endif
 #define imxrt_clockall_enc1()             imxrt_periphclk_configure(CCM_CCGR_ENC1, CCM_CG_ALL)
 #define imxrt_clockall_enc2()             imxrt_periphclk_configure(CCM_CCGR_ENC2, CCM_CG_ALL)
 #define imxrt_clockall_enc3()             imxrt_periphclk_configure(CCM_CCGR_ENC3, CCM_CG_ALL)
