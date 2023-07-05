@@ -93,7 +93,7 @@ static inline void local_delay(void)
     }
 }
 
-#ifdef CONFIG_ARCH_HAVE_MMU
+#if defined (CONFIG_ARCH_HAVE_MMU) || defined (CONFIG_ARCH_HAVE_MPU)
 static void flush_boot_params(void)
 {
   uintptr_t flush_start;
@@ -103,11 +103,6 @@ static void flush_boot_params(void)
   flush_end     = flush_start + sizeof(cpu_boot_params);
 
   up_flush_dcache(flush_start, flush_end);
-}
-#else
-static void flush_boot_params(void)
-{
-  /* TODO: Flush at MPU platform */
 }
 #endif
 
@@ -227,15 +222,6 @@ int up_cpu_start(int cpu)
   sched_note_cpu_start(this_task(), cpu);
 #endif
 
-#ifdef CONFIG_STACK_COLORATION
-  /* If stack debug is enabled, then fill the stack with a
-   * recognizable value that we can use later to test for high
-   * water marks.
-   */
-
-  arm64_stack_color(g_cpu_idlestackalloc[cpu], SMP_STACK_SIZE);
-#endif
-
   cpu_boot_params.cpu_ready_flag = 0;
   arm64_start_cpu(cpu, (char *)g_cpu_idlestackalloc[cpu], SMP_STACK_SIZE,
                   arm64_smp_init_top);
@@ -268,7 +254,9 @@ void arm64_boot_secondary_c_routine(void)
 
   arm64_gic_secondary_init();
 
-  up_enable_irq(SGI_CPU_PAUSE);
+  arm64_arch_timer_secondary_init();
+
+  up_perf_init(NULL);
 
   func  = cpu_boot_params.func;
   arg   = cpu_boot_params.arg;
@@ -287,10 +275,3 @@ void arm64_boot_secondary_c_routine(void)
   func(arg);
 }
 
-int arm64_smp_sgi_init(void)
-{
-  irq_attach(SGI_CPU_PAUSE, arm64_pause_handler, 0);
-  up_enable_irq(SGI_CPU_PAUSE);
-
-  return 0;
-}

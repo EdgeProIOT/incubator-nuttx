@@ -113,7 +113,7 @@ static int     romfs_stat(FAR struct inode *mountpt, FAR const char *relpath,
  * with any compiler.
  */
 
-const struct mountpt_operations romfs_operations =
+const struct mountpt_operations g_romfs_operations =
 {
   romfs_open,      /* open */
   romfs_close,     /* close */
@@ -599,12 +599,11 @@ static int romfs_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
   if (cmd == FIOC_FILEPATH)
     {
       FAR char *ptr = (FAR char *)((uintptr_t)arg);
-      inode_getpath(filep->f_inode, ptr);
-      strcat(ptr, rf->rf_path);
+      inode_getpath(filep->f_inode, ptr, PATH_MAX);
+      strlcat(ptr, rf->rf_path, PATH_MAX);
       return OK;
     }
 
-  ferr("ERROR: Invalid cmd: %d\n", cmd);
   return -ENOTTY;
 }
 
@@ -612,7 +611,6 @@ static int romfs_mmap(FAR struct file *filep, FAR struct mm_map_entry_s *map)
 {
   FAR struct romfs_mountpt_s *rm;
   FAR struct romfs_file_s *rf;
-  int ret = -EINVAL;
 
   /* Sanity checks */
 
@@ -631,10 +629,10 @@ static int romfs_mmap(FAR struct file *filep, FAR struct mm_map_entry_s *map)
       map->length != 0 && map->offset + map->length <= rf->rf_size)
     {
       map->vaddr = rm->rm_xipbase + rf->rf_startoffset + map->offset;
-      ret = OK;
+      return OK;
     }
 
-  return ret;
+  return -ENOTTY;
 }
 
 /****************************************************************************
@@ -1261,7 +1259,6 @@ static int romfs_statfs(FAR struct inode *mountpt, FAR struct statfs *buf)
 
   /* Fill in the statfs info */
 
-  memset(buf, 0, sizeof(struct statfs));
   buf->f_type    = ROMFS_MAGIC;
 
   /* We will claim that the optimal transfer size is the size of one sector */

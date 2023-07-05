@@ -39,6 +39,7 @@
 #include "chip.h"
 #include "imxrt_config.h"
 #include "imxrt_flexpwm.h"
+#include "imxrt_gpio.h"
 #include "imxrt_periphclks.h"
 #include "imxrt_xbar.h"
 #include "hardware/imxrt_flexpwm.h"
@@ -52,9 +53,9 @@
 #ifdef CONFIG_IMXRT_FLEXPWM
 
 #ifdef CONFIG_PWM_NCHANNELS
-# define PWM_NCHANNELS CONFIG_PWM_NCHANNELS
+#  define PWM_NCHANNELS CONFIG_PWM_NCHANNELS
 #else
-# define PWM_NCHANNELS 1
+#  define PWM_NCHANNELS 1
 #endif
 
 #define MODULE_OFFSET 0x60
@@ -918,7 +919,7 @@ static int pwm_set_output(struct pwm_lowerhalf_s *dev, uint8_t channel,
                   putreg16(width, priv->base + IMXRT_FLEXPWM_SM0VAL5_OFFSET
                                              + MODULE_OFFSET * shift);
                 }
-              
+
               if (priv->modules[i].out_b.used)
                 {
                   regval = getreg16(priv->base + IMXRT_FLEXPWM_OUTEN_OFFSET);
@@ -934,7 +935,7 @@ static int pwm_set_output(struct pwm_lowerhalf_s *dev, uint8_t channel,
 
       putreg16(width, priv->base + IMXRT_FLEXPWM_SM0VAL3_OFFSET
                                  + MODULE_OFFSET * shift);
-      
+
       regval = getreg16(priv->base + IMXRT_FLEXPWM_OUTEN_OFFSET);
       regval |= OUTEN_PWMA_EN(1 << shift);
       putreg16(regval, priv->base + IMXRT_FLEXPWM_OUTEN_OFFSET);

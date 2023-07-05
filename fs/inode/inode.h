@@ -35,6 +35,7 @@
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
+#include <nuttx/lib/lib.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -58,7 +59,7 @@
     { \
       if ((d)->buffer != NULL) \
         { \
-          kmm_free((d)->buffer); \
+          lib_free((d)->buffer); \
           (d)->buffer  = NULL; \
         } \
     } \
@@ -278,7 +279,7 @@ int inode_chstat(FAR struct inode *inode,
  *
  ****************************************************************************/
 
-int inode_getpath(FAR struct inode *node, FAR char *path);
+int inode_getpath(FAR struct inode *node, FAR char *path, size_t len);
 
 /****************************************************************************
  * Name: inode_free

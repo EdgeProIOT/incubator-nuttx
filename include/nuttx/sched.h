@@ -285,10 +285,10 @@ typedef CODE void (*starthook_t)(FAR void *arg);
 struct sporadic_s;
 struct replenishment_s
 {
-  FAR struct tcb_s *tcb;            /* The parent TCB structure                 */
-  struct wdog_s timer;              /* Timer dedicated to this interval         */
-  uint32_t budget;                  /* Current budget time                      */
-  uint8_t  flags;                   /* See SPORADIC_FLAG_* definitions          */
+  FAR struct tcb_s *tcb;            /* The parent TCB structure             */
+  struct wdog_s timer;              /* Timer dedicated to this interval     */
+  uint32_t budget;                  /* Current budget time                  */
+  uint8_t  flags;                   /* See SPORADIC_FLAG_* definitions      */
 };
 
 /* This structure is an allocated "plug-in" to the main TCB structure.  It is
@@ -300,14 +300,14 @@ struct replenishment_s
 
 struct sporadic_s
 {
-  bool      suspended;              /* Thread is currently suspended            */
-  uint8_t   hi_priority;            /* Sporadic high priority                   */
-  uint8_t   low_priority;           /* Sporadic low priority                    */
-  uint8_t   max_repl;               /* Maximum number of replenishments         */
-  uint8_t   nrepls;                 /* Number of active replenishments          */
-  uint32_t  repl_period;            /* Sporadic replenishment period            */
-  uint32_t  budget;                 /* Sporadic execution budget period         */
-  clock_t   eventtime;              /* Time thread suspended or [re-]started    */
+  bool      suspended;              /* Thread is currently suspended         */
+  uint8_t   hi_priority;            /* Sporadic high priority                */
+  uint8_t   low_priority;           /* Sporadic low priority                 */
+  uint8_t   max_repl;               /* Maximum number of replenishments      */
+  uint8_t   nrepls;                 /* Number of active replenishments       */
+  uint32_t  repl_period;            /* Sporadic replenishment period         */
+  uint32_t  budget;                 /* Sporadic execution budget period      */
+  clock_t   eventtime;              /* Time thread suspended or [re-]started */
 
   /* This is the last interval timer activated */
 
@@ -332,9 +332,9 @@ struct child_status_s
 {
   FAR struct child_status_s *flink;
 
-  uint8_t ch_flags;                 /* Child status:  See CHILD_FLAG_* defns     */
-  pid_t   ch_pid;                   /* Child task ID                             */
-  int     ch_status;                /* Child exit status                         */
+  uint8_t ch_flags;                 /* Child status:  See CHILD_FLAG_* defines */
+  pid_t   ch_pid;                   /* Child task ID                           */
+  int     ch_status;                /* Child exit status                       */
 };
 #endif
 
@@ -371,14 +371,14 @@ struct dspace_s
 
 struct stackinfo_s
 {
-  size_t    adj_stack_size;              /* Stack size after adjustment         */
-                                         /* for hardware, processor, etc.       */
-                                         /* (for debug purposes only)           */
-  FAR void *stack_alloc_ptr;             /* Pointer to allocated stack          */
-                                         /* Needed to deallocate stack          */
-  FAR void *stack_base_ptr;              /* Adjusted initial stack pointer      */
-                                         /* after the frame has been removed    */
-                                         /* from the stack.                     */
+  size_t    adj_stack_size;              /* Stack size after adjustment      */
+                                         /* for hardware, processor, etc.    */
+                                         /* (for debug purposes only)        */
+  FAR void *stack_alloc_ptr;             /* Pointer to allocated stack       */
+                                         /* Needed to deallocate stack       */
+  FAR void *stack_base_ptr;              /* Adjusted initial stack pointer   */
+                                         /* after the frame has been removed */
+                                         /* from the stack.                  */
 };
 
 /* struct task_group_s ******************************************************/
@@ -539,13 +539,13 @@ struct tcb_s
 
   /* Task Group *************************************************************/
 
-  FAR struct task_group_s *group;      /* Pointer to shared task group data */
+  FAR struct task_group_s *group;        /* Pointer to shared task group data */
 
   /* Address Environment ****************************************************/
 
 #ifdef CONFIG_ARCH_ADDRENV
-  FAR struct addrenv_s *addrenv_own;    /* Task (group) own memory mappings */
-  FAR struct addrenv_s *addrenv_curr;   /* Current active memory mappings   */
+  FAR struct addrenv_s *addrenv_own;     /* Task (group) own memory mappings */
+  FAR struct addrenv_s *addrenv_curr;    /* Current active memory mappings   */
 #endif
 
   /* Task Management Fields *************************************************/
@@ -603,7 +603,7 @@ struct tcb_s
   /* External Module Support ************************************************/
 
 #ifdef CONFIG_PIC
-  FAR struct dspace_s *dspace;           /* Allocated area for .bss and .data   */
+  FAR struct dspace_s *dspace;           /* Allocated area for .bss and .data */
 #endif
 
   /* POSIX Semaphore and Message Queue Control Fields ***********************/
@@ -633,12 +633,13 @@ struct tcb_s
   /* Pre-emption monitor support ********************************************/
 
 #ifdef CONFIG_SCHED_CRITMONITOR
-  uint32_t premp_start;                  /* Time when preemption disabled   */
-  uint32_t premp_max;                    /* Max time preemption disabled    */
-  uint32_t crit_start;                   /* Time critical section entered   */
-  uint32_t crit_max;                     /* Max time in critical section    */
-  uint32_t run_start;                    /* Time when thread begin run      */
-  uint32_t run_max;                      /* Max time thread run             */
+  unsigned long premp_start;             /* Time when preemption disabled   */
+  unsigned long premp_max;               /* Max time preemption disabled    */
+  unsigned long crit_start;              /* Time critical section entered   */
+  unsigned long crit_max;                /* Max time in critical section    */
+  unsigned long run_start;               /* Time when thread begin run      */
+  unsigned long run_max;                 /* Max time thread run             */
+  unsigned long run_time;                /* Total time thread run           */
 #endif
 
   /* State save areas *******************************************************/
@@ -701,6 +702,7 @@ struct pthread_tcb_s
   pthread_trampoline_t trampoline;       /* User-space pthread startup function */
   pthread_addr_t arg;                    /* Startup argument                    */
   FAR void *joininfo;                    /* Detach-able info to support join    */
+  bool join_complete;                    /* Join was completed                  */
 };
 #endif /* !CONFIG_DISABLE_PTHREAD */
 
@@ -726,7 +728,7 @@ begin_packed_struct struct tcbinfo_s
    * https://sourceware.org/gdb/current/onlinedocs/gdb/ARM-Features.html
    * https://sourceware.org/gdb/current/onlinedocs/gdb/RISC_002dV-Features
    * -.html
-   * value UINT16_MAX: This regsiter was not priovided by NuttX
+   * value UINT16_MAX: This register was not provided by NuttX
    */
 
   begin_packed_struct
@@ -762,8 +764,8 @@ extern "C"
 #ifdef CONFIG_SCHED_CRITMONITOR
 /* Maximum time with pre-emption disabled or within critical section. */
 
-EXTERN uint32_t g_premp_max[CONFIG_SMP_NCPUS];
-EXTERN uint32_t g_crit_max[CONFIG_SMP_NCPUS];
+EXTERN unsigned long g_premp_max[CONFIG_SMP_NCPUS];
+EXTERN unsigned long g_crit_max[CONFIG_SMP_NCPUS];
 #endif /* CONFIG_SCHED_CRITMONITOR */
 
 #ifdef CONFIG_DEBUG_TCBINFO
@@ -845,6 +847,40 @@ int nxsched_release_tcb(FAR struct tcb_s *tcb, uint8_t ttype);
 /* These functions all extract lists from the group structure associated with
  * the currently executing task.
  */
+
+/****************************************************************************
+ * Name: nxsched_get_files_from_tcb
+ *
+ * Description:
+ *   Return a pointer to the file list from task context
+ *
+ * Input Parameters:
+ *   tcb - Address of the new task's TCB
+ *
+ * Returned Value:
+ *   A pointer to the errno.
+ *
+ * Assumptions:
+ *
+ ****************************************************************************/
+
+FAR struct filelist *nxsched_get_files_from_tcb(FAR struct tcb_s *tcb);
+
+/****************************************************************************
+ * Name: nxsched_get_files
+ *
+ * Description:
+ *   Return a pointer to the file list for this thread
+ *
+ * Input Parameters:
+ *   None
+ *
+ * Returned Value:
+ *   A pointer to the errno.
+ *
+ * Assumptions:
+ *
+ ****************************************************************************/
 
 FAR struct filelist *nxsched_get_files(void);
 
@@ -1518,6 +1554,23 @@ pid_t nxsched_getpid(void);
  ****************************************************************************/
 
 pid_t nxsched_getppid(void);
+
+/****************************************************************************
+ * Name: nxsched_collect_deadlock
+ *
+ * Description:
+ *   Check if there is a deadlock and get the thread pid of the deadlock.
+ *
+ * Input parameters:
+ *   pid   - The array to store the thread pid of the deadlock.
+ *   count - The size of the pid array.
+ *
+ * Returned Value:
+ *   The number of thread deadlocks.
+ *
+ ****************************************************************************/
+
+size_t nxsched_collect_deadlock(FAR pid_t *pid, size_t count);
 
 #undef EXTERN
 #if defined(__cplusplus)

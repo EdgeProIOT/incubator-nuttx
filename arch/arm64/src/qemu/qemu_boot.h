@@ -31,14 +31,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <arch/chip/chip.h>
-#include "arm64_internal.h"
-#include "arm64_arch.h"
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
-
-#define CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC  62500000
 
 /****************************************************************************
  * Public Function Prototypes

@@ -52,6 +52,8 @@ ARCH_INC = $(ARCH_DIR)\include
 
 ifeq ($(CONFIG_APPS_DIR),)
 CONFIG_APPS_DIR = ..\apps
+else
+CONFIG_APPS_DIR := $(patsubst "%",%,$(CONFIG_APPS_DIR))
 endif
 APPDIR := $(realpath ${shell if exist "$(CONFIG_APPS_DIR)\Makefile" echo $(CONFIG_APPS_DIR)})
 
@@ -233,6 +235,15 @@ tools\mkconfig$(HOSTEXEEXT):
 	$(Q) $(MAKE) -C tools -f Makefile.host mkconfig$(HOSTEXEEXT)
 
 include\nuttx\config.h: $(TOPDIR)\.config tools\mkconfig$(HOSTEXEEXT)
+	$(Q) grep -v "CONFIG_BASE_DEFCONFIG" "$(TOPDIR)\.config" > "$(TOPDIR)\.config.tmp"
+# In-place edit can mess up permissions on Windows
+	$(Q) if ! cmp -s "$(TOPDIR)\.config.tmp" "$(TOPDIR)\.config.orig" ; then \
+		sed "/CONFIG_BASE_DEFCONFIG/s/\"$$/-dirty\"/" "$(TOPDIR)\.config" > "$(TOPDIR)\.config-temp"; \
+	else \
+		sed "s/-dirty//g" "$(TOPDIR)\.config" > "$(TOPDIR)\.config-temp"; \
+	fi
+	$(Q) mv -f "$(TOPDIR)\.config-temp" "$(TOPDIR)\.config"
+	$(Q) rm -f "$(TOPDIR)\.config.tmp"
 	$(Q) tools\mkconfig$(HOSTEXEEXT) $(TOPDIR) > include\nuttx\config.h
 
 # Targets used to create dependencies
@@ -571,10 +582,10 @@ pass2dep: context tools\mkdeps$(HOSTEXEEXT)
 # location: https://bitbucket.org/nuttx/tools/downloads/.  See
 # misc\tools\README.txt for additional information.
 
-KCONFIG_ENV = set APPSDIR=$(patsubst "%",%,${CONFIG_APPS_DIR}) & \
-              set EXTERNALDIR=$(EXTERNALDIR) & \
-              set APPSBINDIR=$(patsubst "%",%,${CONFIG_APPS_DIR}) & \
-              set BINDIR=$(patsubst "%",%,${TOPDIR}) &
+KCONFIG_ENV = set APPSDIR=$(patsubst "%",%,${CONFIG_APPS_DIR})& \
+              set EXTERNALDIR=$(EXTERNALDIR)& \
+              set APPSBINDIR=$(patsubst "%",%,${CONFIG_APPS_DIR})& \
+              set BINDIR=$(patsubst "%",%,${TOPDIR})&
 
 config:
 	$(Q) $(MAKE) clean_context
@@ -604,6 +615,7 @@ nconfig:
 savedefconfig: apps_preconfig
 	$(Q) ${KCONFIG_ENV} kconfig-conf --savedefconfig defconfig.tmp Kconfig
 	$(Q) kconfig-tweak --file defconfig.tmp -u CONFIG_APPS_DIR
+	$(Q) kconfig-tweak --file defconfig.tmp -u CONFIG_BASE_DEFCONFIG
 	$(Q) grep "CONFIG_ARCH=" .config >> defconfig.tmp
 	-$(Q) grep "^CONFIG_ARCH_CHIP_" .config >> defconfig.tmp
 	-$(Q) grep "CONFIG_ARCH_CHIP=" .config >> defconfig.tmp
@@ -682,6 +694,7 @@ endif
 	$(call DELFILE, defconfig)
 	$(call DELFILE, .config)
 	$(call DELFILE, .config.old)
+	$(call DELFILE, .config.orig)
 
 # Application housekeeping targets.  The APPDIR variable refers to the user
 # application directory.  A sample apps\ directory is included with NuttX,

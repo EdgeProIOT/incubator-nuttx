@@ -71,7 +71,7 @@
 #  define TCP_WBPKTLEN(wrb)          ((wrb)->wb_iob->io_pktlen)
 #  define TCP_WBSENT(wrb)            ((wrb)->wb_sent)
 #  define TCP_WBNRTX(wrb)            ((wrb)->wb_nrtx)
-#ifdef CONFIG_NET_TCP_FAST_RETRANSMIT
+#if defined(CONFIG_NET_TCP_FAST_RETRANSMIT) && !defined(CONFIG_NET_TCP_CC_NEWRENO)
 #  define TCP_WBNACK(wrb)            ((wrb)->wb_nack)
 #endif
 #  define TCP_WBIOB(wrb)             ((wrb)->wb_iob)
@@ -106,6 +106,15 @@
 
 #define TCP_WSCALE            0x01U /* Window Scale option enabled */
 #define TCP_SACK              0x02U /* Selective ACKs enabled */
+#define TCP_CLOSE_ARRANGED    0x04U /* Connection is arranged to be freed */
+
+#ifdef CONFIG_NET_TCP_CC_NEWRENO
+/* The TCP flags for congestion control */
+
+#define TCP_INFR              0x08U /* The flag in Fast Recovery */
+#define TCP_INFT              0x10U /* The flag in Fast Transmitted */
+
+#endif
 
 /* The Max Range count of TCP Selective ACKs */
 
@@ -229,7 +238,20 @@ struct tcp_conn_s
   uint16_t rport;         /* The remoteTCP port, in network byte order */
   uint16_t mss;           /* Current maximum segment size for the
                            * connection */
+#ifdef CONFIG_NET_TCPPROTO_OPTIONS
+  uint16_t user_mss;      /* Configured maximum segment size for the
+                           * connection */
+#endif
   uint32_t rcv_adv;       /* The right edge of the recv window advertized */
+#ifdef CONFIG_NET_TCP_CC_NEWRENO
+  uint32_t last_ackno;    /* The ack number at the last receive ack */
+  uint32_t dupacks;       /* The number of duplicate ack */
+  uint32_t fr_recover;    /* The snd_seq at the retransmissions */
+
+  uint32_t cwnd;          /* The Congestion window */
+  uint32_t max_cwnd;      /* The Congestion window maximum value */
+  uint32_t ssthresh;      /* The Slow start threshold */
+#endif
 #ifdef CONFIG_NET_TCP_WINDOW_SCALE
   uint32_t snd_wnd;       /* Sequence and acknowledgement numbers of last
                            * window update */
@@ -385,7 +407,7 @@ struct tcp_wrbuffer_s
   uint16_t   wb_sent;      /* Number of bytes sent from the I/O buffer chain */
   uint8_t    wb_nrtx;      /* The number of retransmissions for the last
                             * segment sent */
-#ifdef CONFIG_NET_TCP_FAST_RETRANSMIT
+#if defined(CONFIG_NET_TCP_FAST_RETRANSMIT) && !defined(CONFIG_NET_TCP_CC_NEWRENO)
   uint8_t    wb_nack;      /* The number of ack count */
 #endif
   struct iob_s *wb_iob;    /* Head of the I/O buffer chain */
@@ -597,7 +619,8 @@ int tcp_remote_ipv6_device(FAR struct tcp_conn_s *conn);
  ****************************************************************************/
 
 FAR struct tcp_conn_s *tcp_alloc_accept(FAR struct net_driver_s *dev,
-                                        FAR struct tcp_hdr_s *tcp);
+                                        FAR struct tcp_hdr_s *tcp,
+                                        FAR struct tcp_conn_s *listener);
 
 /****************************************************************************
  * Name: tcp_selectport
@@ -1425,7 +1448,7 @@ int tcp_backlogadd(FAR struct tcp_conn_s *conn,
 #endif
 
 /****************************************************************************
- * Name: tcp_backlogavailable
+ * Name: tcp_backlogpending
  *
  * Description:
  *   Called from poll().  Before waiting for a new connection, poll will
@@ -1437,9 +1460,27 @@ int tcp_backlogadd(FAR struct tcp_conn_s *conn,
  ****************************************************************************/
 
 #ifdef CONFIG_NET_TCPBACKLOG
+bool tcp_backlogpending(FAR struct tcp_conn_s *conn);
+#else
+#  define tcp_backlogpending(c) (false)
+#endif
+
+/****************************************************************************
+ * Name: tcp_backlogavailable
+ *
+ * Description:
+ *  Called from tcp_input().  Before alloc a new accept connection, tcp_input
+ *  will call this API to see if there are free node in the backlog.
+ *
+ * Assumptions:
+ *   Called from network socket logic with the network locked
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_NET_TCPBACKLOG
 bool tcp_backlogavailable(FAR struct tcp_conn_s *conn);
 #else
-#  define tcp_backlogavailable(c) (false)
+#  define tcp_backlogavailable(c) (true)
 #endif
 
 /****************************************************************************
@@ -2210,6 +2251,70 @@ int tcp_ofoseg_bufsize(FAR struct tcp_conn_s *conn);
  ****************************************************************************/
 
 bool tcp_reorder_ofosegs(int nofosegs, FAR struct tcp_ofoseg_s *ofosegs);
+
+/****************************************************************************
+ * Name: tcp_cc_init
+ *
+ * Description:
+ *   Initialize the congestion control variables, cwnd, ssthresh and dupacks.
+ *   The function is called on starting a new connection.
+ *
+ * Input Parameters:
+ *   conn   - The TCP connection of interest
+ *
+ * Returned Value:
+ *   None
+ *
+ * Assumptions:
+ *   The normal user level code is calling the connect/accept to start a new
+ *   connection.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_NET_TCP_CC_NEWRENO
+void tcp_cc_init(FAR struct tcp_conn_s *conn);
+
+/****************************************************************************
+ * Name: tcp_cc_update
+ *
+ * Description:
+ *   Update the congestion control variables when recieve the SYNACK/ACK
+ *   packet from the peer in the connection phase.
+ *
+ * Input Parameters:
+ *   conn   - The TCP connection of interest
+ *   tcp    - The TCP header.
+ *
+ * Returned Value:
+ *   None
+ *
+ * Assumptions:
+ *   The network is locked.
+ *
+ ****************************************************************************/
+
+void tcp_cc_update(FAR struct tcp_conn_s *conn, FAR struct tcp_hdr_s *tcp);
+
+/****************************************************************************
+ * Name: tcp_cc_recv_ack
+ *
+ * Description:
+ *   Update congestion control variables
+ *
+ * Input Parameters:
+ *   conn   - The TCP connection of interest
+ *   tcp    - The TCP header.
+ *
+ * Returned Value:
+ *   None
+ *
+ * Assumptions:
+ *   The network is locked.
+ *
+ ****************************************************************************/
+
+void tcp_cc_recv_ack(FAR struct tcp_conn_s *conn, FAR struct tcp_hdr_s *tcp);
+#endif
 
 #ifdef __cplusplus
 }

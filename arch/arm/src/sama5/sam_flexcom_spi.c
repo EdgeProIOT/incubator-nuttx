@@ -235,7 +235,7 @@ static inline struct sam_flex_spidev_s
 static void     flex_spi_dumpregs(struct sam_flex_spidev_s *flex_spi,
                                   const char *msg);
 #else
-# define        flex_spi_dumpregs(flex_spi,msg)
+#  define       flex_spi_dumpregs(flex_spi,msg)
 #endif
 
 static inline void flex_spi_flush(struct sam_flex_spidev_s *flex_spi);
@@ -2098,7 +2098,6 @@ struct spi_dev_s *sam_flex_spibus_initialize(int port)
        */
 
       nxsem_init(&flex_spics->dmawait, 0, 0);
-      nxsem_set_protocol(&flex_spics->dmawait, SEM_PRIO_NONE);
 #endif
 
       flex_spi_dumpregs(flex_spi, "After initialization");

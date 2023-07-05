@@ -111,10 +111,12 @@
 
 #define MEMLCD_WORK_PERIOD   MSEC2TICK(500)
 
-#define TOGGLE_VCOM                                                          \
-  do {                                                                       \
-    _sharpmem_vcom = _sharpmem_vcom ? 0x00 : MEMLCD_CMD_VCOM;                \
-  } while (0);
+#define TOGGLE_VCOM(dev)                                                     \
+  do                                                                         \
+    {                                                                        \
+      dev->vcom = dev->vcom ? 0x00 : MEMLCD_CMD_VCOM;                        \
+    }                                                                        \
+  while (0);
 
 /****************************************************************************
  * Private Type Definition
@@ -134,6 +136,9 @@ struct memlcd_dev_s
   uint8_t power;                  /* Current power setting */
 #ifdef CONFIG_MEMLCD_EXTCOMIN_MODE_HW
   struct work_s work;
+  uint8_t vcom;
+#else
+  bool pol;                       /* Polarity  for extcomisr */
 #endif
   /* The memlcds does not support reading the display memory in SPI mode.
    * Since there is 1 BPP and is byte access, it is necessary to keep a
@@ -180,7 +185,6 @@ static int memlcd_setcontrast(struct lcd_dev_s *dev, unsigned int contrast);
  * Private Data
  ****************************************************************************/
 
-static uint8_t _sharpmem_vcom;
 static uint8_t g_runbuffer[MEMLCD_BPP * MEMLCD_XRES / 8];
 
 /* This structure describes the overall lcd video controller */
@@ -282,9 +286,9 @@ static inline int __test_bit(int nr, const volatile uint8_t * addr)
 static void memlcd_worker(FAR void *arg)
 {
   FAR struct memlcd_dev_s *mlcd = arg;
-  uint16_t cmd = (uint16_t)_sharpmem_vcom;
+  uint16_t cmd = (uint16_t)mlcd->vcom;
 
-  TOGGLE_VCOM;
+  TOGGLE_VCOM(mlcd);
 
   memlcd_select(mlcd->spi);
 
@@ -416,12 +420,10 @@ static inline void memlcd_clear(FAR struct memlcd_dev_s *mlcd)
 
 static int memlcd_extcominisr(int irq, FAR void *context, void *arg)
 {
-#ifdef CONFIG_MEMLCD_EXTCOMIN_MODE_HW
-  /* Start a worker thread, do it in bottom half? */
-#else
-  static bool pol = 0;
-  pol = !pol;
-  mlcd->priv->setpolarity(pol);
+  FAR struct memlcd_dev_s *mlcd = &g_memlcddev;
+#ifndef CONFIG_MEMLCD_EXTCOMIN_MODE_HW
+  mlcd->pol = !mlcd->pol;
+  mlcd->priv->setpolarity(mlcd->pol);
 #endif
   return OK;
 }
@@ -767,10 +769,12 @@ FAR struct lcd_dev_s *memlcd_initialize(FAR struct spi_dev_s *spi,
   mlcd->priv = priv;
   mlcd->spi = spi;
 
-  //mlcd->priv->attachirq(memlcd_extcominisr, mlcd);
-
-  _sharpmem_vcom = MEMLCD_CMD_VCOM;
+#ifdef CONFIG_MEMLCD_EXTCOMIN_MODE_HW
+  mlcd->vcom = MEMLCD_CMD_VCOM;
   work_queue(LPWORK, &mlcd->work, memlcd_worker, mlcd, MEMLCD_WORK_PERIOD);
+#else
+  mlcd->priv->attachirq(memlcd_extcominisr, mlcd);
+#endif
 
   lcdinfo("done\n");
   return &mlcd->dev;

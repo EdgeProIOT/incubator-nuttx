@@ -68,6 +68,8 @@
 #endif
 
 #define stream_putc(c,stream)  (total_len++, lib_stream_putc(stream, c))
+#define stream_puts(buf, len, stream) \
+        (total_len += len, lib_stream_puts(stream, buf, len))
 
 /* Order is relevant here and matches order in format string */
 
@@ -814,11 +816,6 @@ flt_oper:
 
                   if (--n < -prec)
                     {
-                      if ((flags & FL_ALT) != 0 && n == -1)
-                        {
-                          stream_putc('.', stream);
-                        }
-
                       break;
                     }
 
@@ -833,6 +830,11 @@ flt_oper:
                 }
 
               stream_putc(out, stream);
+
+              if ((flags & FL_ALT) != 0 && n == -1)
+                {
+                  stream_putc('.', stream);
+                }
             }
           else
             {
@@ -947,16 +949,9 @@ str_lpad:
                 }
             }
 
-          while (size)
-            {
-              stream_putc(*pnt++, stream);
-              if (width != 0)
-                {
-                  width -= 1;
-                }
-
-              size -= 1;
-            }
+          stream_puts(pnt, size, stream);
+          width = width >= size ? width - size : 0;
+          size = 0;
 
           goto tail;
         }

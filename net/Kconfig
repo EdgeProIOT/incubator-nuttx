@@ -119,6 +119,7 @@ config NET_GUARDSIZE
 
 config NET_LL_GUARDSIZE
 	int "Data Link Layer(L2) Guard size of Network buffer(IOB)"
+	default 16 if NET_CAN && NET_TIMESTAMP
 	default 14 if NET_ETHERNET
 	default 0
 	---help---
@@ -127,17 +128,33 @@ config NET_LL_GUARDSIZE
 		to L3 network layer protocol transparent transmission and forwarding
 
 config NET_RECV_BUFSIZE
-	int "Net Receive buffer size"
+	int "Net Default Receive buffer size"
 	default 0
 	---help---
 		This is the default value for receive buffer size.
 
+config NET_MAX_RECV_BUFSIZE
+	int "Net Max Receive buffer size"
+	depends on NET_RECV_BUFSIZE > 0
+	default 0
+	---help---
+		Limit the max value for receive buffer size to avoid overconsumption.
+		Zero means no limit.
+
 config NET_SEND_BUFSIZE
-	int "Net Send buffer size"
+	int "Net Default Send buffer size"
 	depends on NET_TCP_WRITE_BUFFERS || NET_UDP_WRITE_BUFFERS
 	default 0
 	---help---
 		This is the default value for send buffer size.
+
+config NET_MAX_SEND_BUFSIZE
+	int "Net Max Send buffer size"
+	depends on NET_SEND_BUFSIZE > 0
+	default 0
+	---help---
+		Limit the max value for send buffer size to avoid overconsumption.
+		Zero means no limit.
 
 endmenu # Driver buffer configuration
 
@@ -191,6 +208,7 @@ menuconfig NET_MBIM
 menuconfig NET_SLIP
 	bool "SLIP support"
 	select ARCH_HAVE_NETDEV_STATISTICS
+	depends on NET_IPv4
 	default n
 	---help---
 		Enables building of the SLIP driver. SLIP requires
@@ -219,21 +237,6 @@ config NET_SLIP_NINTERFACES
 		Selects the number of physical SLIP
 		interfaces to support.
 		Default: 1
-
-config NET_SLIP_STACKSIZE
-	int "SLIP per-thread stack size"
-	default DEFAULT_TASK_STACKSIZE
-	---help---
-		Select the stack size of the SLIP RX and TX tasks.
-
-		SLIP starts two dedicated threads per interface
-		to handle network events, enabling high performance.
-
-config NET_SLIP_DEFPRIO
-	int "SLIP threads priority"
-	default 128
-	---help---
-		The priority of the SLIP RX and TX tasks. Default: 128
 
 endif # NET_SLIP
 

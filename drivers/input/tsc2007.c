@@ -201,7 +201,7 @@ static int tsc2007_poll(FAR struct file *filep, struct pollfd *fds,
 
 /* This the vtable that supports the character driver interface */
 
-static const struct file_operations tsc2007_fops =
+static const struct file_operations g_tsc2007_fops =
 {
   tsc2007_open,    /* open */
   tsc2007_close,   /* close */
@@ -1026,7 +1026,7 @@ static int tsc2007_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
   switch (cmd)
     {
-      case TSIOC_SETCALIB:  /* arg: Pointer to int calibration value */
+      case TSIOC_SETXRCAL:  /* arg: Pointer to int calibration value */
         {
           FAR int *ptr = (FAR int *)((uintptr_t)arg);
           DEBUGASSERT(priv->config != NULL && ptr != NULL);
@@ -1034,7 +1034,7 @@ static int tsc2007_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
         }
         break;
 
-      case TSIOC_GETCALIB:  /* arg: Pointer to int calibration value */
+      case TSIOC_GETXRCAL:  /* arg: Pointer to int calibration value */
         {
           FAR int *ptr = (FAR int *)((uintptr_t)arg);
           DEBUGASSERT(priv->config != NULL && ptr != NULL);
@@ -1253,7 +1253,7 @@ int tsc2007_register(FAR struct i2c_master_s *dev,
   snprintf(devname, sizeof(devname), DEV_FORMAT, minor);
   iinfo("Registering %s\n", devname);
 
-  ret = register_driver(devname, &tsc2007_fops, 0666, priv);
+  ret = register_driver(devname, &g_tsc2007_fops, 0666, priv);
   if (ret < 0)
     {
       ierr("ERROR: register_driver() failed: %d\n", ret);

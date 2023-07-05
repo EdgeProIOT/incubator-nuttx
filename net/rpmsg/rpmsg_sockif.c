@@ -141,7 +141,7 @@ static int        rpmsg_socket_connect(FAR struct socket *psock,
                     FAR const struct sockaddr *addr, socklen_t addrlen);
 static int        rpmsg_socket_accept(FAR struct socket *psock,
                     FAR struct sockaddr *addr, FAR socklen_t *addrlen,
-                    FAR struct socket *newsock);
+                    FAR struct socket *newsock, int flags);
 static int        rpmsg_socket_poll(FAR struct socket *psock,
                     FAR struct pollfd *fds, bool setup);
 static ssize_t    rpmsg_socket_sendmsg(FAR struct socket *psock,
@@ -342,7 +342,7 @@ static int rpmsg_socket_ept_cb(FAR struct rpmsg_endpoint *ept,
                 }
 
               conn->recvdata = NULL;
-              nxsem_post(&conn->recvsem);
+              rpmsg_socket_post(&conn->recvsem);
             }
 
           if (len > 0)
@@ -518,6 +518,7 @@ static void rpmsg_socket_ns_bind(FAR struct rpmsg_device *rdev,
       return;
     }
 
+  new->rpaddr.rp_family = AF_RPMSG;
   strlcpy(new->rpaddr.rp_cpu, rpmsg_get_cpuname(rdev),
           sizeof(new->rpaddr.rp_cpu));
   strlcpy(new->rpaddr.rp_name, name + RPMSG_SOCKET_NAME_PREFIX_LEN,
@@ -737,7 +738,8 @@ static int rpmsg_socket_connect(FAR struct socket *psock,
 static int rpmsg_socket_accept(FAR struct socket *psock,
                                FAR struct sockaddr *addr,
                                FAR socklen_t *addrlen,
-                               FAR struct socket *newsock)
+                               FAR struct socket *newsock,
+                               int flags)
 {
   FAR struct rpmsg_socket_conn_s *server = psock->s_conn;
   int ret = 0;
@@ -787,7 +789,6 @@ static int rpmsg_socket_accept(FAR struct socket *psock,
           newsock->s_conn   = conn;
 
           rpmsg_socket_getaddr(conn, addr, addrlen);
-
           break;
         }
       else
@@ -1248,6 +1249,7 @@ static ssize_t rpmsg_socket_recvmsg(FAR struct socket *psock,
   conn->recvdata = buf;
   conn->recvlen  = len;
 
+  nxsem_reset(&conn->recvsem, 0);
   nxmutex_unlock(&conn->recvlock);
 
   ret = net_sem_timedwait(&conn->recvsem,

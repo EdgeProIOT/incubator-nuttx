@@ -64,7 +64,7 @@ CSRCS  = sim_initialize.c sim_idle.c sim_doirq.c sim_initialstate.c
 CSRCS += sim_createstack.c sim_usestack.c sim_releasestack.c sim_stackframe.c
 CSRCS += sim_exit.c sim_schedulesigaction.c sim_switchcontext.c sim_heap.c
 CSRCS += sim_uart.c sim_copyfullstate.c sim_sigdeliver.c
-CSRCS += sim_registerdump.c sim_saveusercontext.c
+CSRCS += sim_registerdump.c sim_saveusercontext.c sim_textheap.c
 
 ifeq ($(CONFIG_SCHED_BACKTRACE),y)
 CSRCS += sim_backtrace.c
@@ -225,9 +225,9 @@ ifeq ($(CONFIG_SIM_SOUND_ALSA),y)
   STDLIBS += -lmp3lame
 endif
 
-ifeq ($(CONFIG_SIM_VIDEO_V4L2),y)
+ifeq ($(CONFIG_SIM_CAMERA_V4L2),y)
   HOSTSRCS += sim_host_v4l2.c
-  CSRCS += sim_video.c
+  CSRCS += sim_camera.c
   STDLIBS += -lv4l2
 endif
 

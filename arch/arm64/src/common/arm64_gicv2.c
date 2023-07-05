@@ -819,8 +819,7 @@ static void arm_gic0_initialize(void)
 #ifdef CONFIG_SMP
   /* Attach SGI interrupt handlers. This attaches the handler to all CPUs. */
 
-  DEBUGVERIFY(irq_attach(GIC_IRQ_SGI1, arm_start_handler, NULL));
-  DEBUGVERIFY(irq_attach(GIC_IRQ_SGI2, arm_pause_handler, NULL));
+  DEBUGVERIFY(irq_attach(GIC_IRQ_SGI2, arm64_pause_handler, NULL));
 #endif
 }
 
@@ -952,16 +951,17 @@ static void arm_gic_initialize(void)
   iccicr |= GIC_ICCICRS_CBPR;
 #endif
 
-#if defined(CONFIG_ARCH_TRUSTZONE_SECURE) || defined(CONFIG_ARCH_TRUSTZONE_BOTH)
+#ifdef CONFIG_ARM_GIC_EOIMODE
+#  if defined(CONFIG_ARCH_TRUSTZONE_SECURE) || defined(CONFIG_ARCH_TRUSTZONE_BOTH)
   /* Set EnableS=1 to enable CPU interface to signal secure interrupts.
    *
    * NOTE:  Only for processors that operate in secure state.
    */
 
   iccicr |= GIC_ICCICRS_EOIMODES;
-#endif
+#  endif
 
-#if defined(CONFIG_ARCH_TRUSTZONE_NONSECURE)
+#  if defined(CONFIG_ARCH_TRUSTZONE_NONSECURE)
   /* Set EnableNS=1 to enable the CPU to signal non-secure interrupts.
    *
    * NOTE:  Only for processors that operate in non-secure state.
@@ -969,13 +969,14 @@ static void arm_gic_initialize(void)
 
   iccicr |= GIC_ICCICRS_EOIMODENS;
 
-#elif defined(CONFIG_ARCH_TRUSTZONE_BOTH)
+#  elif defined(CONFIG_ARCH_TRUSTZONE_BOTH)
   /* Set EnableNS=1 to enable the CPU to signal non-secure interrupts.
    *
    * NOTE:  Only for processors that operate in non-secure state.
    */
 
   iccicr |= GIC_ICCICRU_EOIMODENS;
+#  endif
 #endif
 
  #ifdef CONFIG_ARCH_TRUSTZONE_BOTH
@@ -1081,6 +1082,10 @@ uint64_t * arm64_decodeirq(uint64_t * regs)
   regval = getreg32(GIC_ICCIAR);
   irq    = (regval & GIC_ICCIAR_INTID_MASK) >> GIC_ICCIAR_INTID_SHIFT;
 
+#ifdef CONFIG_ARM_GIC_EOIMODE
+  putreg32(regval, GIC_ICCEOIR);
+#endif
+
   /* Ignore spurions IRQs.  ICCIAR will report 1023 if there is no pending
    * interrupt.
    */
@@ -1095,7 +1100,11 @@ uint64_t * arm64_decodeirq(uint64_t * regs)
 
   /* Write to the end-of-interrupt register */
 
+#ifdef CONFIG_ARM_GIC_EOIMODE
+  putreg32(regval, GIC_ICCDIR);
+#else
   putreg32(regval, GIC_ICCEOIR);
+#endif
   return regs;
 }
 
@@ -1384,6 +1393,26 @@ void arm64_gic_secondary_init(void)
   arm_gic_initialize();
 }
 
+/****************************************************************************
+ * Name: arm64_gic_raise_sgi
+ *
+ * Description:
+ *   Raise software generated interrupt to the target
+ *
+ * Input Parameters
+ *   sgi    - The SGI interrupt ID (0-15)
+ *   cpuset - The set of CPUs to receive the SGI
+ *
+ * Returned Value:
+ *   OK is always returned at present.
+ *
+ ****************************************************************************/
+
+int arm64_gic_raise_sgi(unsigned int sgi, uint16_t cpuset)
+{
+  arm_cpu_sgi(sgi, cpuset);
+  return 0;
+}
 #endif /* CONFIG_SMP */
 
 #endif /* CONFIG_ARM_GIC_VERSION == 2 */

@@ -41,7 +41,7 @@
 #include <nuttx/binfmt/binfmt.h>
 
 #ifdef CONFIG_PAGING
-# include "paging/paging.h"
+#  include "paging/paging.h"
 #endif
 
 #include "sched/sched.h"
@@ -295,7 +295,7 @@ static inline void nx_start_application(void)
   attr.stacksize = CONFIG_INIT_STACKSIZE;
 
   ret = exec_spawn(CONFIG_INIT_FILEPATH, argv, NULL,
-                   CONFIG_INIT_SYMTAB, CONFIG_INIT_NEXPORTS, &attr);
+                   CONFIG_INIT_SYMTAB, CONFIG_INIT_NEXPORTS, NULL, &attr);
 #endif
   posix_spawnattr_destroy(&attr);
   DEBUGASSERT(ret > 0);

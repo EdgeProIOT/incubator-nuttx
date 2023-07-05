@@ -164,9 +164,14 @@ void *sim_doirq(int irq, void *regs);
 void host_abort(int status);
 int  host_backtrace(void** array, int size);
 
+#ifdef CONFIG_SIM_IMAGEPATH_AS_CWD
+void host_init_cwd(void);
+#endif
+
 /* sim_hostmemory.c *********************************************************/
 
 void *host_allocheap(size_t sz);
+void  host_freeheap(void *mem);
 void *host_allocshmem(const char *name, size_t size, int master);
 void  host_freeshmem(void *mem);
 
@@ -378,9 +383,9 @@ int sim_spi_uninitialize(struct spi_dev_s *dev);
 
 /* up_video.c ***************************************************************/
 
-#ifdef CONFIG_SIM_VIDEO
-int sim_video_initialize(void);
-void sim_video_loop(void);
+#ifdef CONFIG_SIM_CAMERA
+int sim_camera_initialize(void);
+void sim_camera_loop(void);
 #endif
 
 /* sim_usbdev.c *************************************************************/

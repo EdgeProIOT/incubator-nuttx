@@ -46,6 +46,7 @@
 #include "chip.h"
 #include "imxrt_config.h"
 #include "imxrt_flexcan.h"
+#include "imxrt_gpio.h"
 #include "imxrt_periphclks.h"
 #include "hardware/imxrt_flexcan.h"
 #include "hardware/imxrt_pinmux.h"
@@ -821,10 +822,10 @@ static void imxrt_receive(struct imxrt_driver_s *priv,
   uint32_t mbi;
   uint32_t mbj;
   struct mb_s *rf;
-# ifdef CONFIG_NET_CAN_CANFD
+#ifdef CONFIG_NET_CAN_CANFD
   uint32_t *frame_data_word;
   uint32_t i;
-# endif
+#endif
   uint32_t f;
 
   while ((f = flags) != 0)

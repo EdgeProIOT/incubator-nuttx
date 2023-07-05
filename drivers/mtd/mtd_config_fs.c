@@ -991,14 +991,6 @@ static int nvs_startup(FAR struct nvs_fs *fs)
   fs->ate_wra = 0;
   fs->data_wra = 0;
 
-  /* Check the number of blocks, it should be at least 2. */
-
-  if (fs->geo.neraseblocks < 2)
-    {
-      ferr("Configuration error - block count\n");
-      return -EINVAL;
-    }
-
   /* Get the device geometry. (Casting to uintptr_t first eliminates
    * complaints on some architectures where the sizeof long is different
    * from the size of a pointer).
@@ -1018,6 +1010,14 @@ static int nvs_startup(FAR struct nvs_fs *fs)
     {
       ferr("ERROR: MTD ioctl(MTDIOC_ERASESTATE) failed: %d\n", rc);
       return rc;
+    }
+
+  /* Check the number of blocks, it should be at least 2. */
+
+  if (fs->geo.neraseblocks < 2)
+    {
+      ferr("Configuration error - block count\n");
+      return -EINVAL;
     }
 
   /* Step through the blocks to find a open block following
@@ -1750,7 +1750,7 @@ static ssize_t nvs_read(FAR struct nvs_fs *fs,
   uint8_t key[sizeof(pdata->id) + sizeof(pdata->instance)];
 #endif
 
-  if (pdata == NULL || pdata->len == 0)
+  if (pdata == NULL || pdata->len == 0 || pdata->configdata == NULL)
     {
       return -EINVAL;
     }
@@ -1797,6 +1797,11 @@ static int nvs_next(FAR struct nvs_fs *fs,
   int rc;
   struct nvs_ate step_ate;
   uint32_t rd_addr;
+
+  if (pdata == NULL || pdata->len == 0 || pdata->configdata == NULL)
+    {
+      return -EINVAL;
+    }
 
 #ifdef CONFIG_MTD_CONFIG_NAMED
   FAR uint8_t *key = (FAR uint8_t *)pdata->name;
@@ -1858,8 +1863,8 @@ static int nvs_next(FAR struct nvs_fs *fs,
       return rc;
     }
 
-  memcpy(pdata->id, key, sizeof(pdata->id));
-  memcpy(pdata->instance, key + sizeof(pdata->id), sizeof(pdata->instance));
+  memcpy(&pdata->id, key, sizeof(pdata->id));
+  memcpy(&pdata->instance, key + sizeof(pdata->id), sizeof(pdata->instance));
 #endif
 
   rc = nvs_flash_rd(fs, (rd_addr & ADDR_BLOCK_MASK) + step_ate.offset +

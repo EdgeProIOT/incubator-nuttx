@@ -134,7 +134,7 @@ static mutex_t g_lock = NXMUTEX_INITIALIZER;
  * with any compiler.
  */
 
-const struct mountpt_operations hostfs_operations =
+const struct mountpt_operations g_hostfs_operations =
 {
   hostfs_open,          /* open */
   hostfs_close,         /* close */
@@ -228,7 +228,7 @@ static void hostfs_mkpath(FAR struct hostfs_mountpt_s  *fs,
 
   if (depth >= 0)
     {
-      strncat(path, &relpath[first], pathlen - strlen(path) - 1);
+      strlcat(path, &relpath[first], pathlen - strlen(path));
     }
 }
 
@@ -1002,7 +1002,7 @@ static int hostfs_rewinddir(FAR struct inode *mountpt,
 static int hostfs_bind(FAR struct inode *blkdriver, FAR const void *data,
                        FAR void **handle)
 {
-  FAR struct hostfs_mountpt_s  *fs;
+  FAR struct hostfs_mountpt_s *fs;
   FAR char *options;
   char *saveptr;
   char *ptr;
@@ -1080,7 +1080,7 @@ static int hostfs_bind(FAR struct inode *blkdriver, FAR const void *data,
 
   if (fs->fs_root[len - 1] != '/')
     {
-      strcat(fs->fs_root, "/");
+      strlcat(fs->fs_root, "/", sizeof(fs->fs_root));
     }
 
   *handle = (FAR void *)fs;
@@ -1161,7 +1161,6 @@ static int hostfs_statfs(FAR struct inode *mountpt, FAR struct statfs *buf)
 
   /* Call the host fs to perform the statfs */
 
-  memset(buf, 0, sizeof(struct statfs));
   ret = host_statfs(fs->fs_root, buf);
   buf->f_type = HOSTFS_MAGIC;
 

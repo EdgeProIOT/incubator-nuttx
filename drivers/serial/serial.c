@@ -26,8 +26,10 @@
 
 #include <ctype.h>
 #include <sys/types.h>
+#include <sys/param.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <time.h>
 #include <unistd.h>
 #include <string.h>
 #include <fcntl.h>
@@ -223,10 +225,6 @@ static int uart_putxmitchar(FAR uart_dev_t *dev, int ch, bool oktoblock)
 #endif
           else
             {
-              /* Inform the interrupt level logic that we are waiting. */
-
-              dev->xmitwaiting = true;
-
               /* Wait for some characters to be sent from the buffer with
                * the TX interrupt enabled.  When the TX interrupt is enabled,
                * uart_xmitchars() should execute and remove some of the data
@@ -315,7 +313,6 @@ static inline ssize_t uart_irqwrite(FAR uart_dev_t *dev,
     {
       int ch = *buffer++;
 
-#ifdef CONFIG_SERIAL_TERMIOS
       /* Do output post-processing */
 
       if ((dev->tc_oflag & OPOST) != 0)
@@ -334,15 +331,6 @@ static inline ssize_t uart_irqwrite(FAR uart_dev_t *dev,
               uart_putc(dev, '\r');
             }
         }
-
-#else /* !CONFIG_SERIAL_TERMIOS */
-      /* If this is the console, then we should replace LF with CR-LF */
-
-      if (dev->isconsole && ch == '\n')
-        {
-          uart_putc(dev, '\r');
-        }
-#endif
 
       /* Output the character, using the low-level direct UART interfaces */
 
@@ -423,10 +411,6 @@ static int uart_tcdrain(FAR uart_dev_t *dev,
           ret = OK;
           while (ret >= 0 && dev->xmit.head != dev->xmit.tail)
             {
-              /* Inform the interrupt level logic that we are waiting. */
-
-              dev->xmitwaiting = true;
-
               /* Wait for some characters to be sent from the buffer with
                * the TX interrupt enabled.  When the TX interrupt is
                * enabled, uart_xmitchars() should execute and remove some
@@ -776,6 +760,7 @@ static ssize_t uart_read(FAR struct file *filep,
 #endif
   irqstate_t flags;
   ssize_t recvd = 0;
+  bool echoed = false;
   int16_t tail;
   char ch;
   int ret;
@@ -846,7 +831,6 @@ static ssize_t uart_read(FAR struct file *filep,
 
           rxbuf->tail = tail;
 
-#ifdef CONFIG_SERIAL_TERMIOS
           /* Do input processing if any is enabled */
 
           if (dev->tc_iflag & (INLCR | IGNCR | ICRNL))
@@ -878,25 +862,13 @@ static ssize_t uart_read(FAR struct file *filep,
            * IUCLC - Not Posix
            * IXON/OXOFF - no xon/xoff flow control.
            */
-#else
-          if (dev->isconsole && ch == '\r')
-            {
-              ch = '\n';
-            }
-#endif
 
           /* Store the received character */
 
           *buffer++ = ch;
           recvd++;
 
-          if (
-#ifdef CONFIG_SERIAL_TERMIOS
-              dev->tc_iflag & ECHO
-#else
-              dev->isconsole
-#endif
-             )
+          if (dev->tc_lflag & ECHO)
             {
               /* Check for the beginning of a VT100 escape sequence, 3 byte */
 
@@ -924,6 +896,13 @@ static ssize_t uart_read(FAR struct file *filep,
                     }
 
                   uart_putxmitchar(dev, ch, true);
+
+                  /* Mark the tx buffer have echoed content here,
+                   * to avoid the tx buffer is empty such as special escape
+                   * sequence received, but enable the tx interrupt.
+                   */
+
+                  echoed = true;
                 }
 
               /* Skipping character count down */
@@ -1061,8 +1040,18 @@ static ssize_t uart_read(FAR struct file *filep,
                    * thread goes to sleep.
                    */
 
-                  dev->recvwaiting = true;
-                  ret = nxsem_wait(&dev->recvsem);
+#ifdef CONFIG_SERIAL_TERMIOS
+                  dev->minrecv = MIN(buflen - recvd, dev->minread - recvd);
+                  if (dev->timeout)
+                    {
+                      ret = nxsem_tickwait(&dev->recvsem,
+                                           DSEC2TICK(dev->timeout));
+                    }
+                  else
+#endif
+                    {
+                      ret = nxsem_wait(&dev->recvsem);
+                    }
                 }
 
               leave_critical_section(flags);
@@ -1093,9 +1082,9 @@ static ssize_t uart_read(FAR struct file *filep,
                        */
 
 #ifdef CONFIG_SERIAL_REMOVABLE
-                      recvd = dev->disconnected ? -ENOTCONN : -EINTR;
+                      recvd = dev->disconnected ? -ENOTCONN : ret;
 #else
-                      recvd = -EINTR;
+                      recvd = ret;
 #endif
                     }
 
@@ -1116,7 +1105,7 @@ static ssize_t uart_read(FAR struct file *filep,
         }
     }
 
-  if (recvd > 0)
+  if (echoed)
     {
 #ifdef CONFIG_SERIAL_TXDMA
       uart_dmatxavail(dev);
@@ -1263,7 +1252,6 @@ static ssize_t uart_write(FAR struct file *filep, FAR const char *buffer,
       ch  = *buffer++;
       ret = OK;
 
-#ifdef CONFIG_SERIAL_TERMIOS
       /* Do output post-processing */
 
       if ((dev->tc_oflag & OPOST) != 0)
@@ -1290,15 +1278,6 @@ static ssize_t uart_write(FAR struct file *filep, FAR const char *buffer,
            * ONOCR  - low-speed interactive optimization
            */
         }
-
-#else /* !CONFIG_SERIAL_TERMIOS */
-      /* If this is the console, convert \n -> \r\n */
-
-      if (dev->isconsole && ch == '\n')
-        {
-          ret = uart_putxmitchar(dev, '\r', oktoblock);
-        }
-#endif
 
       /* Put the character into the transmit buffer */
 
@@ -1542,7 +1521,6 @@ static int uart_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
         }
     }
 
-#ifdef CONFIG_SERIAL_TERMIOS
   /* Append any higher level TTY flags */
 
   if (ret == OK || ret == -ENOTTY)
@@ -1565,6 +1543,10 @@ static int uart_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
               termiosp->c_iflag = dev->tc_iflag;
               termiosp->c_oflag = dev->tc_oflag;
               termiosp->c_lflag = dev->tc_lflag;
+#ifdef CONFIG_SERIAL_TERMIOS
+              termiosp->c_cc[VTIME] = dev->timeout;
+              termiosp->c_cc[VMIN] = dev->minread;
+#endif
 
               ret = 0;
             }
@@ -1586,12 +1568,15 @@ static int uart_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
               dev->tc_iflag = termiosp->c_iflag;
               dev->tc_oflag = termiosp->c_oflag;
               dev->tc_lflag = termiosp->c_lflag;
+#ifdef CONFIG_SERIAL_TERMIOS
+              dev->timeout = termiosp->c_cc[VTIME];
+              dev->minread = termiosp->c_cc[VMIN];
+#endif
               ret = 0;
             }
             break;
         }
     }
-#endif
 
   return ret;
 }
@@ -1777,7 +1762,8 @@ static void uart_launch_worker(void *arg)
                  CONFIG_TTY_LAUNCH_ENTRYPOINT,
                  NULL, &attr, argv, NULL);
 #else
-      exec_spawn(CONFIG_TTY_LAUNCH_FILEPATH, argv, NULL, NULL, 0, &attr);
+      exec_spawn(CONFIG_TTY_LAUNCH_FILEPATH,
+                 argv, NULL, NULL, 0, NULL, &attr);
 #endif
       posix_spawnattr_destroy(&attr);
     }
@@ -1788,6 +1774,23 @@ static void uart_launch(void)
   work_queue(HPWORK, &g_serial_work, uart_launch_worker, NULL, 0);
 }
 #endif
+
+static void uart_wakeup(FAR sem_t *sem)
+{
+  int sval;
+
+  if (nxsem_get_value(sem, &sval) != OK)
+    {
+      return;
+    }
+
+  /* Yes... wake up all waiting threads */
+
+  while (sval++ < 1)
+    {
+      nxsem_post(sem);
+    }
+}
 
 /****************************************************************************
  * Public Functions
@@ -1809,14 +1812,13 @@ int uart_register(FAR const char *path, FAR uart_dev_t *dev)
   dev->pid = INVALID_PROCESS_ID;
 #endif
 
-#ifdef CONFIG_SERIAL_TERMIOS
   /* If this UART is a serial console */
 
   if (dev->isconsole)
     {
-      /* Enable signals by default */
+      /* Enable signals and echo by default */
 
-      dev->tc_lflag |= ISIG;
+      dev->tc_lflag |= ISIG | ECHO;
 
       /* Enable \n -> \r\n translation for the console */
 
@@ -1824,13 +1826,12 @@ int uart_register(FAR const char *path, FAR uart_dev_t *dev)
 
       /* Convert CR to LF by default for console */
 
-      dev->tc_iflag |= ICRNL | ECHO;
+      dev->tc_iflag |= ICRNL;
 
       /* Clear escape counter */
 
       dev->escape = 0;
     }
-#endif
 
   /* Initialize mutex & semaphores */
 
@@ -1840,6 +1841,11 @@ int uart_register(FAR const char *path, FAR uart_dev_t *dev)
   nxsem_init(&dev->xmitsem, 0, 0);
   nxsem_init(&dev->recvsem, 0, 0);
   nxmutex_init(&dev->polllock);
+
+#ifdef CONFIG_SERIAL_TERMIOS
+  dev->timeout = 0;
+  dev->minread = 1;
+#endif
 
   /* Register the serial driver */
 
@@ -1865,13 +1871,7 @@ void uart_datareceived(FAR uart_dev_t *dev)
 
   /* Is there a thread waiting for read data?  */
 
-  if (dev->recvwaiting)
-    {
-      /* Yes... wake it up */
-
-      dev->recvwaiting = false;
-      nxsem_post(&dev->recvsem);
-    }
+  uart_wakeup(&dev->recvsem);
 
 #if defined(CONFIG_PM) && defined(CONFIG_SERIAL_CONSOLE)
   /* Call pm_activity when characters are received on the console device */
@@ -1903,13 +1903,7 @@ void uart_datasent(FAR uart_dev_t *dev)
 
   /* Is there a thread waiting for space in xmit.buffer?  */
 
-  if (dev->xmitwaiting)
-    {
-      /* Yes... wake it up */
-
-      dev->xmitwaiting = false;
-      nxsem_post(&dev->xmitsem);
-    }
+  uart_wakeup(&dev->xmitsem);
 }
 
 /****************************************************************************
@@ -1957,23 +1951,11 @@ void uart_connected(FAR uart_dev_t *dev, bool connected)
 
       /* Is there a thread waiting for space in xmit.buffer?  */
 
-      if (dev->xmitwaiting)
-        {
-          /* Yes... wake it up */
-
-          dev->xmitwaiting = false;
-          nxsem_post(&dev->xmitsem);
-        }
+      uart_wakeup(&dev->xmitsem);
 
       /* Is there a thread waiting for read data?  */
 
-      if (dev->recvwaiting)
-        {
-          /* Yes... wake it up */
-
-          dev->recvwaiting = false;
-          nxsem_post(&dev->recvsem);
-        }
+      uart_wakeup(&dev->recvsem);
     }
 
   leave_critical_section(flags);
@@ -2023,11 +2005,7 @@ int uart_check_special(FAR uart_dev_t *dev, const char *buf, size_t size)
 {
   size_t i;
 
-#ifdef CONFIG_SERIAL_TERMIOS
   if ((dev->tc_lflag & ISIG) == 0)
-#else
-  if (!dev->isconsole)
-#endif
     {
       return 0;
     }

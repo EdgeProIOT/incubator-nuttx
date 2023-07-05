@@ -206,7 +206,7 @@ static int     unionfs_dobind(FAR const char *fspath1,
  * with any compiler.
  */
 
-const struct mountpt_operations unionfs_operations =
+const struct mountpt_operations g_unionfs_operations =
 {
   unionfs_open,        /* open */
   unionfs_close,       /* close */
@@ -869,7 +869,7 @@ static int unionfs_open(FAR struct file *filep, FAR const char *relpath,
   /* Allocate a container to hold the open file system information */
 
   uf = (FAR struct unionfs_file_s *)
-    kmm_malloc(sizeof(struct unionfs_file_s));
+    kmm_zalloc(sizeof(struct unionfs_file_s));
   if (uf == NULL)
     {
       ret = -ENOMEM;
@@ -883,9 +883,7 @@ static int unionfs_open(FAR struct file *filep, FAR const char *relpath,
               um->um_node->u.i_mops != NULL);
 
   uf->uf_file.f_oflags = filep->f_oflags;
-  uf->uf_file.f_pos    = 0;
   uf->uf_file.f_inode  = um->um_node;
-  uf->uf_file.f_priv   = NULL;
 
   ret = unionfs_tryopen(&uf->uf_file, relpath, um->um_prefix, oflags, mode);
   if (ret >= 0)
@@ -901,9 +899,7 @@ static int unionfs_open(FAR struct file *filep, FAR const char *relpath,
       um  = &ui->ui_fs[1];
 
       uf->uf_file.f_oflags = filep->f_oflags;
-      uf->uf_file.f_pos    = 0;
       uf->uf_file.f_inode  = um->um_node;
-      uf->uf_file.f_priv   = NULL;
 
       ret = unionfs_tryopen(&uf->uf_file, relpath, um->um_prefix, oflags,
                             mode);
@@ -1775,7 +1771,7 @@ static int unionfs_readdir(FAR struct inode *mountpt,
 
                       /* Free the allocated relpath */
 
-                      kmm_free(relpath);
+                      lib_free(relpath);
 
                       /* Check for a duplicate */
 
@@ -1862,7 +1858,7 @@ static int unionfs_readdir(FAR struct inode *mountpt,
 
                   /* Free the allocated relpath */
 
-                  kmm_free(relpath);
+                  lib_free(relpath);
                 }
             }
         }
@@ -2049,8 +2045,6 @@ static int unionfs_statfs(FAR struct inode *mountpt, FAR struct statfs *buf)
   DEBUGASSERT(mountpt != NULL && mountpt->i_private != NULL && buf != NULL);
   ui = (FAR struct unionfs_inode_s *)mountpt->i_private;
 
-  memset(buf, 0, sizeof(struct statfs));
-
   /* Get statfs info from file system 1.
    *
    * REVISIT: What would it mean if one file system did not support statfs?
@@ -2068,6 +2062,8 @@ static int unionfs_statfs(FAR struct inode *mountpt, FAR struct statfs *buf)
               um2->um_node->u.i_mops != NULL);
   ops2 = um2->um_node->u.i_mops;
 
+  memset(&buf1, 0, sizeof(struct statfs));
+  memset(&buf2, 0, sizeof(struct statfs));
   if (ops1->statfs != NULL && ops2->statfs != NULL)
     {
       ret = ops1->statfs(um1->um_node, &buf1);
@@ -2733,7 +2729,7 @@ int unionfs_mount(FAR const char *fspath1, FAR const char *prefix1,
 
   INODE_SET_MOUNTPT(mpinode);
 
-  mpinode->u.i_mops = &unionfs_operations;
+  mpinode->u.i_mops = &g_unionfs_operations;
 
   /* Call unionfs_dobind to do the real work. */
 

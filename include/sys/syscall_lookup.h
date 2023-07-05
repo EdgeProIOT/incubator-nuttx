@@ -25,7 +25,7 @@
  */
 
 SYSCALL_LOOKUP1(_exit,                     1)
-SYSCALL_LOOKUP(_assert,                    3)
+SYSCALL_LOOKUP(_assert,                    4)
 SYSCALL_LOOKUP(getpid,                     0)
 SYSCALL_LOOKUP(gettid,                     0)
 SYSCALL_LOOKUP(prctl,                      2)
@@ -168,6 +168,7 @@ SYSCALL_LOOKUP(clock_nanosleep,            4)
  */
 
 SYSCALL_LOOKUP(clock,                      0)
+SYSCALL_LOOKUP(clock_getcpuclockid,        2)
 SYSCALL_LOOKUP(clock_getres,               2)
 SYSCALL_LOOKUP(clock_gettime,              2)
 SYSCALL_LOOKUP(clock_settime,              2)
@@ -218,6 +219,9 @@ SYSCALL_LOOKUP(pwrite,                     4)
   SYSCALL_LOOKUP(timerfd_create,           2)
   SYSCALL_LOOKUP(timerfd_settime,          4)
   SYSCALL_LOOKUP(timerfd_gettime,          2)
+#endif
+#ifdef CONFIG_SIGNAL_FD
+  SYSCALL_LOOKUP(signalfd,                 3)
 #endif
 
 /* Board support */
@@ -298,6 +302,7 @@ SYSCALL_LOOKUP(munmap,                     2)
 /* The following are defined if pthreads are enabled */
 
 #ifndef CONFIG_DISABLE_PTHREAD
+  SYSCALL_LOOKUP(pthread_barrier_wait,     1)
   SYSCALL_LOOKUP(pthread_cancel,           1)
   SYSCALL_LOOKUP(pthread_cond_broadcast,   1)
   SYSCALL_LOOKUP(pthread_cond_signal,      1)
@@ -380,3 +385,29 @@ SYSCALL_LOOKUP(munmap,                     2)
 #ifdef CONFIG_CRYPTO_RANDOM_POOL
   SYSCALL_LOOKUP(arc4random_buf,           2)
 #endif
+
+SYSCALL_LOOKUP(getrandom,                  3)
+SYSCALL_LOOKUP(nanosleep,                  2)
+
+/* I/O event notification facility */
+
+SYSCALL_LOOKUP(epoll_create1,              1)
+SYSCALL_LOOKUP(epoll_ctl,                  4)
+SYSCALL_LOOKUP(epoll_wait,                 4)
+
+/* Identity of Group/User */
+
+SYSCALL_LOOKUP(getegid,                    1)
+SYSCALL_LOOKUP(geteuid,                    1)
+SYSCALL_LOOKUP(setegid,                    1)
+SYSCALL_LOOKUP(seteuid,                    1)
+
+/* POSIX timers */
+
+SYSCALL_LOOKUP(time,                       1)
+SYSCALL_LOOKUP(gettimeofday,               2)
+SYSCALL_LOOKUP(settimeofday,               2)
+
+/* ANSI C signal handling */
+
+SYSCALL_LOOKUP(signal,                     2)

@@ -42,6 +42,10 @@
 #  include "esp32s3_board_tim.h"
 #endif
 
+#ifdef CONFIG_ESP32S3_WIFI
+#  include "esp32s3_board_wlan.h"
+#endif
+
 #ifdef CONFIG_ESP32S3_RT_TIMER
 #  include "esp32s3_rt_timer.h"
 #endif
@@ -56,6 +60,10 @@
 
 #ifdef CONFIG_INPUT_BUTTONS
 #  include <nuttx/input/buttons.h>
+#endif
+
+#ifdef CONFIG_RTC_DRIVER
+#  include "esp32s3_rtc_lowerhalf.h"
 #endif
 
 #ifdef CONFIG_VIDEO_FB
@@ -149,6 +157,17 @@ int esp32s3_bringup(void)
     }
 #endif
 
+#ifdef CONFIG_RTC_DRIVER
+  /* Instantiate the ESP32-S3 RTC driver */
+
+  ret = esp32s3_rtc_driverinit();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR,
+             "ERROR: Failed to Instantiate the RTC driver: %d\n", ret);
+    }
+#endif
+
 #ifdef CONFIG_WATCHDOG
   /* Configure watchdog timer */
 
@@ -203,6 +222,15 @@ int esp32s3_bringup(void)
   if (ret)
     {
       syslog(LOG_ERR, "ERROR: Failed to initialize SPI Flash\n");
+    }
+#endif
+
+#ifdef CONFIG_ESP32S3_WIFI
+  ret = board_wlan_init();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to initialize wireless subsystem=%d\n",
+             ret);
     }
 #endif
 

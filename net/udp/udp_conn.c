@@ -77,7 +77,7 @@
 /* The array containing all UDP connections. */
 
 #if CONFIG_NET_UDP_PREALLOC_CONNS > 0
-struct udp_conn_s g_udp_connections[CONFIG_NET_UDP_PREALLOC_CONNS];
+static struct udp_conn_s g_udp_connections[CONFIG_NET_UDP_PREALLOC_CONNS];
 #endif
 
 /* A list of all free UDP connections */
@@ -463,7 +463,7 @@ static inline FAR struct udp_conn_s *
  ****************************************************************************/
 
 #if CONFIG_NET_UDP_ALLOC_CONNS > 0
-FAR struct udp_conn_s *udp_alloc_conn(void)
+static FAR struct udp_conn_s *udp_alloc_conn(void)
 {
   FAR struct udp_conn_s *conn;
   int i;
@@ -636,17 +636,17 @@ FAR struct udp_conn_s *udp_alloc(uint8_t domain)
     {
       /* Make sure that the connection is marked as uninitialized */
 
-      conn->flags   = 0;
-#if defined(CONFIG_NET_IPv4) && defined(CONFIG_NET_IPv6)
-      conn->domain  = domain;
+      conn->sconn.ttl = IP_TTL_DEFAULT;
+      conn->flags     = 0;
+#if defined(CONFIG_NET_IPv4) || defined(CONFIG_NET_IPv6)
+      conn->domain    = domain;
 #endif
-      conn->lport   = 0;
-      conn->ttl     = IP_TTL_DEFAULT;
+      conn->lport     = 0;
 #if CONFIG_NET_RECV_BUFSIZE > 0
-      conn->rcvbufs = CONFIG_NET_RECV_BUFSIZE;
+      conn->rcvbufs   = CONFIG_NET_RECV_BUFSIZE;
 #endif
 #if CONFIG_NET_SEND_BUFSIZE > 0
-      conn->sndbufs = CONFIG_NET_SEND_BUFSIZE;
+      conn->sndbufs   = CONFIG_NET_SEND_BUFSIZE;
 
       nxsem_init(&conn->sndsem, 0, 0);
 #endif
@@ -806,6 +806,15 @@ int udp_bind(FAR struct udp_conn_s *conn, FAR const struct sockaddr *addr)
 {
   uint16_t portno;
   int ret;
+
+#if defined(CONFIG_NET_IPv4) && defined(CONFIG_NET_IPv6)
+  if (conn->domain != addr->sa_family)
+    {
+      nerr("ERROR: Invalid address type: %d != %d\n", conn->domain,
+           addr->sa_family);
+      return -EINVAL;
+    }
+#endif
 
 #ifdef CONFIG_NET_IPv4
 #ifdef CONFIG_NET_IPv6
