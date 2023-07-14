@@ -1,0 +1,38 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+config ESP_HOSTED
+	bool "ESP-Hosted"
+	default n
+	select SPI
+	---help---
+		Enable support for the ESP-Hosted
+
+if ESP_HOSTED
+
+config ESP_HOSTED_SPIFREQUENCY
+	int "ESP_Hosted SPI frequency"
+	default 10000000
+	---help---
+		Frequency at which to operate the SPI interface to the ESP part.
+		The default is the absolute maximum and you may likely have to
+		reduce this for your board.
+
+choice
+	prompt "ESP-Hosted Wi-Fi mode"
+	default ESP_HOSTED_WIFI_STATION
+
+config ESP_HOSTED_WIFI_STATION
+	bool "Station mode"
+
+config ESP_HOSTED_WIFI_SOFTAP
+	bool "SoftAP mode"
+
+config ESP_HOSTED_WIFI_STATION_SOFTAP
+	bool "Station + SoftAP"
+
+endchoice # ESP-Hosted Wi-Fi mode
+
+endif

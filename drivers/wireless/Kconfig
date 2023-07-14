@@ -156,4 +156,6 @@ config WL_NRF24L01_RXFIFO_LEN
 endif # WL_NRF24L01_RXSUPPORT
 endif # WL_NRF24L01
 
+source "drivers/wireless/esp-hosted/Kconfig"
+
 endif # DRIVERS_WIRELESS
