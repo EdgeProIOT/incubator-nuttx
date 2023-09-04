@@ -2906,6 +2906,7 @@ config ARCH_BOARD
 	default "imxrt1050-evk"             if ARCH_BOARD_IMXRT1050_EVK
 	default "imxrt1060-evk"             if ARCH_BOARD_IMXRT1060_EVK
 	default "imxrt1064-evk"             if ARCH_BOARD_IMXRT1064_EVK
+	default "edgepro1"                  if ARCH_BOARD_EDGEPRO1
 	default "kwikstik-k40"              if ARCH_BOARD_KWIKSTIK_K40
 	default "launchxl-cc1310"           if ARCH_BOARD_LAUNCHXL_CC1310
 	default "launchxl-cc1312r1"         if ARCH_BOARD_LAUNCHXL_CC1312R1
