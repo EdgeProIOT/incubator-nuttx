@@ -108,8 +108,8 @@ struct icmpv6_conn_s
 
 /* Callback from icmpv6_foreach() */
 
-typedef int (*icmpv6_callback_t)(FAR struct icmpv6_conn_s *conn,
-                                 FAR void *arg);
+typedef CODE int (*icmpv6_callback_t)(FAR struct icmpv6_conn_s *conn,
+                                      FAR void *arg);
 #endif
 
 #ifdef CONFIG_NET_ICMPv6_NEIGHBOR
@@ -135,6 +135,13 @@ struct icmpv6_rnotify_s
   int rn_result;                         /* The result of the wait */
 };
 #endif
+
+struct icmpv6_pmtu_entry
+{
+  net_ipv6addr_t daddr;
+  uint16_t pmtu;
+  clock_t time;
+};
 
 /****************************************************************************
  * Public Data
@@ -198,6 +205,8 @@ void icmpv6_input(FAR struct net_driver_s *dev, unsigned int iplen);
  *   ICMPv6 Neighbor Advertisement.
  *
  * Input Parameters:
+ *   dev      The suggested device driver structure to do the solicitation,
+ *            can be NULL for auto decision, must set for link-local ipaddr.
  *   ipaddr   The IPv6 address to be queried.
  *
  * Returned Value:
@@ -214,9 +223,10 @@ void icmpv6_input(FAR struct net_driver_s *dev, unsigned int iplen);
  ****************************************************************************/
 
 #ifdef CONFIG_NET_ICMPv6_NEIGHBOR
-int icmpv6_neighbor(const net_ipv6addr_t ipaddr);
+int icmpv6_neighbor(FAR struct net_driver_s *dev,
+                    const net_ipv6addr_t ipaddr);
 #else
-#  define icmpv6_neighbor(i) (0)
+#  define icmpv6_neighbor(d,i) (0)
 #endif
 
 /****************************************************************************
@@ -782,6 +792,39 @@ void icmpv6_reply(FAR struct net_driver_s *dev,
 #ifdef CONFIG_NET_ICMPv6_SOCKET
 int icmpv6_ioctl(FAR struct socket *psock, int cmd, unsigned long arg);
 #endif
+
+/****************************************************************************
+ * Name: icmpv6_find_pmtu_entry
+ *
+ * Description:
+ *   Search for a ipv6 pmtu entry
+ *
+ * Parameters:
+ *   destipaddr   the IPv6 address of the destination
+ *
+ * Return:
+ *   void
+ ****************************************************************************/
+
+FAR struct icmpv6_pmtu_entry *
+icmpv6_find_pmtu_entry(net_ipv6addr_t destipaddr);
+
+/****************************************************************************
+ * Name: icmpv6_add_pmtu_entry
+ *
+ * Description:
+ *   Create a new ipv6 destination cache entry. If no unused entry is found,
+ *   will recycle oldest entry
+ *
+ * Parameters:
+ *   destipaddr   the IPv6 address of the destination
+ *   mtu          MTU
+ *
+ * Return:
+ *   void
+ ****************************************************************************/
+
+void icmpv6_add_pmtu_entry(net_ipv6addr_t destipaddr, int mtu);
 
 #undef EXTERN
 #ifdef __cplusplus

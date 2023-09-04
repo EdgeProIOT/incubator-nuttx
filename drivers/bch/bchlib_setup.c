@@ -36,6 +36,7 @@
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
+#include <nuttx/drivers/drivers.h>
 
 #include "bch.h"
 
@@ -62,7 +63,7 @@ int bchlib_setup(const char *blkdev, bool readonly, FAR void **handle)
 
   /* Allocate the BCH state structure */
 
-  bch = (FAR struct bchlib_s *)kmm_zalloc(sizeof(struct bchlib_s));
+  bch = kmm_zalloc(sizeof(struct bchlib_s));
   if (!bch)
     {
       ferr("ERROR: Failed to allocate BCH structure\n");

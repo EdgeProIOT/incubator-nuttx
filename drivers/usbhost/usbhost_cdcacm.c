@@ -425,11 +425,21 @@ static const struct uart_ops_s g_uart_ops =
   usbhost_attach,        /* attach */
   usbhost_detach,        /* detach */
   usbhost_ioctl,         /* ioctl */
-  NULL           ,       /* receive */
+  NULL,                  /* receive */
   usbhost_rxint,         /* rxinit */
   usbhost_rxavailable,   /* rxavailable */
 #ifdef CONFIG_SERIAL_IFLOWCONTROL
   usbhost_rxflowcontrol, /* rxflowcontrol */
+#endif
+#ifdef CONFIG_SERIAL_TXDMA
+  NULL,                  /* dmasend */
+#endif
+#ifdef CONFIG_SERIAL_RXDMA
+  NULL,                  /* dmareceive */
+  NULL,                  /* dmarxfree */
+#endif
+#ifdef CONFIG_SERIAL_TXDMA
+  NULL,                  /* dmatxavail */
 #endif
   NULL,                  /* send */
   usbhost_txint,         /* txinit */
@@ -2350,11 +2360,10 @@ static int usbhost_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
   int ret = 0;
 
   uinfo("Entry\n");
-  DEBUGASSERT(filep && filep->f_inode);
   inode = filep->f_inode;
 
-  DEBUGASSERT(inode && inode->i_private);
-  uartdev = (FAR struct uart_dev_s *)inode->i_private;
+  DEBUGASSERT(inode->i_private);
+  uartdev = inode->i_private;
 
   DEBUGASSERT(uartdev && uartdev->priv);
   priv = (FAR struct usbhost_cdcacm_s *)uartdev->priv;

@@ -211,6 +211,18 @@ config IMXRT_FLEXCAN
 	default n
 	select ARCH_HAVE_NETDEV_STATISTICS
 
+config IMXRT_FLEXCAN_ECC
+	bool
+	default n
+
+config IMXRT_FLEXCAN1_FD
+	bool
+	default n
+
+config IMXRT_FLEXCAN2_FD
+	bool
+	default n
+
 config IMXRT_FLEXPWM
 	bool
 	default n
@@ -536,11 +548,33 @@ menu "FLEXCAN1 Configuration"
 
 config FLEXCAN1_BITRATE
 	int "CAN bitrate"
+	depends on !(NET_CAN_CANFD && IMXRT_FLEXCAN1_FD)
 	default 1000000
 
 config FLEXCAN1_SAMPLEP
 	int "CAN sample point"
+	depends on !(NET_CAN_CANFD && IMXRT_FLEXCAN1_FD)
 	default 80
+
+config FLEXCAN1_ARBI_BITRATE
+	int "CAN FD Arbitration phase bitrate"
+	depends on NET_CAN_CANFD && IMXRT_FLEXCAN1_FD
+	default 1000000
+
+config FLEXCAN1_ARBI_SAMPLEP
+	int "CAN FD Arbitration phase sample point"
+	depends on NET_CAN_CANFD && IMXRT_FLEXCAN1_FD
+	default 80
+
+config FLEXCAN1_DATA_BITRATE
+	int "CAN FD Data phase bitrate"
+	depends on NET_CAN_CANFD && IMXRT_FLEXCAN1_FD
+	default 4000000
+
+config FLEXCAN1_DATA_SAMPLEP
+	int "CAN FD Data phase sample point"
+	depends on NET_CAN_CANFD && IMXRT_FLEXCAN1_FD
+	default 90
 
 endmenu # IMXRT_FLEXCAN1
 
@@ -549,11 +583,33 @@ menu "FLEXCAN2 Configuration"
 
 config FLEXCAN2_BITRATE
 	int "CAN bitrate"
+	depends on !(NET_CAN_CANFD && IMXRT_FLEXCAN2_FD)
 	default 1000000
 
 config FLEXCAN2_SAMPLEP
 	int "CAN sample point"
+	depends on !(NET_CAN_CANFD && IMXRT_FLEXCAN2_FD)
 	default 80
+
+config FLEXCAN2_ARBI_BITRATE
+	int "CAN FD Arbitration phase bitrate"
+	depends on NET_CAN_CANFD && IMXRT_FLEXCAN2_FD
+	default 1000000
+
+config FLEXCAN2_ARBI_SAMPLEP
+	int "CAN FD Arbitration phase sample point"
+	depends on NET_CAN_CANFD && IMXRT_FLEXCAN2_FD
+	default 80
+
+config FLEXCAN2_DATA_BITRATE
+	int "CAN FD Data phase bitrate"
+	depends on NET_CAN_CANFD && IMXRT_FLEXCAN2_FD
+	default 4000000
+
+config FLEXCAN2_DATA_SAMPLEP
+	int "CAN FD Data phase sample point"
+	depends on NET_CAN_CANFD && IMXRT_FLEXCAN2_FD
+	default 90
 
 endmenu # IMXRT_FLEXCAN2
 
@@ -2191,11 +2247,10 @@ config IMXRT_ENET_NTXBUFFERS
 
 config IMXRT_ENET_ENHANCEDBD
 	bool # not optional
-	default n if ARMV7M_DCACHE_WRITETHROUGH
-	default y if !ARMV7M_DCACHE_WRITETHROUGH
+	default !ARMV7M_DCACHE_WRITETHROUGH
 
 config IMXRT_ENET_NETHIFS
-	int  # Not optional
+	int # Not optional
 	default 1
 
 config IMXRT_ENET_PHYINIT
@@ -2276,8 +2331,8 @@ choice
 	prompt "i.MX RT Boot Configuration"
 	default IMXRT_BOOT_NOR if IMXRT_SEMC_NOR
 	default IMXRT_BOOT_SDRAM if IMXRT_SEMC_SDRAM && !IMXRT_SEMC_NOR
-	default IMXRT_BOOT_SRAM if IMXRT_SEMC_SRAM && !IMXRT_SEMC_SDRAM  && !IMXRT_SEMC_NOR
-	default IMXRT_BOOT_OCRAM if !IMXRT_SEMC_SRAM && !IMXRT_SEMC_SDRAM  && !IMXRT_SEMC_NOR
+	default IMXRT_BOOT_SRAM if IMXRT_SEMC_SRAM && !IMXRT_SEMC_SDRAM && !IMXRT_SEMC_NOR
+	default IMXRT_BOOT_OCRAM if !IMXRT_SEMC_SRAM && !IMXRT_SEMC_SDRAM && !IMXRT_SEMC_NOR
 	---help---
 		The startup code needs to know if the code is running from internal
 		OCRAM, external SDRAM, external NOR, or external SDRAM in order to
@@ -2385,7 +2440,7 @@ config IMXRT_SRAM_HEAPOFFSET
 		Used to reserve memory at the beginning of SRAM for, as an example,
 		a framebuffer.
 
-endmenu  # i.MX RT Heap Configuration
+endmenu # i.MX RT Heap Configuration
 endmenu # Memory Configuration
 
 menu "LPI2C Configuration"
@@ -2655,7 +2710,7 @@ menu "RTC Configuration"
 config IMXRT_RTC_MAGIC_REG
 	int "RTC SNVS GPR"
 	default 0
-	range  0 3
+	range 0 3
 	---help---
 		The BKP register used to store/check the Magic value to determine if
 		RTC is already setup
@@ -2915,7 +2970,7 @@ config IMXRT_PROGMEM_FLEXSPI_INSTANCE
 		FlexSPI instance number. Base address 0x60000000 is used for instance 0
 		and 0x70000000 for instance 1. Other values are not supported.
 
-endif   #IMXRT_PROGMEM
+endif # IMXRT_PROGMEM
 
 if IMXRT_HAVE_OTA_PARTITION
 
@@ -2972,8 +3027,8 @@ config IMXRT_OTA_SCRATCH_SIZE
 	hex "MCUboot scratch partition size (in bytes)"
 	default "0x40000"
 
-endif   #IMXRT_PROGMEM_OTA_PARTITION
-endif   #IMXRT_HAVE_OTA_PARTITION
+endif # IMXRT_PROGMEM_OTA_PARTITION
+endif # IMXRT_HAVE_OTA_PARTITION
 
 endmenu # Progmem configuration
 

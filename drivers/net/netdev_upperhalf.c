@@ -33,10 +33,12 @@
 #include <nuttx/kmalloc.h>
 #include <nuttx/kthread.h>
 #include <nuttx/mm/iob.h>
+#include <nuttx/net/can.h>
 #include <nuttx/net/net.h>
 #include <nuttx/net/netdev_lowerhalf.h>
 #include <nuttx/net/pkt.h>
 #include <nuttx/semaphore.h>
+#include <nuttx/spinlock.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -78,6 +80,42 @@ struct netdev_upperhalf_s
  ****************************************************************************/
 
 /****************************************************************************
+ * Name: quota_fetch_inc/dec
+ *
+ * Description:
+ *   Fetch the quota and add/sub one to it.  It works like atomic_fetch_xxx,
+ *   just because currently we don't have atomic on some platform.  We may
+ *   switch to atomic later.
+ *
+ ****************************************************************************/
+
+static int quota_fetch_inc(FAR struct netdev_lowerhalf_s *lower,
+                           enum netpkt_type_e type)
+{
+#ifndef CONFIG_HAVE_ATOMICS
+  irqstate_t flags = spin_lock_irqsave(&lower->lock);
+  int ret = lower->quota[type]++;
+  spin_unlock_irqrestore(&lower->lock, flags);
+  return ret;
+#else
+  return atomic_fetch_add(&lower->quota[type], 1);
+#endif
+}
+
+static int quota_fetch_dec(FAR struct netdev_lowerhalf_s *lower,
+                           enum netpkt_type_e type)
+{
+#ifndef CONFIG_HAVE_ATOMICS
+  irqstate_t flags = spin_lock_irqsave(&lower->lock);
+  int ret = lower->quota[type]--;
+  spin_unlock_irqrestore(&lower->lock, flags);
+  return ret;
+#else
+  return atomic_fetch_sub(&lower->quota[type], 1);
+#endif
+}
+
+/****************************************************************************
  * Name: netpkt_get
  *
  * Description:
@@ -105,7 +143,7 @@ static FAR netpkt_t *netpkt_get(FAR struct net_driver_s *dev,
    * cases will be limited by netdev_upper_can_tx and seldom reaches here.
    */
 
-  if (upper->lower->quota[type]-- <= 0)
+  if (quota_fetch_dec(upper->lower, type) <= 0)
     {
       nwarn("WARNING: Allowing temperarily exceeding quota of %s.\n",
             dev->d_ifname);
@@ -137,7 +175,7 @@ static void netpkt_put(FAR struct net_driver_s *dev, FAR netpkt_t *pkt,
    *       but we don't want these changes.
    */
 
-  upper->lower->quota[type]++;
+  quota_fetch_inc(upper->lower, type);
   netdev_iob_release(dev);
   dev->d_iob = pkt;
   dev->d_len = netpkt_getdatalen(upper->lower, pkt);
@@ -186,7 +224,7 @@ netdev_upper_alloc(FAR struct netdev_lowerhalf_s *dev)
 
 static inline bool netdev_upper_can_tx(FAR struct netdev_upperhalf_s *upper)
 {
-  return upper->lower->quota[NETPKT_TX] > 0;
+  return netdev_lower_quota_load(upper->lower, NETPKT_TX) > 0;
 }
 
 /****************************************************************************
@@ -276,6 +314,88 @@ static void netdev_upper_txavail_work(FAR struct netdev_upperhalf_s *upper)
     }
 }
 
+#if defined(CONFIG_NET_LOOPBACK) || defined(CONFIG_NET_ETHERNET) || \
+    defined(CONFIG_DRIVERS_IEEE80211)
+static void eth_input(FAR struct net_driver_s *dev)
+{
+  FAR struct eth_hdr_s *eth_hdr = (FAR struct eth_hdr_s *)NETLLBUF;
+
+  /* Check if this is an 802.1Q VLAN tagged packet */
+
+  if (eth_hdr->type == HTONS(TPID_8021QVLAN))
+    {
+      /* Need to remove the 4 octet VLAN Tag, by moving src and dest
+       * addresses 4 octets to the right, and then read the actual
+       * ethertype. The VLAN ID and priority fields are currently
+       * ignored.
+       */
+
+      memmove((FAR uint8_t *)eth_hdr + 4, eth_hdr,
+              offsetof(struct eth_hdr_s, type));
+      dev->d_iob  = iob_trimhead(dev->d_iob, 4);
+      dev->d_len -= 4;
+
+      eth_hdr = (FAR struct eth_hdr_s *)NETLLBUF;
+    }
+
+  /* We only accept IP packets of the configured type and ARP packets */
+
+#ifdef CONFIG_NET_IPv4
+  if (eth_hdr->type == HTONS(ETHTYPE_IP))
+    {
+      ninfo("IPv4 frame\n");
+      NETDEV_RXIPV4(dev);
+
+      /* Receive an IPv4 packet from the network device */
+
+      ipv4_input(dev);
+    }
+  else
+#endif
+#ifdef CONFIG_NET_IPv6
+  if (eth_hdr->type == HTONS(ETHTYPE_IP6))
+    {
+      ninfo("IPv6 frame\n");
+      NETDEV_RXIPV6(dev);
+
+      /* Give the IPv6 packet to the network layer */
+
+      ipv6_input(dev);
+    }
+  else
+#endif
+#ifdef CONFIG_NET_ARP
+  if (eth_hdr->type == HTONS(ETHTYPE_ARP))
+    {
+      ninfo("ARP frame\n");
+      NETDEV_RXARP(dev);
+
+      /* Handle ARP packet */
+
+      arp_input(dev);
+    }
+  else
+#endif
+    {
+      ninfo("INFO: Dropped, Unknown type: %04x\n", eth_hdr->type);
+      NETDEV_RXDROPPED(dev);
+      dev->d_len = 0;
+    }
+
+  /* If the above function invocation resulted in data
+   * that should be sent out on the network,
+   * the field d_len will set to a value > 0.
+   */
+
+  if (dev->d_len > 0)
+    {
+      /* And send the packet */
+
+      netdev_upper_txpoll(dev);
+    }
+}
+#endif
+
 /****************************************************************************
  * Function: netdev_upper_rxpoll_work
  *
@@ -295,7 +415,6 @@ static void netdev_upper_rxpoll_work(FAR struct netdev_upperhalf_s *upper)
 {
   FAR struct netdev_lowerhalf_s *lower = upper->lower;
   FAR struct net_driver_s       *dev   = &lower->netdev;
-  FAR struct eth_hdr_s          *eth_hdr;
   FAR netpkt_t                  *pkt;
 
   /* Loop while receive() successfully retrieves valid Ethernet frames. */
@@ -321,85 +440,31 @@ static void netdev_upper_rxpoll_work(FAR struct netdev_upperhalf_s *upper)
       pkt_input(dev);
 #endif
 
-      /* TODO: Support other ll types. */
-
-      DEBUGASSERT(dev->d_lltype == NET_LL_ETHERNET ||
-                  dev->d_lltype == NET_LL_IEEE80211);
-
-      eth_hdr = (FAR struct eth_hdr_s *)NETLLBUF;
-
-      /* Check if this is an 802.1Q VLAN tagged packet */
-
-      if (eth_hdr->type == HTONS(TPID_8021QVLAN))
+      switch (dev->d_lltype)
         {
-          /* Need to remove the 4 octet VLAN Tag, by moving src and dest
-           * addresses 4 octets to the right, and then read the actual
-           * ethertype. The VLAN ID and priority fields are currently
-           * ignored.
-           */
-
-          memmove((FAR uint8_t *)eth_hdr + 4, eth_hdr,
-                  offsetof(struct eth_hdr_s, type));
-          dev->d_iob  = iob_trimhead(dev->d_iob, 4);
-          dev->d_len -= 4;
-
-          eth_hdr = (FAR struct eth_hdr_s *)NETLLBUF;
-        }
-
-      /* We only accept IP packets of the configured type and ARP packets */
-
-#ifdef CONFIG_NET_IPv4
-      if (eth_hdr->type == HTONS(ETHTYPE_IP))
-        {
-          ninfo("IPv4 frame\n");
-          NETDEV_RXIPV4(dev);
-
-          /* Receive an IPv4 packet from the network device */
-
-          ipv4_input(dev);
-        }
-      else
+#ifdef CONFIG_NET_LOOPBACK
+        case NET_LL_LOOPBACK:
 #endif
-#ifdef CONFIG_NET_IPv6
-      if (eth_hdr->type == HTONS(ETHTYPE_IP6))
-        {
-          ninfo("IPv6 frame\n");
-          NETDEV_RXIPV6(dev);
-
-          /* Give the IPv6 packet to the network layer */
-
-          ipv6_input(dev);
-        }
-      else
+#ifdef CONFIG_NET_ETHERNET
+        case NET_LL_ETHERNET:
 #endif
-#ifdef CONFIG_NET_ARP
-      if (eth_hdr->type == HTONS(ETHTYPE_ARP))
-        {
-          ninfo("ARP frame\n");
-          NETDEV_RXARP(dev);
-
-          /* Handle ARP packet */
-
-          arp_input(dev);
-        }
-      else
+#ifdef CONFIG_DRIVERS_IEEE80211
+        case NET_LL_IEEE80211:
 #endif
-        {
-          ninfo("INFO: Dropped, Unknown type: %04x\n", eth_hdr->type);
-          NETDEV_RXDROPPED(dev);
-          dev->d_len = 0;
-        }
-
-      /* If the above function invocation resulted in data
-       * that should be sent out on the network,
-       * the field d_len will set to a value > 0.
-       */
-
-      if (dev->d_len > 0)
-        {
-          /* And send the packet */
-
-          netdev_upper_txpoll(dev);
+#if defined(CONFIG_NET_LOOPBACK) || defined(CONFIG_NET_ETHERNET) || \
+    defined(CONFIG_DRIVERS_IEEE80211)
+          eth_input(dev);
+          break;
+#endif
+#ifdef CONFIG_NET_CAN
+        case NET_LL_CAN:
+          ninfo("CAN frame");
+          can_input(dev);
+          break;
+#endif
+        default:
+          nerr("Unknown link type %d\n", dev->d_lltype);
+          break;
         }
     }
 }
@@ -501,6 +566,249 @@ static int netdev_upper_txavail(FAR struct net_driver_s *dev)
 }
 
 /****************************************************************************
+ * Name: netdev_upper_wireless_ioctl
+ *
+ * Description:
+ *   Support for wireless handlers in ioctl.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_NETDEV_WIRELESS_HANDLER
+int netdev_upper_wireless_ioctl(FAR struct netdev_lowerhalf_s *lower,
+                                int cmd, unsigned long arg)
+{
+  int ret = -ENOTTY; /* Default to ENOTTY to indicate not serving. */
+  FAR struct iwreq *iwr = (FAR struct iwreq *)arg;
+  FAR const struct wireless_ops_s *ops = lower->iw_ops;
+  struct ether_addr zero;
+
+  /* Decode and dispatch the driver-specific IOCTL command */
+
+  switch (cmd)
+    {
+      case SIOCSIWENCODEEXT: /* Set encoding token & mode */
+        if (ops->passwd)
+          {
+            ret = ops->passwd(lower, iwr, true);
+          }
+        break;
+
+      case SIOCGIWENCODEEXT: /* Get encoding token & mode */
+        if (ops->passwd)
+          {
+            ret = ops->passwd(lower, iwr, false);
+          }
+        break;
+
+      case SIOCSIWESSID: /* Set ESSID */
+        if (ops->essid)
+          {
+            if ((iwr->u.essid.flags == IW_ESSID_ON) ||
+                (iwr->u.essid.flags == IW_ESSID_DELAY_ON))
+              {
+                ret = ops->essid(lower, iwr, true);
+                if (ret < 0)
+                  {
+                    break;
+                  }
+
+                if (iwr->u.essid.flags == IW_ESSID_ON)
+                  {
+                    ret = ops->connect(lower);
+                    if (ret < 0)
+                      {
+                        nerr("ERROR: Failed to connect\n");
+                        break;
+                      }
+                  }
+              }
+            else
+              {
+                ret = ops->disconnect(lower);
+                if (ret < 0)
+                  {
+                    nerr("ERROR: Failed to disconnect\n");
+                    break;
+                  }
+              }
+          }
+        break;
+
+      case SIOCGIWESSID: /* Get ESSID */
+        if (ops->essid)
+          {
+            ret = ops->essid(lower, iwr, false);
+          }
+        break;
+
+      case SIOCSIWAP: /* Set access point MAC addresses */
+        if (ops->bssid)
+          {
+            memset(&zero, 0, sizeof(zero));
+            if (memcmp(iwr->u.ap_addr.sa_data, &zero, sizeof(zero)) != 0)
+              {
+                ret = ops->bssid(lower, iwr, true);
+                if (ret < 0)
+                  {
+                    nerr("ERROR: Failed to set BSSID\n");
+                    break;
+                  }
+
+                ret = ops->connect(lower);
+                if (ret < 0)
+                  {
+                    nerr("ERROR: Failed to connect\n");
+                    break;
+                  }
+              }
+            else
+              {
+                ret = ops->disconnect(lower);
+                if (ret < 0)
+                  {
+                    nerr("ERROR: Failed to disconnect\n");
+                    break;
+                  }
+              }
+          }
+        break;
+
+      case SIOCGIWAP: /* Get access point MAC addresses */
+        if (ops->bssid)
+          {
+            ret = ops->bssid(lower, iwr, false);
+          }
+        break;
+
+      case SIOCSIWSCAN: /* Trigger scanning */
+        if (ops->scan)
+          {
+            ret = ops->scan(lower, iwr, true);
+          }
+        break;
+
+      case SIOCGIWSCAN: /* Get scanning results */
+        if (ops->scan)
+          {
+            ret = ops->scan(lower, iwr, false);
+          }
+        break;
+
+      case SIOCSIWCOUNTRY: /* Set country code */
+        if (ops->country)
+          {
+            ret = ops->country(lower, iwr, true);
+          }
+        break;
+
+      case SIOCGIWCOUNTRY: /* Get country code */
+        if (ops->country)
+          {
+            ret = ops->country(lower, iwr, false);
+          }
+        break;
+
+      case SIOCSIWSENS: /* Set sensitivity (dBm) */
+        if (ops->sensitivity)
+          {
+            ret = ops->sensitivity(lower, iwr, true);
+          }
+        break;
+
+      case SIOCGIWSENS: /* Get sensitivity (dBm) */
+        if (ops->sensitivity)
+          {
+            ret = ops->sensitivity(lower, iwr, false);
+          }
+        break;
+
+      case SIOCSIWMODE: /* Set operation mode */
+        if (ops->mode)
+          {
+            ret = ops->mode(lower, iwr, true);
+          }
+        break;
+
+      case SIOCGIWMODE: /* Get operation mode */
+        if (ops->mode)
+          {
+            ret = ops->mode(lower, iwr, false);
+          }
+        break;
+
+      case SIOCSIWAUTH: /* Set authentication mode params */
+        if (ops->auth)
+          {
+            ret = ops->auth(lower, iwr, true);
+          }
+        break;
+
+      case SIOCGIWAUTH: /* Get authentication mode params */
+        if (ops->auth)
+          {
+            ret = ops->auth(lower, iwr, false);
+          }
+        break;
+
+      case SIOCSIWFREQ: /* Set channel/frequency (MHz) */
+        if (ops->freq)
+          {
+            ret = ops->freq(lower, iwr, true);
+          }
+        break;
+
+      case SIOCGIWFREQ: /* Get channel/frequency (MHz) */
+        if (ops->freq)
+          {
+            ret = ops->freq(lower, iwr, false);
+          }
+        break;
+
+      case SIOCSIWRATE: /* Set default bit rate (Mbps) */
+        if (ops->bitrate)
+          {
+            ret = ops->bitrate(lower, iwr, true);
+          }
+        break;
+
+      case SIOCGIWRATE: /* Get default bit rate (Mbps) */
+        if (ops->bitrate)
+          {
+            ret = ops->bitrate(lower, iwr, false);
+          }
+        break;
+
+      case SIOCSIWTXPOW: /* Set transmit power (dBm) */
+        if (ops->txpower)
+          {
+            ret = ops->txpower(lower, iwr, true);
+          }
+        break;
+
+      case SIOCGIWTXPOW: /* Get transmit power (dBm) */
+        if (ops->txpower)
+          {
+            ret = ops->txpower(lower, iwr, false);
+          }
+        break;
+
+      case SIOCGIWRANGE: /* Get range of parameters */
+        if (ops->range)
+          {
+            ret = ops->range(lower, iwr);
+          }
+        break;
+
+      default:
+        nerr("ERROR: Unrecognized IOCTL command: %d\n", cmd);
+        break;
+    }
+
+  return ret;
+}
+#endif  /* CONFIG_NETDEV_WIRELESS_HANDLER */
+
+/****************************************************************************
  * Name: netdev_upper_ifup/ifdown/addmac/rmmac/ioctl
  *
  * Description:
@@ -595,10 +903,22 @@ static int netdev_upper_ioctl(FAR struct net_driver_s *dev, int cmd,
                               unsigned long arg)
 {
   FAR struct netdev_upperhalf_s *upper = dev->d_private;
+  FAR struct netdev_lowerhalf_s *lower = upper->lower;
 
-  if (upper->lower->ops->ioctl)
+#ifdef CONFIG_NETDEV_WIRELESS_HANDLER
+  if (lower->iw_ops)
     {
-      return upper->lower->ops->ioctl(upper->lower, cmd, arg);
+      int ret = netdev_upper_wireless_ioctl(lower, cmd, arg);
+      if (ret != -ENOTTY)
+        {
+          return ret;
+        }
+    }
+#endif
+
+  if (lower->ops->ioctl)
+    {
+      return lower->ops->ioctl(lower, cmd, arg);
     }
 
   return -ENOTTY;
@@ -643,6 +963,9 @@ int netdev_lower_register(FAR struct netdev_lowerhalf_s *dev,
       return -ENOMEM;
     }
 
+#ifndef CONFIG_HAVE_ATOMICS
+  spin_initialize(&dev->lock, SP_UNLOCKED);
+#endif
   dev->netdev.d_ifup    = netdev_upper_ifup;
   dev->netdev.d_ifdown  = netdev_upper_ifdown;
   dev->netdev.d_txavail = netdev_upper_txavail;
@@ -795,6 +1118,31 @@ void netdev_lower_txdone(FAR struct netdev_lowerhalf_s *dev)
 }
 
 /****************************************************************************
+ * Name: netdev_lower_quota_load
+ *
+ * Description:
+ *   Fetch the quota, works like atomic_load.
+ *
+ * Input Parameters:
+ *   dev  - The lower half device driver structure
+ *   type - Whether get quota for TX or RX
+ *
+ ****************************************************************************/
+
+int netdev_lower_quota_load(FAR struct netdev_lowerhalf_s *dev,
+                            enum netpkt_type_e type)
+{
+#ifndef CONFIG_HAVE_ATOMICS
+  irqstate_t flags = spin_lock_irqsave(&dev->lock);
+  int ret = dev->quota[type];
+  spin_unlock_irqrestore(&dev->lock, flags);
+  return ret;
+#else
+  return atomic_load(&dev->quota[type]);
+#endif
+}
+
+/****************************************************************************
  * Name: netpkt_alloc
  *
  * Description:
@@ -814,20 +1162,18 @@ FAR netpkt_t *netpkt_alloc(FAR struct netdev_lowerhalf_s *dev,
 {
   FAR netpkt_t *pkt;
 
-  if (dev->quota[type] <= 0)
+  if (quota_fetch_dec(dev, type) <= 0)
     {
+      quota_fetch_inc(dev, type);
       return NULL;
     }
 
   pkt = iob_tryalloc(false);
   if (pkt == NULL)
     {
+      quota_fetch_inc(dev, type);
       return NULL;
     }
-
-  net_lock(); /* REVISIT: Do we have better solution? */
-  dev->quota[type]--;
-  net_unlock();
 
   iob_reserve(pkt, CONFIG_NET_LL_GUARDSIZE);
   return pkt;
@@ -849,10 +1195,7 @@ FAR netpkt_t *netpkt_alloc(FAR struct netdev_lowerhalf_s *dev,
 void netpkt_free(FAR struct netdev_lowerhalf_s *dev, FAR netpkt_t *pkt,
                  enum netpkt_type_e type)
 {
-  net_lock(); /* REVISIT: Do we have better solution? */
-  dev->quota[type]++;
-  net_unlock();
-
+  quota_fetch_inc(dev, type);
   iob_free_chain(pkt);
 }
 
@@ -947,12 +1290,17 @@ FAR uint8_t *netpkt_getbase(FAR netpkt_t *pkt)
  *   pkt    - The net packet
  *   len    - The length of data in netpkt
  *
+ * Returned Value:
+ *   The new effective data length, or a negated errno value on error.
+ *
  ****************************************************************************/
 
-void netpkt_setdatalen(FAR struct netdev_lowerhalf_s *dev,
-                       FAR netpkt_t *pkt, unsigned int len)
+int netpkt_setdatalen(FAR struct netdev_lowerhalf_s *dev,
+                      FAR netpkt_t *pkt, unsigned int len)
 {
-  iob_update_pktlen(pkt, len - NET_LL_HDRLEN(&dev->netdev));
+  uint8_t llhdrlen = NET_LL_HDRLEN(&dev->netdev);
+  int ret = iob_update_pktlen(pkt, len - llhdrlen, false);
+  return ret >= 0 ? ret + llhdrlen : ret;
 }
 
 /****************************************************************************
@@ -1010,4 +1358,43 @@ void netpkt_reset_reserved(FAR struct netdev_lowerhalf_s *dev,
 bool netpkt_is_fragmented(FAR netpkt_t *pkt)
 {
   return pkt->io_flink != NULL;
+}
+
+/****************************************************************************
+ * Name: netpkt_to_iov
+ *
+ * Description:
+ *   Write each piece of data/len into iov array.
+ *
+ * Input Parameters:
+ *   dev    - The lower half device driver structure
+ *   pkt    - The net packet
+ *   iov    - The iov array to write
+ *   iovcnt - The number of elements in the iov array
+ *
+ * Returned Value:
+ *   The actual written count of iov entries.
+ *
+ ****************************************************************************/
+
+int netpkt_to_iov(FAR struct netdev_lowerhalf_s *dev, FAR netpkt_t *pkt,
+                  FAR struct iovec *iov, int iovcnt)
+{
+  int i;
+
+  for (i = 0; pkt != NULL && i < iovcnt; pkt = pkt->io_flink, i++)
+    {
+      if (i == 0)
+        {
+          iov[i].iov_base = IOB_DATA(pkt) - NET_LL_HDRLEN(&dev->netdev);
+          iov[i].iov_len  = pkt->io_len   + NET_LL_HDRLEN(&dev->netdev);
+        }
+      else
+        {
+          iov[i].iov_base = IOB_DATA(pkt);
+          iov[i].iov_len  = pkt->io_len;
+        }
+    }
+
+  return i;
 }

@@ -366,8 +366,8 @@ BASIC
   There is also a test suite for the interpreter that can be found at
   apps/examples/bastest.
 
-  Configuration
-  -------------
+Configuration
+-------------
   Below are the recommended configuration changes to use BAS with the
   stm32f4discovery/nsh configuration:
 
@@ -390,8 +390,8 @@ BASIC
      CONFIG_EXAMPLES_BASTEST_DEVMINOR=6
      CONFIG_EXAMPLES_BASTEST_DEVPATH="/dev/ram6"
 
-  Usage
-  -----
+Usage
+-----
   This setup will initialize the BASIC test (optional):  This will mount a
   ROMFS file system at /mnt/romfs that contains the BASIC test files::
 
@@ -570,6 +570,75 @@ You can use the normal adb command from host::
     adb kill-server
     adb connect localhost:5555
     adb shell
+
+alsa
+----
+
+This configuration enables testing audio applications on NuttX by
+implementing an audio-like driver that uses ALSA to forward the audio to
+the host system. It also enables the `hostfs` to enable direct access to
+the host system's files mounted on the simulator. The ALSA audio driver
+allows uncompressed PCM files - as well as MP3 files - to be played.
+
+To check the audio devices::
+
+    $ ./nuttx
+    NuttShell (NSH) NuttX-10.4.0
+    nsh> ls /dev/audio
+    /dev/audio:
+    pcm0c
+    pcm0p
+    pcm1c
+    pcm1p
+
+- `pcm0c` represents the device to capture uncompressed PCM audio;
+- `pcm0p` represents the device to playback uncompressed PCM files;
+- `pcm1c` represents the device to capture MP3-encoded audio;
+- `pcm1p` represents the device to playback MP3-encoded files;
+
+Mounting Files from Host System
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To mount files from the host system and enable them to be played in the sim::
+
+    nsh> mount -t hostfs -o fs=/path/to/audio/files/ /host
+    nsh> ls /host
+    /host:
+    mother.mp3
+    mother.wav
+    .
+    ..
+
+Playing uncompressed-PCM files
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To play uncompressed-PCM files, we can use `nxplayer`'s `playraw` command.
+We need 1) select the appropriate audio device to playback this file and
+1) know in advance the file's parameters (channels, bits/sample and
+sampling rate)::
+
+    nsh> nxplayer
+    NxPlayer version 1.05
+    h for commands, q to exit
+
+    nxplayer> device /dev/audio/pcm0p
+    nxplayer> playraw /host/mother.wav 2 16 44100
+
+In this example, the file `mother.wav` is a stereo (2-channel),
+16 bits/sample and 44,1KHz PCM-encoded file.
+
+Playing MP3-encoded files
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To play MP3 files, we can use `nxplayer`'s `play` command directly.
+We only need to select the appropriate audio device to playback this file::
+
+    nsh> nxplayer
+    NxPlayer version 1.05
+    h for commands, q to exit
+
+    nxplayer> device /dev/audio/pcm1p
+    nxplayer> play /host/mother.mp3
 
 bluetooth
 ---------
@@ -1487,40 +1556,50 @@ This is a configuration for WebAssembly sample.
 
 1. Compile Toolchain
 
-   1. Download WASI sdk and export the WASI_SDK_PATH path::
+   1. Download WASI sdk and export the WASI_SDK_PATH path
 
-      $ wget https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-19/wasi-sdk-19.0-linux.tar.gz
-      $ tar xf wasi-sdk-19.0-linux.tar.gz
-      Put wasi-sdk-19.0 to your host WASI_SDK_PATH environment variable, like:
-      $ export WASI_SDK_PATH=`pwd`/wasi-sdk-19.0
+    .. code-block:: console
 
-   2. Download Wamr "wamrc" AOT compiler and export to the PATH::
+      wget https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-19/wasi-sdk-19.0-linux.tar.gz
+      tar xf wasi-sdk-19.0-linux.tar.gz
+      # Put wasi-sdk-19.0 to your host WASI_SDK_PATH environment variable, like:
+      export WASI_SDK_PATH=`pwd`/wasi-sdk-19.0
 
-      $ mkdir wamrc
-      $ wget https://github.com/bytecodealliance/wasm-micro-runtime/releases/download/WAMR-1.1.2/wamrc-1.1.2-x86_64-ubuntu-20.04.tar.gz
-      $ tar xf wamrc-1.1.2-x86_64-ubuntu-20.04.tar.gz
-      $ export PATH=$PATH:$PWD
+   2. Download Wamr "wamrc" AOT compiler and export to the PATH
+
+    .. code-block:: console
+
+      mkdir wamrc
+      wget https://github.com/bytecodealliance/wasm-micro-runtime/releases/download/WAMR-1.1.2/wamrc-1.1.2-x86_64-ubuntu-20.04.tar.gz
+      tar xf wamrc-1.1.2-x86_64-ubuntu-20.04.tar.gz
+      export PATH=$PATH:$PWD
 
 2. Configuring and running
 
-   1. Configuring sim/wamr and compile::
+   1. Configuring sim/wamr and compile
 
-          nuttx$ ./tools/configure.sh  sim/wamr
-          nuttx$ make
+    .. code-block:: console
+
+          ./tools/configure.sh  sim/wamr
+          make
           ...
           Wamrc Generate AoT: /home/archer/code/nuttx/n5/apps/wasm/hello.aot
           Wamrc Generate AoT: /home/archer/code/nuttx/n5/apps/wasm/coremark.aot
           LD:  nuttx
 
-   2. Copy the generated wasm file(Interpreter/AoT)::
+   2. Copy the generated wasm file(Interpreter/AoT)
 
-          nuttx$ cp ../apps/wasm/hello.aot .
-          nuttx$ cp ../apps/wasm/hello.wasm .
-          nuttx$ cp ../apps/wasm/coremark.wasm .
+    .. code-block:: console
 
-   3. Run iwasm::
+      cp ../apps/wasm/hello.aot .
+      cp ../apps/wasm/hello.wasm .
+      cp ../apps/wasm/coremark.wasm .
 
-          nuttx$ ./nuttx
+   3. Run iwasm
+
+    .. code-block:: console
+
+          ./nuttx
           NuttShell (NSH) NuttX-10.4.0
           nsh> iwasm /data/hello.wasm
           Hello, World!!
@@ -1566,12 +1645,12 @@ This is a configuration with sim usbdev support.
 
   sim:usbdev contains two different sets of composite devices::
 
-  conn0: adb & rndis
-  conn1: cdcacm & cdcecm
+    conn0: adb & rndis
+    conn1: cdcacm & cdcecm
 
   You can use the sim:usbdev configuration::
 
-  ./tools/configure.sh sim:usbdev
+    ./tools/configure.sh sim:usbdev
 
 3. How to run
 

@@ -29,6 +29,10 @@
  *
  ****************************************************************************/
 
+#include "libc.h"
+
+#ifdef LIBC_BUILD_MEMMOVE
+
 	.thumb
 	.syntax unified
 	.global memmove
@@ -64,3 +68,5 @@ memmove:
 	pop	{r4}
 	bx	lr
 	.size memmove, . - memmove
+
+#endif

@@ -36,6 +36,8 @@
 #include <nuttx/fs/fs.h>
 #include <nuttx/binfmt/nxflat.h>
 
+#include "libnxflat.h"
+
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
@@ -49,9 +51,9 @@
 #endif
 
 #ifdef CONFIG_NXFLAT_DUMPBUFFER
-# define nxflat_dumpbuffer(m,b,n) binfodumpbuffer(m,b,n)
+#  define nxflat_dumpbuffer(m,b,n) binfodumpbuffer(m,b,n)
 #else
-# define nxflat_dumpbuffer(m,b,n)
+#  define nxflat_dumpbuffer(m,b,n)
 #endif
 
 /****************************************************************************

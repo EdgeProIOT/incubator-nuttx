@@ -39,6 +39,7 @@
 #include "chip.h"
 #include "imxrt_config.h"
 #include "imxrt_flexpwm.h"
+#include "imxrt_gpio.h"
 #include "imxrt_periphclks.h"
 #include "imxrt_xbar.h"
 #include "hardware/imxrt_flexpwm.h"
@@ -52,9 +53,9 @@
 #ifdef CONFIG_IMXRT_FLEXPWM
 
 #ifdef CONFIG_PWM_NCHANNELS
-# define PWM_NCHANNELS CONFIG_PWM_NCHANNELS
+#  define PWM_NCHANNELS CONFIG_PWM_NCHANNELS
 #else
-# define PWM_NCHANNELS 1
+#  define PWM_NCHANNELS 1
 #endif
 
 #define MODULE_OFFSET 0x60

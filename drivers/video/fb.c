@@ -69,6 +69,8 @@ struct fb_chardev_s
 #ifdef CONFIG_FB_OVERLAY
   int overlay;                    /* Overlay number */
 #endif
+  mutex_t lock;                  /* Mutual exclusion */
+  int16_t crefs;                 /* Number of open references */
 };
 
 struct fb_panelinfo_s
@@ -82,6 +84,8 @@ struct fb_panelinfo_s
  * Private Function Prototypes
  ****************************************************************************/
 
+static int     fb_open(FAR struct file *filep);
+static int     fb_close(FAR struct file *filep);
 static ssize_t fb_read(FAR struct file *filep, FAR char *buffer,
                        size_t buflen);
 static ssize_t fb_write(FAR struct file *filep, FAR const char *buffer,
@@ -101,8 +105,8 @@ static int     fb_get_panelinfo(FAR struct fb_chardev_s *fb,
 
 static const struct file_operations g_fb_fops =
 {
-  NULL,          /* open */
-  NULL,          /* close */
+  fb_open,       /* open */
+  fb_close,      /* close */
   fb_read,       /* read */
   fb_write,      /* write */
   fb_seek,       /* seek */
@@ -115,6 +119,84 @@ static const struct file_operations g_fb_fops =
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: fb_open
+ ****************************************************************************/
+
+static int fb_open(FAR struct file *filep)
+{
+  FAR struct inode *inode;
+  FAR struct fb_chardev_s *fb;
+  int ret;
+
+  inode = filep->f_inode;
+  fb    = inode->i_private;
+
+  DEBUGASSERT(fb->vtable != NULL);
+
+  ret = nxmutex_lock(&fb->lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (fb->crefs == 0)
+    {
+      if (fb->vtable->open != NULL)
+        {
+          ret = fb->vtable->open(fb->vtable);
+        }
+    }
+
+  if (ret >= 0)
+    {
+      fb->crefs++;
+      DEBUGASSERT(fb->crefs > 0);
+    }
+
+  nxmutex_unlock(&fb->lock);
+  return ret;
+}
+
+/****************************************************************************
+ * Name: fb_close
+ ****************************************************************************/
+
+static int fb_close(FAR struct file *filep)
+{
+  FAR struct inode *inode;
+  FAR struct fb_chardev_s *fb;
+  int ret;
+
+  inode = filep->f_inode;
+  fb    = inode->i_private;
+
+  DEBUGASSERT(fb->vtable != NULL);
+
+  ret = nxmutex_lock(&fb->lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (fb->crefs == 1)
+    {
+      if (fb->vtable->close != NULL)
+        {
+          ret = fb->vtable->close(fb->vtable);
+        }
+    }
+
+  if (ret >= 0)
+    {
+      DEBUGASSERT(fb->crefs > 0);
+      fb->crefs--;
+    }
+
+  nxmutex_unlock(&fb->lock);
+  return ret;
+}
 
 /****************************************************************************
  * Name: fb_read
@@ -134,9 +216,8 @@ static ssize_t fb_read(FAR struct file *filep, FAR char *buffer, size_t len)
 
   /* Get the framebuffer instance */
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   inode = filep->f_inode;
-  fb    = (FAR struct fb_chardev_s *)inode->i_private;
+  fb    = inode->i_private;
 
   /* Get panel info */
 
@@ -189,9 +270,8 @@ static ssize_t fb_write(FAR struct file *filep, FAR const char *buffer,
 
   /* Get the framebuffer instance */
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   inode = filep->f_inode;
-  fb    = (FAR struct fb_chardev_s *)inode->i_private;
+  fb    = inode->i_private;
 
   /* Get panel info */
 
@@ -249,9 +329,8 @@ static off_t fb_seek(FAR struct file *filep, off_t offset, int whence)
 
   /* Get the framebuffer instance */
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   inode = filep->f_inode;
-  fb    = (FAR struct fb_chardev_s *)inode->i_private;
+  fb    = inode->i_private;
 
   /* Determine the new, requested file position */
 
@@ -329,9 +408,8 @@ static int fb_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
   /* Get the framebuffer instance */
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   inode = filep->f_inode;
-  fb    = (FAR struct fb_chardev_s *)inode->i_private;
+  fb    = inode->i_private;
 
   /* Process the IOCTL command */
 
@@ -508,6 +586,17 @@ static int fb_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
         }
         break;
 
+      case FBIOSET_DESTAREA:  /* Set destination area on the primary FB */
+        {
+          FAR struct fb_overlayinfo_s *oinfo =
+            (FAR struct fb_overlayinfo_s *)((uintptr_t)arg);
+
+          DEBUGASSERT(oinfo != 0 && fb->vtable != NULL &&
+                      fb->vtable->setdestarea != NULL);
+          ret = fb->vtable->setdestarea(fb->vtable, oinfo);
+        }
+        break;
+
 #ifdef CONFIG_FB_OVERLAY_BLIT
       case FBIOSET_BLIT:  /* Blit operation between video overlays */
         {
@@ -531,6 +620,18 @@ static int fb_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
         }
         break;
 #endif
+
+      case FBIOPAN_OVERLAY:
+        {
+          FAR struct fb_overlayinfo_s *oinfo =
+            (FAR struct fb_overlayinfo_s *)((uintptr_t)arg);
+
+          DEBUGASSERT(oinfo != 0 && fb->vtable != NULL &&
+                      fb->vtable->panoverlay != NULL);
+          ret = fb->vtable->panoverlay(fb->vtable, oinfo);
+        }
+        break;
+
 #endif /* CONFIG_FB_OVERLAY */
 
       case FBIOSET_POWER:
@@ -755,9 +856,8 @@ static int fb_mmap(FAR struct file *filep, FAR struct mm_map_entry_s *map)
 
   /* Get the framebuffer instance */
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   inode = filep->f_inode;
-  fb    = (FAR struct fb_chardev_s *)inode->i_private;
+  fb    = inode->i_private;
 
   /* Get panel info */
 
@@ -795,9 +895,8 @@ static int fb_poll(FAR struct file *filep, struct pollfd *fds, bool setup)
 
   /* Get the framebuffer instance */
 
-  DEBUGASSERT(filep != NULL && filep->f_inode != NULL);
   inode = filep->f_inode;
-  fb    = (FAR struct fb_chardev_s *)inode->i_private;
+  fb    = inode->i_private;
 
   if (setup)
     {
@@ -967,7 +1066,7 @@ int fb_register(int display, int plane)
 
   /* Allocate a framebuffer state instance */
 
-  fb = (FAR struct fb_chardev_s *)kmm_zalloc(sizeof(struct fb_chardev_s));
+  fb = kmm_zalloc(sizeof(struct fb_chardev_s));
   if (fb == NULL)
     {
       return -ENOMEM;
@@ -999,8 +1098,6 @@ int fb_register(int display, int plane)
       gerr("ERROR: up_fbgetvplane() failed, vplane=%d\n", plane);
       goto errout_with_fb;
     }
-
-  fb->vtable->priv = fb;
 
   /* Initialize the frame buffer instance. */
 
@@ -1058,6 +1155,8 @@ int fb_register(int display, int plane)
       snprintf(devname, 16, "/dev/fb%d.%d", display, plane);
     }
 
+  nxmutex_init(&fb->lock);
+
   ret = register_driver(devname, &g_fb_fops, 0666, (FAR void *)fb);
   if (ret < 0)
     {
@@ -1065,9 +1164,12 @@ int fb_register(int display, int plane)
       goto errout_with_fb;
     }
 
+  fb->vtable->priv = fb;
+
   return OK;
 
 errout_with_fb:
+  nxmutex_destroy(&fb->lock);
   kmm_free(fb);
   return ret;
 }

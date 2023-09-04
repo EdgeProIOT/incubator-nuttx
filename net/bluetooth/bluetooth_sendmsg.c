@@ -103,7 +103,7 @@ static uint16_t bluetooth_sendto_eventhandler(FAR struct net_driver_s *dev,
 
   /* Make sure that this is the driver to which the socket is connected. */
 
-#warning Missing logic
+  /* #warning Missing logic */
 
   pstate = pvpriv;
   radio  = (FAR struct radio_driver_s *)dev;
@@ -417,7 +417,6 @@ static ssize_t bluetooth_l2cap_send(FAR struct socket *psock,
   ssize_t ret;
 
   conn = psock->s_conn;
-  DEBUGASSERT(conn != NULL);
 
   if (!_SS_ISCONNECTED(conn->bc_conn.s_flags))
     {
@@ -490,8 +489,6 @@ static ssize_t bluetooth_send(FAR struct socket *psock, FAR const void *buf,
                               size_t len, int flags)
 {
   ssize_t ret;
-
-  DEBUGASSERT(psock != NULL || buf != NULL);
 
   /* Only SOCK_RAW is supported */
 

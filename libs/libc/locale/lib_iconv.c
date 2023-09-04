@@ -529,6 +529,11 @@ size_t iconv(iconv_t cd, FAR char **in, FAR size_t *inb,
           case UCS2:
           case UTF_16:
             {
+              if (scd == NULL)
+                {
+                  goto starved;
+                }
+
               l = 0;
               if (!scd->state)
                 {
@@ -551,6 +556,11 @@ size_t iconv(iconv_t cd, FAR char **in, FAR size_t *inb,
 
           case UTF_32:
             {
+              if (scd == NULL)
+                {
+                  goto starved;
+                }
+
               l = 0;
               if (!scd->state)
                 {
@@ -699,6 +709,11 @@ size_t iconv(iconv_t cd, FAR char **in, FAR size_t *inb,
 
                   switch (128 * (c == '$') + d)
                     {
+                    if (scd == NULL)
+                      {
+                        goto starved;
+                      }
+
                       case 'B':
                         {
                           scd->state = 0;
@@ -731,6 +746,11 @@ size_t iconv(iconv_t cd, FAR char **in, FAR size_t *inb,
                     }
 
                   goto ilseq;
+                }
+
+              if (scd == NULL)
+                {
+                  goto starved;
                 }
 
               switch (scd->state)
@@ -863,10 +883,14 @@ size_t iconv(iconv_t cd, FAR char **in, FAR size_t *inb,
                   c += 128;
                   for (d = 0; d <= c; )
                     {
+                      int i;
+
                       k = 0;
-                      for (int i = 0; i < 126; i++)
+                      for (i = 0; i < 126; i++)
                         {
-                          for (int j = 0; j < 190; j++)
+                          int j;
+
+                          for (j = 0; j < 190; j++)
                             {
                               if (g_gb18030[i][j] - d <= c - d)
                                 {
@@ -1060,10 +1084,14 @@ size_t iconv(iconv_t cd, FAR char **in, FAR size_t *inb,
                   c += 0xac00;
                   for (d = 0xac00; d <= c; )
                     {
+                      int i;
+
                       k = 0;
-                      for (int i = 0; i < 93; i++)
+                      for (i = 0; i < 93; i++)
                         {
-                          for (int j = 0; j < 94; j++)
+                          int j;
+
+                          for (j = 0; j < 94; j++)
                             {
                               if (g_ksc[i][j] - d <= c - d)
                                 {

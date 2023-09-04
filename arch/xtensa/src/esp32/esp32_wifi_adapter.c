@@ -278,7 +278,6 @@ static void esp_dport_access_stall_other_cpu_start(void);
 static void esp_dport_access_stall_other_cpu_end(void);
 static void wifi_apb80m_request(void);
 static void wifi_apb80m_release(void);
-static int32_t wifi_phy_update_country_info(const char *country);
 static int32_t esp_wifi_read_mac(uint8_t *mac, uint32_t type);
 static void esp_timer_arm(void *timer, uint32_t tmout, bool repeat);
 static void esp_timer_disarm(void *timer);
@@ -523,7 +522,7 @@ wifi_osi_funcs_t g_wifi_osi_funcs =
   ._phy_enable = esp32_phy_enable,
   ._phy_common_clock_enable = esp32_phy_enable_clock,
   ._phy_common_clock_disable = esp32_phy_disable_clock,
-  ._phy_update_country_info = wifi_phy_update_country_info,
+  ._phy_update_country_info = esp32_phy_update_country_info,
   ._read_mac = esp_wifi_read_mac,
   ._timer_arm = esp_timer_arm,
   ._timer_disarm = esp_timer_disarm,
@@ -1114,34 +1113,39 @@ static void esp_semphr_delete(void *semphr)
  *   Wait semaphore within a certain period of time
  *
  * Input Parameters:
- *   semphr - Semaphore data pointer
- *   ticks  - Wait system ticks
+ *   semphr          - Semaphore data pointer
+ *   block_time_tick - Wait system ticks
  *
  * Returned Value:
  *   True if success or false if fail
  *
  ****************************************************************************/
 
-static int32_t esp_semphr_take(void *semphr, uint32_t ticks)
+static int32_t esp_semphr_take(void *semphr, uint32_t block_time_tick)
 {
   int ret;
   sem_t *sem = (sem_t *)semphr;
 
-  if (ticks == OSI_FUNCS_TIME_BLOCKING)
+  if (block_time_tick == OSI_FUNCS_TIME_BLOCKING)
     {
       ret = nxsem_wait(sem);
-      if (ret)
-        {
-          wlerr("Failed to wait sem\n");
-        }
     }
   else
     {
-      ret = nxsem_tickwait(sem, ticks);
-      if (ret)
+      if (block_time_tick > 0)
         {
-          wlerr("Failed to wait sem in %d ticks\n", ticks);
+          ret = nxsem_tickwait(sem, block_time_tick);
         }
+      else
+        {
+          ret = nxsem_trywait(sem);
+        }
+    }
+
+  if (ret)
+    {
+      wlerr("ERROR: Failed to wait sem in %u ticks. Error=%d\n",
+            block_time_tick, ret);
     }
 
   return osi_errno_trans(ret);
@@ -1190,11 +1194,11 @@ static int32_t esp_semphr_give(void *semphr)
  *
  ****************************************************************************/
 
-static int32_t esp_semphr_take_from_isr(void *semphr, void *hptw)
+static int32_t IRAM_ATTR esp_semphr_take_from_isr(void *semphr, void *hptw)
 {
   *(int *)hptw = 0;
 
-  return esp_semphr_take(semphr, 0);
+  return osi_errno_trans(nxsem_trywait(semphr));
 }
 
 /****************************************************************************
@@ -1211,11 +1215,11 @@ static int32_t esp_semphr_take_from_isr(void *semphr, void *hptw)
  *
  ****************************************************************************/
 
-static int32_t esp_semphr_give_from_isr(void *semphr, void *hptw)
+static int32_t IRAM_ATTR esp_semphr_give_from_isr(void *semphr, void *hptw)
 {
   *(int *)hptw = 0;
 
-  return esp_semphr_give(semphr);
+  return osi_errno_trans(nxsem_post(semphr));
 }
 
 /****************************************************************************
@@ -2516,19 +2520,6 @@ static void wifi_apb80m_release(void)
 #ifdef CONFIG_ESP32_AUTO_SLEEP
   esp32_pm_lockrelease();
 #endif
-}
-
-/****************************************************************************
- * Name: wifi_phy_update_country_info
- *
- * Description:
- *   Don't support
- *
- ****************************************************************************/
-
-static int32_t wifi_phy_update_country_info(const char *country)
-{
-  return -1;
 }
 
 /****************************************************************************
@@ -3952,6 +3943,7 @@ static IRAM_ATTR void esp_wifi_tx_done_cb(uint8_t ifidx, uint8_t *data,
     }
 }
 
+#ifdef ESP32_WLAN_HAS_STA
 /****************************************************************************
  * Name: esp_wifi_auth_trans
  *
@@ -4051,6 +4043,7 @@ static int esp_wifi_cipher_trans(uint32_t wifi_cipher)
 
   return cipher_mode;
 }
+#endif /* ESP32_WLAN_HAS_STA */
 
 /****************************************************************************
  * Name: esp_freq_to_channel
@@ -5639,6 +5632,7 @@ int esp_wifi_sta_bitrate(struct iwreq *iwr, bool set)
 
   return OK;
 }
+#endif //ESP32_WLAN_HAS_STA
 
 /****************************************************************************
  * Name: esp_wifi_sta_get_txpower
@@ -5833,6 +5827,7 @@ int esp_wifi_sta_country(struct iwreq *iwr, bool set)
   return OK;
 }
 
+#ifdef ESP32_WLAN_HAS_STA
 /****************************************************************************
  * Name: esp_wifi_sta_rssi
  *

@@ -338,8 +338,8 @@ static void sam_checkreg(uint32_t addr, uint32_t val, bool iswrite);
 static uint32_t sam_getreg(uint32_t addr);
 static void sam_putreg(uint32_t val, uint32_t addr);
 #else
-# define sam_getreg(addr)     getreg32(addr)
-# define sam_putreg(val,addr) putreg32(val,addr)
+#  define sam_getreg(addr)     getreg32(addr)
+#  define sam_putreg(val,addr) putreg32(val,addr)
 #endif
 
 /* Byte stream access helper functions **************************************/
@@ -2672,7 +2672,7 @@ static int sam_epalloc(struct usbhost_driver_s *drvr,
 
   /* Allocate a container for the endpoint data */
 
-  eplist = (struct sam_eplist_s *)kmm_zalloc(sizeof(struct sam_eplist_s));
+  eplist = kmm_zalloc(sizeof(struct sam_eplist_s));
   if (!eplist)
     {
       usbhost_trace1(OHCI_TRACE1_EPLISTALLOC_FAILED, 0);

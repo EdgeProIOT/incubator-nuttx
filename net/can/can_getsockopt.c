@@ -80,8 +80,7 @@ int can_getsockopt(FAR struct socket *psock, int level, int option,
   FAR struct can_conn_s *conn;
   int ret = OK;
 
-  DEBUGASSERT(psock != NULL && value != NULL && value_len != NULL &&
-              psock->s_conn != NULL);
+  DEBUGASSERT(value != NULL && value_len != NULL);
   conn = psock->s_conn;
 
 #ifdef CONFIG_NET_TIMESTAMP
@@ -123,6 +122,7 @@ int can_getsockopt(FAR struct socket *psock, int level, int option,
         else
           {
             int count = conn->filter_count;
+            int i;
 
             if (*value_len < count * sizeof(struct can_filter))
               {
@@ -133,9 +133,9 @@ int can_getsockopt(FAR struct socket *psock, int level, int option,
                 *value_len = count * sizeof(struct can_filter);
               }
 
-            for (int i = 0; i < count; i++)
+            for (i = 0; i < count; i++)
               {
-                ((struct can_filter *)value)[i] = conn->filters[i];
+                ((FAR struct can_filter *)value)[i] = conn->filters[i];
               }
           }
         break;

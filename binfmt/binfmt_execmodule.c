@@ -24,6 +24,7 @@
 
 #include <nuttx/config.h>
 
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -87,7 +88,7 @@ static void exec_ctors(FAR void *arg)
 
   for (i = 0; i < binp->nctors; i++)
     {
-      binfo("Calling ctor %d at %p\n", i, (FAR void *)ctor);
+      binfo("Calling ctor %d at %p\n", i, ctor);
 
       (*ctor)();
       ctor++;
@@ -139,7 +140,7 @@ int exec_module(FAR struct binary_s *binp,
 
   /* Allocate a TCB for the new task. */
 
-  tcb = (FAR struct task_tcb_s *)kmm_zalloc(sizeof(struct task_tcb_s));
+  tcb = kmm_zalloc(sizeof(struct task_tcb_s));
   if (!tcb)
     {
       return -ENOMEM;
@@ -186,6 +187,17 @@ int exec_module(FAR struct binary_s *binp,
   umm_initialize(vheap, up_addrenv_heapsize(addrenv));
 #endif
 
+#if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_ARCH_KERNEL_STACK)
+  /* Allocate the kernel stack */
+
+  ret = up_addrenv_kstackalloc(&tcb->cmn);
+  if (ret < 0)
+    {
+      berr("ERROR: up_addrenv_kstackalloc() failed: %d\n", ret);
+      goto errout_with_addrenv;
+    }
+#endif
+
   /* Note that tcb->flags are not modified.  0=normal task */
 
   /* tcb->flags |= TCB_FLAG_TTYPE_TASK; */
@@ -229,17 +241,6 @@ int exec_module(FAR struct binary_s *binp,
         }
     }
 
-#if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_ARCH_KERNEL_STACK)
-  /* Allocate the kernel stack */
-
-  ret = up_addrenv_kstackalloc(&tcb->cmn);
-  if (ret < 0)
-    {
-      berr("ERROR: up_addrenv_kstackalloc() failed: %d\n", ret);
-      goto errout_with_tcbinit;
-    }
-#endif
-
 #ifdef CONFIG_PIC
   /* Add the D-Space address as the PIC base address.  By convention, this
    * must be the first allocated address space.
@@ -271,13 +272,25 @@ int exec_module(FAR struct binary_s *binp,
 
   if (binp->nctors > 0)
     {
-      nxtask_starthook(tcb, exec_ctors, (FAR void *)binp);
+      nxtask_starthook(tcb, exec_ctors, binp);
     }
 #endif
 
   /* Get the assigned pid before we start the task */
 
   pid = tcb->cmn.pid;
+
+#ifdef CONFIG_SCHED_USER_IDENTITY
+  if (binp->mode & S_ISUID)
+    {
+      tcb->cmn.group->tg_euid = binp->uid;
+    }
+
+  if (binp->mode & S_ISGID)
+    {
+      tcb->cmn.group->tg_egid = binp->gid;
+    }
+#endif
 
   /* Then activate the task at the provided priority */
 
@@ -294,7 +307,7 @@ int exec_module(FAR struct binary_s *binp,
     }
 #endif
 
-  return (int)pid;
+  return pid;
 
 errout_with_tcbinit:
 #ifndef CONFIG_BUILD_KERNEL

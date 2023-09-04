@@ -27,10 +27,11 @@
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 
-#include <string.h>
 #include <assert.h>
-#include <errno.h>
 #include <debug.h>
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
 
 #include <nuttx/net/net.h>
 #include <nuttx/net/ip.h>
@@ -68,6 +69,10 @@
 
 #ifdef CONFIG_NET_CELLULAR
 #  include <nuttx/wireless/cellular/cellular.h>
+#endif
+
+#ifdef CONFIG_NETDEV_MODEM_LTE_IOCTL
+#  include <nuttx/wireless/lte/lte_ioctl.h>
 #endif
 
 #include "arp/arp.h"
@@ -705,6 +710,7 @@ static ssize_t net_ioctl_ifreq_arglen(int cmd)
       case SIOCDCANEXTFILTER:
       case SIOCACANSTDFILTER:
       case SIOCDCANSTDFILTER:
+      case SIOCCANRECOVERY:
       case SIOCSIFNAME:
       case SIOCGIFNAME:
       case SIOCGIFINDEX:
@@ -923,11 +929,7 @@ static int netdev_ifr_ioctl(FAR struct socket *psock, int cmd,
         req->ifr_mtu = NETDEV_PKTSIZE(dev) - dev->d_llhdrlen;
         break;
       case SIOCSIFMTU:   /* Set MTU size */
-        dev = netdev_ifr_dev(req);
-        if (dev)
-          {
-            NETDEV_PKTSIZE(dev) = req->ifr_mtu + dev->d_llhdrlen;
-          }
+        NETDEV_PKTSIZE(dev) = req->ifr_mtu + dev->d_llhdrlen;
         break;
 
 #ifdef CONFIG_NET_ICMPv6_AUTOCONF
@@ -1105,6 +1107,7 @@ static int netdev_ifr_ioctl(FAR struct socket *psock, int cmd,
       case SIOCDCANEXTFILTER:  /* Delete an extended-ID filter */
       case SIOCACANSTDFILTER:  /* Add a standard-ID filter */
       case SIOCDCANSTDFILTER:  /* Delete a standard-ID filter */
+      case SIOCCANRECOVERY:    /* Recovery can controller when bus-off */
         if (dev->d_ioctl)
           {
             FAR struct can_ioctl_filter_s *can_filter =
@@ -1423,7 +1426,7 @@ static int netdev_rt_ioctl(FAR struct socket *psock, int cmd,
         {
           /* The target address and the netmask are required values */
 
-          if (rtentry == 0)
+          if (rtentry == NULL)
             {
               return -EINVAL;
             }
@@ -1536,7 +1539,18 @@ static int netdev_ioctl(FAR struct socket *psock, int cmd,
 
         break;
 
-      default:
+      case FIOC_FILEPATH:
+        if (ret == -ENOTTY)
+          {
+            snprintf((FAR char *)(uintptr_t)arg, PATH_MAX, "socket:["
+                     "domain %" PRIu8 ", type %" PRIu8 ", proto %" PRIu8 "]",
+                     psock->s_domain, psock->s_type, psock->s_proto);
+            ret = OK;
+          }
+
+        break;
+
+    default:
         break;
     }
 
@@ -1579,6 +1593,9 @@ ssize_t net_ioctl_arglen(int cmd)
       case FIONREAD:
         return sizeof(int);
 
+      case FIOC_FILEPATH:
+        return PATH_MAX;
+
       case SIOCGIFCONF:
         return sizeof(struct ifconf);
 
@@ -1597,6 +1614,9 @@ ssize_t net_ioctl_arglen(int cmd)
       case SIOCADDRT:
       case SIOCDELRT:
         return sizeof(struct rtentry);
+
+      case SIOCDENYINETSOCK:
+        return sizeof(uint8_t);
 
       default:
 #ifdef CONFIG_NETDEV_IOCTL
@@ -1625,6 +1645,20 @@ ssize_t net_ioctl_arglen(int cmd)
         if (_BLUETOOTHIOCVALID(cmd))
           {
             return sizeof(struct btreq_s);
+          }
+#  endif
+
+#  ifdef CONFIG_NETDEV_MODEM_LTE_IOCTL
+        if (_LTEIOCVALID(cmd))
+          {
+            switch (cmd)
+              {
+                case SIOCLTECMD:
+                  return sizeof(struct lte_ioctl_data_s);
+
+                default:
+                  return sizeof(struct lte_smsreq_s);
+              }
           }
 #  endif
 #endif

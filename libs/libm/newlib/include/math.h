@@ -44,6 +44,27 @@ extern "C"
 # endif
 #endif /* __GNUC_PREREQ */
 
+#ifndef __has_extension
+# ifdef __has_feature
+#  define __has_extension __has_feature
+# else
+#  define __has_extension(x) 0
+# endif
+#endif
+
+#if !__has_extension(c_thread_local)
+/* XXX: Some compilers (Clang 3.3, GCC 4.7) falsely announce C++11 mode
+ * without actually supporting the thread_local keyword. Don't check for
+ * the presence of C++11 when defining _Thread_local.
+ */
+# if /* (defined(__cplusplus) && __cplusplus >= 201103L) || */ \
+    __has_extension(cxx_thread_local)
+#  define _Thread_local thread_local
+# else
+#  define _Thread_local __thread
+# endif
+#endif
+
 /* Newlib doesn't fully support long double math functions so far.
  * On platforms where long double equals double the long double functions
  * let's define _LDBL_EQ_DBL to simply call the double functions.
@@ -230,17 +251,17 @@ extern int isnan (double);
 #define FP_NORMAL      4
 
 #ifndef FP_ILOGB0
-# define FP_ILOGB0 (-__INT_MAX__)
+#  define FP_ILOGB0 (-__INT_MAX__)
 #endif
 #ifndef FP_ILOGBNAN
-# define FP_ILOGBNAN __INT_MAX__
+#  define FP_ILOGBNAN __INT_MAX__
 #endif
 
 #ifndef MATH_ERRNO
-# define MATH_ERRNO 1
+#  define MATH_ERRNO 1
 #endif
 #ifndef MATH_ERREXCEPT
-# define MATH_ERREXCEPT 2
+#  define MATH_ERREXCEPT 2
 #endif
 #ifndef math_errhandling
 # ifdef _IEEE_LIBM
@@ -253,7 +274,7 @@ extern int isnan (double);
 # else
 #  define _MATH_ERRHANDLING_ERREXCEPT 0
 # endif
-# define math_errhandling (_MATH_ERRHANDLING_ERRNO | _MATH_ERRHANDLING_ERREXCEPT)
+#  define math_errhandling (_MATH_ERRHANDLING_ERRNO | _MATH_ERRHANDLING_ERREXCEPT)
 #endif
 
 extern int __isinff (float);

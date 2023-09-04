@@ -34,7 +34,6 @@
 #include <nuttx/mm/mempool.h>
 
 #include <assert.h>
-#include <execinfo.h>
 #include <sys/types.h>
 #include <stdbool.h>
 #include <string.h>
@@ -76,6 +75,7 @@
        { \
          FAR struct mm_allocnode_s *tmp = (FAR struct mm_allocnode_s *)(ptr); \
          tmp->pid = _SCHED_GETTID(); \
+         tmp->seqno = g_mm_seqno++; \
        } \
      while (0)
 #elif CONFIG_MM_BACKTRACE > 0
@@ -88,7 +88,8 @@
          tcb = nxsched_get_tcb(tmp->pid); \
          if ((heap)->mm_procfs.backtrace || (tcb && tcb->flags & TCB_FLAG_HEAP_DUMP)) \
            { \
-             int n = backtrace(tmp->backtrace, CONFIG_MM_BACKTRACE); \
+             int n = sched_backtrace(tmp->pid, tmp->backtrace, CONFIG_MM_BACKTRACE, \
+                                     CONFIG_MM_BACKTRACE_SKIP); \
              if (n < CONFIG_MM_BACKTRACE) \
                { \
                  tmp->backtrace[n] = NULL; \
@@ -98,6 +99,7 @@
            { \
              tmp->backtrace[0] = NULL; \
            } \
+         tmp->seqno = g_mm_seqno++; \
        } \
      while (0)
 #else
@@ -127,9 +129,9 @@
 #define MM_PREVFREE_BIT  0x2
 #define MM_MASK_BIT      (MM_ALLOC_BIT | MM_PREVFREE_BIT)
 #ifdef CONFIG_MM_SMALL
-# define MMSIZE_MAX      UINT16_MAX
+#  define MMSIZE_MAX     UINT16_MAX
 #else
-# define MMSIZE_MAX      UINT32_MAX
+#  define MMSIZE_MAX     UINT32_MAX
 #endif
 
 /* What is the size of the allocnode? */
@@ -170,6 +172,7 @@ struct mm_allocnode_s
   mmsize_t size;                            /* Size of this chunk */
 #if CONFIG_MM_BACKTRACE >= 0
   pid_t pid;                                /* The pid for caller */
+  unsigned long seqno;                      /* The sequence of memory malloc */
 #  if CONFIG_MM_BACKTRACE > 0
   FAR void *backtrace[CONFIG_MM_BACKTRACE]; /* The backtrace buffer for caller */
 #  endif
@@ -184,6 +187,7 @@ struct mm_freenode_s
   mmsize_t size;                            /* Size of this chunk */
 #if CONFIG_MM_BACKTRACE >= 0
   pid_t pid;                                /* The pid for caller */
+  unsigned long seqno;                      /* The sequence of memory malloc */
 #  if CONFIG_MM_BACKTRACE > 0
   FAR void *backtrace[CONFIG_MM_BACKTRACE]; /* The backtrace buffer for caller */
 #  endif

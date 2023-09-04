@@ -344,8 +344,8 @@ struct lpc43_usbdev_s
 static uint32_t lpc43_getreg(uint32_t addr);
 static void lpc43_putreg(uint32_t val, uint32_t addr);
 #else
-# define lpc43_getreg(addr)     getreg32(addr)
-# define lpc43_putreg(val,addr) putreg32(val,addr)
+#  define lpc43_getreg(addr)     getreg32(addr)
+#  define lpc43_putreg(val,addr) putreg32(val,addr)
 #endif
 
 static inline void lpc43_clrbits(uint32_t mask, uint32_t addr);
@@ -2180,7 +2180,7 @@ usbdev_req_s *lpc43_epallocreq(struct usbdev_ep_s *ep)
 
   usbtrace(TRACE_EPALLOCREQ, ((struct lpc43_ep_s *)ep)->epphy);
 
-  privreq = (struct lpc43_req_s *)kmm_malloc(sizeof(struct lpc43_req_s));
+  privreq = kmm_malloc(sizeof(struct lpc43_req_s));
   if (!privreq)
     {
       usbtrace(TRACE_DEVERROR(LPC43_TRACEERR_ALLOCFAIL), 0);

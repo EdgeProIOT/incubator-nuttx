@@ -1009,7 +1009,7 @@ static int can_poll(FAR struct file *filep, FAR struct pollfd *fds,
                     bool setup)
 {
   FAR struct inode *inode = (FAR struct inode *)filep->f_inode;
-  FAR struct can_dev_s *dev = (FAR struct can_dev_s *)inode->i_private;
+  FAR struct can_dev_s *dev = inode->i_private;
   FAR struct can_reader_s *reader = NULL;
   pollevent_t eventset;
   int ndx;
@@ -1242,6 +1242,7 @@ int can_receive(FAR struct can_dev_s *dev, FAR struct can_hdr_s *hdr,
   int                      nexttail;
   int                      errcode = -ENOMEM;
   int                      i;
+  int                      j;
   int                      sval;
   int                      ret;
 
@@ -1291,7 +1292,7 @@ int can_receive(FAR struct can_dev_s *dev, FAR struct can_hdr_s *hdr,
               memcpy(&waitmsg->cm_hdr, hdr, sizeof(struct can_hdr_s));
 
               nbytes = can_dlc2bytes(hdr->ch_dlc);
-              for (i = 0, dest = waitmsg->cm_data; i < nbytes; i++)
+              for (j = 0, dest = waitmsg->cm_data; j < nbytes; j++)
                 {
                   *dest++ = *data++;
                 }

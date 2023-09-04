@@ -28,10 +28,8 @@
 #include <nuttx/config.h>
 
 #include <spawn.h>
-
 #include <sys/types.h>
 
-#include <nuttx/arch.h>
 #include <nuttx/sched.h>
 #include <nuttx/streams.h>
 
@@ -47,8 +45,8 @@
 
 /* The type of one C++ constructor or destructor */
 
-typedef FAR void (*binfmt_ctor_t)(void);
-typedef FAR void (*binfmt_dtor_t)(void);
+typedef CODE void (*binfmt_ctor_t)(void);
+typedef CODE void (*binfmt_dtor_t)(void);
 
 /* This describes the file to be loaded.
  *
@@ -98,6 +96,11 @@ struct binary_s
 
   uint8_t priority;                    /* Task execution priority */
   size_t stacksize;                    /* Size of the stack in bytes (unallocated) */
+#ifdef CONFIG_SCHED_USER_IDENTITY
+  uid_t uid;                           /* File owner user identity */
+  gid_t gid;                           /* File owner group user identity */
+  int mode;                            /* File mode added to */
+#endif
 
 #ifndef CONFIG_BUILD_KERNEL
   FAR void *stackaddr;                 /* Task stack address */
@@ -136,10 +139,11 @@ struct binfmt_s
 
   CODE int (*unload)(FAR struct binary_s *bin);
 
-  /* Unload module callback */
+  /* Coredump callback */
 
   CODE int (*coredump)(FAR struct memory_region_s *regions,
-                       FAR struct lib_outstream_s *stream);
+                       FAR struct lib_outstream_s *stream,
+                       pid_t pid);
 };
 
 /****************************************************************************
@@ -209,7 +213,8 @@ int unregister_binfmt(FAR struct binfmt_s *binfmt);
  ****************************************************************************/
 
 int core_dump(FAR struct memory_region_s *regions,
-              FAR struct lib_outstream_s *stream);
+              FAR struct lib_outstream_s *stream,
+              pid_t pid);
 
 /****************************************************************************
  * Name: load_module

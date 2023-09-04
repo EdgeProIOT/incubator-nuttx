@@ -115,7 +115,6 @@ struct udp_conn_s
   uint16_t rport;         /* Remote port number (network byte order) */
   uint8_t  flags;         /* See _UDP_FLAG_* definitions */
   uint8_t  domain;        /* IP domain: PF_INET or PF_INET6 */
-  uint8_t  ttl;           /* Default time-to-live */
   uint8_t  crefs;         /* Reference counts on this instance */
 
 #if CONFIG_NET_RECV_BUFSIZE > 0
@@ -128,11 +127,10 @@ struct udp_conn_s
 
   /* Read-ahead buffering.
    *
-   *   readahead - A singly linked list of type struct iob_qentry_s
-   *               where the UDP/IP read-ahead data is retained.
+   *   readahead - An IOB chain where the UDP/IP read-ahead data is retained.
    */
 
-  struct iob_queue_s readahead;   /* Read-ahead buffering */
+  FAR struct iob_s *readahead;   /* Read-ahead buffering */
 
 #ifdef CONFIG_NET_UDP_WRITE_BUFFERS
   /* Write buffering
@@ -147,6 +145,10 @@ struct udp_conn_s
   /* Callback instance for UDP sendto() */
 
   FAR struct devif_callback_s *sndcb;
+#endif
+
+#if defined(CONFIG_NET_IGMP) || defined(CONFIG_NET_MLD)
+  struct ip_mreqn mreq;
 #endif
 
   /* The following is a list of poll structures of threads waiting for

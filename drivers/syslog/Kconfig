@@ -72,7 +72,6 @@ endif
 config SYSLOG_BUFFER
 	bool "Use buffered output"
 	default n
-	select MM_IOB
 	---help---
 		Enables an buffering logic that will be used to serialize debug
 		output from concurrent tasks. This enables allocation of one buffer
@@ -81,6 +80,16 @@ config SYSLOG_BUFFER
 		The use of SYSLOG buffering is optional.  If not enabled, however,
 		then the output from multiple tasks that attempt to generate SYSLOG
 		output may be interleaved and difficult to read.
+
+if SYSLOG_BUFFER
+
+config SYSLOG_BUFSIZE
+	int "Syslog buffer size"
+	default 64
+	---help---
+		The size of the syslog buffer in bytes.
+
+endif
 
 config SYSLOG_INTBUFFER
 	bool "Use interrupt buffer"
@@ -369,5 +378,14 @@ config SYSLOG_CHARDEV
 		NOTE that unlike other syslog output, this data is unformatted raw
 		byte output with no time-stamping or any other SYSLOG features
 		supported.
+
+config SYSLOG_IOCTL
+	bool "SYSLOG IOCTL support"
+	default n
+	---help---
+		Enables support for the SYSLOG IOCTL command.  This command is used
+		to control the behavior of the SYSLOG device. Currently, the supported
+		commands are SYSLOGIOC_SETFILTER/SYSLOGIOC_GETCHANNELS, which can be
+		used to set the enable status of different channels
 
 endmenu # System logging

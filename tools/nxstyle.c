@@ -448,6 +448,7 @@ static const char *g_white_content_list[] =
   "XColor",
   "AsyncBoth",
   "CurrentTime",
+  "XUnmapWindow",
 
   /* Ref:
    * sim/posix/sim_deviceimage.c
@@ -534,6 +535,12 @@ static const char *g_white_content_list[] =
   "bDeviceClass",
   "idVendor",
   "idProduct",
+
+  /* Ref:
+   * sim/posix/sim_hostmisc.c
+   */
+
+  "_NSGetExecutablePath",
 
   /* Ref:
    * arch/arm/src/nrf52/sdc/nrf.h

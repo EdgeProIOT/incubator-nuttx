@@ -38,6 +38,11 @@ config FS_PROCFS_EXCLUDE_BLOCKS
 		system.  This procfs file provides the text output for the NSH 'df'
 		command.
 
+config FS_PROCFS_EXCLUDE_CPUINFO
+	bool "Exclude cpuinfo procfs"
+	depends on ARCH_HAVE_CPUINFO
+	default DEFAULT_SMALL
+
 config FS_PROCFS_EXCLUDE_CPULOAD
 	bool "Exclude CPU load"
 	depends on SCHED_CPULOAD
@@ -49,6 +54,14 @@ config FS_PROCFS_EXCLUDE_ENVIRON
 	default DEFAULT_SMALL
 	---help---
 		Causes the environment variable information to be excluded from the
+		procfs system.  This will reduce code space slightly.
+
+config FS_PROCFS_EXCLUDE_FDT
+	bool "Exclude flattened device tree blob"
+	depends on DEVICE_TREE
+	default DEFAULT_SMALL
+	---help---
+		Causes the flatted device tree information to be excluded from the
 		procfs system.  This will reduce code space slightly.
 
 config FS_PROCFS_EXCLUDE_IOBINFO
@@ -121,7 +134,7 @@ config FS_PROCFS_EXCLUDE_SMARTFS
 
 config FS_PROCFS_EXCLUDE_TCBINFO
 	bool "Exclude tcbinfo procfs"
-	depends on DEBUG_TCBINFO
+	depends on ARCH_HAVE_TCBINFO
 	default DEFAULT_SMALL
 
 config FS_PROCFS_EXCLUDE_UPTIME

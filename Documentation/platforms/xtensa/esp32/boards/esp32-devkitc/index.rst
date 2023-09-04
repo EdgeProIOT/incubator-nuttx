@@ -461,6 +461,13 @@ Pin   Signal
 The MCP2515 interrupt (INT) pin is connected to the pin 22 of the
 ESP32-Devkit.
 
+mcuboot_nsh
+--------------------
+
+This configuration is the same as the ``nsh`` configuration, but it generates the application
+image in a format that can be used by MCUboot. It also makes the ``make bootloader`` command to
+build the MCUboot bootloader image using the Espressif HAL.
+
 mcuboot_slot_confirm
 --------------------
 
@@ -558,6 +565,29 @@ nsh
 
 Basic NuttShell configuration (console enabled in UART0, exposed via
 USB connection by means of CP2102 converter, at 115200 bps).
+
+nxdiag
+------
+
+This configuration enables the NuttX diagnostics tool. By default, it will
+gather information about the NuttX system, its configuration, the compilation
+and linking flags used, the host system PATH and Espressif specific information.
+It can be used by executing the ``nxdiag`` application::
+
+    nsh> nxdiag --all
+    Nxdiag Report:
+
+    NuttX RTOS info:
+            Hostname:
+            Release: 10.4.0
+            Build: 75e13a67ba-dirty May 24 2023 14:53:27
+            Arch: xtensa
+            Config: esp32-devkitc:nxdiag
+
+    NuttX CFLAGS:
+            -fno-common
+            -Wall
+            ...
 
 nxlooper
 --------

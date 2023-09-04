@@ -40,9 +40,12 @@
  * Name: file_vioctl
  ****************************************************************************/
 
-int file_vioctl(FAR struct file *filep, int req, va_list ap)
+static int file_vioctl(FAR struct file *filep, int req, va_list ap)
 {
   FAR struct inode *inode;
+#ifdef CONFIG_FDSAN
+  FAR uint64_t *tag;
+#endif
   unsigned long arg;
   int ret = -ENOTTY;
 
@@ -109,6 +112,20 @@ int file_vioctl(FAR struct file *filep, int req, va_list ap)
           }
         break;
 
+#ifdef CONFIG_FDSAN
+      case FIOC_SETTAG:
+        tag = (FAR uint64_t *)arg;
+        filep->f_tag = *tag;
+        ret = OK;
+        break;
+
+      case FIOC_GETTAG:
+        tag = (FAR uint64_t *)arg;
+        *tag = filep->f_tag;
+        ret = OK;
+        break;
+#endif
+
 #ifndef CONFIG_DISABLE_MOUNTPOINT
       case BIOC_BLKSSZGET:
         if (ret == -ENOTTY && inode->u.i_ops != NULL &&
@@ -122,6 +139,22 @@ int file_vioctl(FAR struct file *filep, int req, va_list ap)
                 *(FAR blksize_t *)(uintptr_t)arg = geo.geo_sectorsize;
               }
           }
+        break;
+
+      case BIOC_BLKGETSIZE:
+        if (ret == -ENOTTY && inode->u.i_ops != NULL &&
+            inode->u.i_ops->ioctl != NULL)
+          {
+            struct geometry geo;
+            ret = inode->u.i_ops->ioctl(filep, BIOC_GEOMETRY,
+                                        (unsigned long)(uintptr_t)&geo);
+            if (ret >= 0)
+              {
+                *(FAR blksize_t *)(uintptr_t)arg = geo.geo_nsectors;
+              }
+          }
+        break;
+
 #endif
     }
 

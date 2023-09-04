@@ -34,6 +34,8 @@
 
 #include <nuttx/fs/fs.h>
 
+#include "esp_board_ledc.h"
+
 #ifdef CONFIG_WATCHDOG
 #  include "esp_wdt.h"
 #endif
@@ -48,6 +50,14 @@
 
 #ifdef CONFIG_RTC_DRIVER
 #  include "esp_rtc.h"
+#endif
+
+#ifdef CONFIG_DEV_GPIO
+#  include "esp_gpio.h"
+#endif
+
+#ifdef CONFIG_INPUT_BUTTONS
+#  include <nuttx/input/buttons.h>
 #endif
 
 #include "esp32h2-generic.h"
@@ -146,6 +156,32 @@ int esp_bringup(void)
       _err("Failed to initialize the RTC driver: %d\n", ret);
     }
 #endif
+
+#ifdef CONFIG_DEV_GPIO
+  ret = esp_gpio_init();
+  if (ret < 0)
+    {
+      ierr("Failed to initialize GPIO Driver: %d\n", ret);
+    }
+#endif
+
+#if defined(CONFIG_INPUT_BUTTONS) && defined(CONFIG_INPUT_BUTTONS_LOWER)
+  /* Register the BUTTON driver */
+
+  ret = btn_lower_initialize("/dev/buttons");
+  if (ret < 0)
+    {
+      ierr("ERROR: btn_lower_initialize() failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_ESPRESSIF_LEDC
+  ret = board_ledc_setup();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: board_ledc_setup() failed: %d\n", ret);
+    }
+#endif /* CONFIG_ESPRESSIF_LEDC */
 
   /* If we got here then perhaps not all initialization was successful, but
    * at least enough succeeded to bring-up NSH with perhaps reduced

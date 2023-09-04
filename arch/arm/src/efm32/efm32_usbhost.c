@@ -284,8 +284,8 @@ static void efm32_checkreg(uint32_t addr, uint32_t val, bool iswrite);
 static uint32_t efm32_getreg(uint32_t addr);
 static void efm32_putreg(uint32_t addr, uint32_t value);
 #else
-# define efm32_getreg(addr)     getreg32(addr)
-# define efm32_putreg(addr,val) putreg32(val,addr)
+#  define efm32_getreg(addr)     getreg32(addr)
+#  define efm32_putreg(addr,val) putreg32(val,addr)
 #endif
 
 static inline void efm32_modifyreg(uint32_t addr, uint32_t clrbits,
@@ -4277,7 +4277,7 @@ static int efm32_alloc(struct usbhost_driver_s *drvr,
 
   /* There is no special memory requirement for the EFM32. */
 
-  alloc = (uint8_t *)kmm_malloc(CONFIG_EFM32_OTGFS_DESCSIZE);
+  alloc = kmm_malloc(CONFIG_EFM32_OTGFS_DESCSIZE);
   if (!alloc)
     {
       return -ENOMEM;
@@ -4361,7 +4361,7 @@ static int efm32_ioalloc(struct usbhost_driver_s *drvr,
 
   /* There is no special memory requirement */
 
-  alloc = (uint8_t *)kmm_malloc(buflen);
+  alloc = kmm_malloc(buflen);
   if (!alloc)
     {
       return -ENOMEM;

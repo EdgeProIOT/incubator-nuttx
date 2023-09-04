@@ -187,6 +187,11 @@
 #define _PTHREAD_MFLAGS_INCONSISTENT  (1 << 1) /* Mutex is in an inconsistent state */
 #define _PTHREAD_MFLAGS_NRECOVERABLE  (1 << 2) /* Inconsistent mutex has been unlocked */
 
+/* The contention scope attribute in thread attributes object */
+
+#define PTHREAD_SCOPE_SYSTEM          0
+#define PTHREAD_SCOPE_PROCESS         1
+
 /****************************************************************************
  * Public Type Definitions
  ****************************************************************************/
@@ -417,7 +422,7 @@ typedef FAR struct pthread_spinlock_s pthread_spinlock_t;
 #  endif
 #endif /* CONFIG_PTHREAD_SPINLOCKS */
 
-#ifdef CONFIG_PTHREAD_CLEANUP
+#if defined(CONFIG_PTHREAD_CLEANUP_STACKSIZE) && CONFIG_PTHREAD_CLEANUP_STACKSIZE > 0
 /* This type describes the pthread cleanup callback (non-standard) */
 
 typedef CODE void (*pthread_cleanup_t)(FAR void *arg);
@@ -488,6 +493,11 @@ int pthread_attr_setstack(FAR pthread_attr_t *attr,
 int pthread_attr_getstack(FAR const pthread_attr_t *attr,
                           FAR void **stackaddr, FAR size_t *stacksize);
 
+/* Set/get contention scope attribute in thread attributes object */
+
+int pthread_attr_setscope(FAR pthread_attr_t *attr, int scope);
+int pthread_attr_getscope(FAR const pthread_attr_t *attr, FAR int *scope);
+
 /* Set or get the name of a thread */
 
 int pthread_setname_np(pthread_t thread, FAR const char *name);
@@ -528,7 +538,7 @@ void pthread_testcancel(void);
  * is canceled.
  */
 
-#ifdef CONFIG_PTHREAD_CLEANUP
+#if defined(CONFIG_PTHREAD_CLEANUP_STACKSIZE) && CONFIG_PTHREAD_CLEANUP_STACKSIZE > 0
 void pthread_cleanup_pop(int execute);
 void pthread_cleanup_push(pthread_cleanup_t routine, FAR void *arg);
 #endif
@@ -720,6 +730,8 @@ int pthread_spin_lock(FAR pthread_spinlock_t *lock);
 int pthread_spin_trylock(FAR pthread_spinlock_t *lock);
 int pthread_spin_unlock(FAR pthread_spinlock_t *lock);
 #endif
+
+int pthread_getcpuclockid(pthread_t thread_id, FAR clockid_t *clock_id);
 
 int pthread_atfork(CODE void (*prepare)(void),
                    CODE void (*parent)(void),

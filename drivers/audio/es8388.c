@@ -501,9 +501,11 @@ static void es8388_setvolume(FAR struct es8388_dev_s *priv,
 
 static void es8388_setmclkfrequency(FAR struct es8388_dev_s *priv)
 {
+  int i;
+
   priv->mclk = 0;
 
-  for (int i = 0; i < nitems(es8388_mclk_rate); i++)
+  for (i = 0; i < nitems(es8388_mclk_rate); i++)
     {
       if (es8388_mclk_rate[i].sample_rate == priv->samprate)
         {
@@ -2532,7 +2534,7 @@ FAR struct audio_lowerhalf_s *
 
   /* Allocate a ES8388 device structure */
 
-  priv = (FAR struct es8388_dev_s *)kmm_zalloc(sizeof(struct es8388_dev_s));
+  priv = kmm_zalloc(sizeof(struct es8388_dev_s));
 
   if (priv)
     {

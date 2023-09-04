@@ -494,9 +494,10 @@ out:
     }
 
   retr = usrsock_rpmsg_send_ack(ept, events, req->head.xid, ret);
-  if (retr >= 0 && events == 0)
+  if (retr >= 0 && (ret > 0 || ret == -EAGAIN) && events == 0)
     {
-      usrsock_rpmsg_poll_setup(&priv->pfds[req->usockid], POLLOUT);
+      usrsock_rpmsg_poll_setup(&priv->pfds[req->usockid],
+                               priv->pfds[req->usockid].events | POLLOUT);
     }
 
   if (priv->iov[0].iov_base)
@@ -577,7 +578,6 @@ static int usrsock_rpmsg_recvfrom_handler(FAR struct rpmsg_endpoint *ept,
                                                             false);
               if (!iov[i].iov_base)
                 {
-                  events |= USRSOCK_EVENT_RECVFROM_AVAIL;
                   break;
                 }
 
@@ -606,11 +606,15 @@ static int usrsock_rpmsg_recvfrom_handler(FAR struct rpmsg_endpoint *ept,
               else
                 {
                   iov[i].iov_len = 0;
-                  events |= USRSOCK_EVENT_RECVFROM_AVAIL;
                   break;
                 }
 
               i++;
+            }
+
+          if (usrsock_rpmsg_available(&priv->socks[req->usockid], FIONREAD))
+            {
+              events |= USRSOCK_EVENT_RECVFROM_AVAIL;
             }
         }
     }
@@ -638,9 +642,10 @@ static int usrsock_rpmsg_recvfrom_handler(FAR struct rpmsg_endpoint *ept,
             events, req->head.xid, totlen, iov[i].iov_len);
     }
 
-  if (retr >= 0 && events == 0)
+  if (retr >= 0 && (ret > 0 || ret == -EAGAIN) && events == 0)
     {
-      usrsock_rpmsg_poll_setup(&priv->pfds[req->usockid], POLLIN);
+      usrsock_rpmsg_poll_setup(&priv->pfds[req->usockid],
+                               priv->pfds[req->usockid].events | POLLIN);
     }
 
   return retr;
@@ -939,6 +944,10 @@ static int usrsock_rpmsg_send_dns_event(FAR void *arg,
   uint32_t len;
 
   dns = rpmsg_get_tx_payload_buffer(ept, &len, true);
+  if (dns == NULL)
+    {
+      return -ENOMEM;
+    }
 
   dns->head.msgid = USRSOCK_RPMSG_DNS_EVENT;
   dns->head.flags = USRSOCK_MESSAGE_FLAG_EVENT;
@@ -1054,15 +1063,20 @@ static void usrsock_rpmsg_poll_setup(FAR struct pollfd *pfds,
 
   if (events)
     {
-      if (!pfds->events)
+      if (pfds->events)
         {
+          ret = psock_poll(psock, pfds, false);
+        }
+
+      if (ret >= 0)
+        {
+          /* The protocol stack monitor flag is different when the events is
+           * POLLIN or POLLOUT, so we have to call poll_setup again.
+           */
+
           pfds->revents = 0;
           pfds->events = events;
           ret = psock_poll(psock, pfds, true);
-        }
-      else
-        {
-          pfds->events = events;
         }
     }
   else
@@ -1085,6 +1099,7 @@ static void usrsock_rpmsg_poll_setup(FAR struct pollfd *pfds,
 static void usrsock_rpmsg_poll_cb(FAR struct pollfd *pfds)
 {
   FAR struct usrsock_rpmsg_s *priv = (FAR struct usrsock_rpmsg_s *)pfds->arg;
+  int oldevents;
   int events = 0;
 
   nxrmutex_lock(&priv->mutex);
@@ -1095,6 +1110,7 @@ static void usrsock_rpmsg_poll_cb(FAR struct pollfd *pfds)
       return;
     }
 
+  oldevents = pfds->events;
   if (pfds->revents & POLLIN)
     {
       events |= USRSOCK_EVENT_RECVFROM_AVAIL;
@@ -1127,9 +1143,9 @@ static void usrsock_rpmsg_poll_cb(FAR struct pollfd *pfds)
         }
     }
 
-  if (!(pfds->events & (POLLIN | POLLOUT)))
+  if (oldevents != pfds->events)
     {
-      usrsock_rpmsg_poll_setup(pfds, 0);
+      usrsock_rpmsg_poll_setup(pfds, pfds->events);
     }
 
   if (events != 0)

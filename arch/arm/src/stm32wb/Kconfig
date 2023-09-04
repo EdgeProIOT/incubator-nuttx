@@ -650,7 +650,7 @@ menu "RTC Configuration"
 config STM32WB_RTC_MAGIC_REG
 	int "BKP register"
 	default 0
-	range  0 31
+	range 0 31
 	---help---
 		The BKP register used to store/check the Magic value to determine if
 		RTC is already setup
@@ -724,7 +724,6 @@ config STM32WB_TICKLESS_TIMER
 	int "Tickless hardware timer"
 	default 2
 	range 1 17
-	depends on !STM32WB_TICKLESS_SYSTICK
 	---help---
 		If the Tickless OS feature is enabled, then one clock must be
 		assigned to provided the timer needed by the OS.
@@ -1180,8 +1179,7 @@ config STM32WB_BLE_LE_2M_PHY
 
 config STM32WB_BLE_LE_CODED_PHY
 	bool "Support LE Coded PHY"
-	default y if STM32WB_STM32WB15 || STM32WB_STM32WB35 || STM32WB_STM32WB55
-	default n
+	default STM32WB_STM32WB15 || STM32WB_STM32WB35 || STM32WB_STM32WB55
 	depends on STM32WB_STM32WB15 || STM32WB_STM32WB35 || STM32WB_STM32WB55
 
 config STM32WB_BLE_TTY_NAME

@@ -26,6 +26,7 @@
 #include <assert.h>
 
 #include <nuttx/tls.h>
+#include <nuttx/lib/lib.h>
 
 #ifdef CONFIG_FILE_STREAM
 
@@ -61,7 +62,7 @@ FAR struct streamlist *lib_get_streams(void)
  * Name: lib_get_stream
  *
  * Description:
- *   Return a pointer to the file stream for this thread and given fd。
+ *   Return a pointer to the file stream for this thread and given fd.
  *   Note: only reserved fd number 0/1/2 is valid.
  *
  ****************************************************************************/

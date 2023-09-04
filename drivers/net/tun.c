@@ -63,6 +63,7 @@
 #include <nuttx/wqueue.h>
 #include <nuttx/mm/iob.h>
 #include <nuttx/net/net.h>
+#include <nuttx/net/ip.h>
 #include <nuttx/net/netdev.h>
 #include <nuttx/net/ethernet.h>
 #include <nuttx/net/tun.h>
@@ -651,11 +652,9 @@ static int tun_ifup(FAR struct net_driver_s *dev)
   FAR struct tun_device_s *priv = (FAR struct tun_device_s *)dev->d_private;
 
 #ifdef CONFIG_NET_IPv4
-  ninfo("Bringing up: %d.%d.%d.%d\n",
-        (int)(dev->d_ipaddr & 0xff),
-        (int)((dev->d_ipaddr >> 8) & 0xff),
-        (int)((dev->d_ipaddr >> 16) & 0xff),
-        (int)(dev->d_ipaddr >> 24));
+  ninfo("Bringing up: %u.%u.%u.%u\n",
+        ip4_addr1(dev->d_ipaddr), ip4_addr2(dev->d_ipaddr),
+        ip4_addr3(dev->d_ipaddr), ip4_addr4(dev->d_ipaddr));
 #endif
 #ifdef CONFIG_NET_IPv6
   ninfo("Bringing up: %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",
@@ -1130,7 +1129,8 @@ static ssize_t tun_read(FAR struct file *filep, FAR char *buffer,
  * Name: tun_poll
  ****************************************************************************/
 
-int tun_poll(FAR struct file *filep, FAR struct pollfd *fds, bool setup)
+static int tun_poll(FAR struct file *filep,
+                    FAR struct pollfd *fds, bool setup)
 {
   FAR struct tun_device_s *priv = filep->f_priv;
   pollevent_t eventset;
@@ -1181,7 +1181,7 @@ int tun_poll(FAR struct file *filep, FAR struct pollfd *fds, bool setup)
     }
   else
     {
-      priv->poll_fds = 0;
+      priv->poll_fds = NULL;
     }
 
 errout:
@@ -1232,7 +1232,7 @@ static int tun_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
            intf++, free_tuns >>= 1);
 
       ret = tun_dev_init(&g_tun_devices[intf], filep,
-                         *ifr->ifr_name ? ifr->ifr_name : 0,
+                         *ifr->ifr_name ? ifr->ifr_name : NULL,
                          (ifr->ifr_flags & IFF_MASK) == IFF_TUN);
       if (ret != OK)
         {

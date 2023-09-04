@@ -465,8 +465,8 @@ struct efm32_usbdev_s
 static uint32_t    efm32_getreg(uint32_t addr);
 static void        efm32_putreg(uint32_t val, uint32_t addr);
 #else
-# define efm32_getreg(addr)     getreg32(addr)
-# define efm32_putreg(val,addr) putreg32(val,addr)
+#  define efm32_getreg(addr)     getreg32(addr)
+#  define efm32_putreg(val,addr) putreg32(val,addr)
 #endif
 
 /* Request queue operations *************************************************/
@@ -4328,7 +4328,7 @@ static struct usbdev_req_s *efm32_ep_allocreq(struct usbdev_ep_s *ep)
 
   usbtrace(TRACE_EPALLOCREQ, ((struct efm32_ep_s *)ep)->epphy);
 
-  privreq = (struct efm32_req_s *)kmm_malloc(sizeof(struct efm32_req_s));
+  privreq = kmm_malloc(sizeof(struct efm32_req_s));
   if (!privreq)
     {
       usbtrace(TRACE_DEVERROR(EFM32_TRACEERR_ALLOCFAIL), 0);

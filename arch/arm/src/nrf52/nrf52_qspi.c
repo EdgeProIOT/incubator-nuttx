@@ -123,6 +123,9 @@ static const struct qspi_ops_s g_qspi_ops =
   .setfrequency      = nrf52_qspi_setfrequency,
   .setmode           = nrf52_qspi_setmode,
   .setbits           = nrf52_qspi_setbits,
+#ifdef CONFIG_QSPI_HWFEATURES
+  .hwfeatures        = NULL,
+#endif
   .command           = nrf52_qspi_command,
   .memory            = nrf52_qspi_memory,
   .alloc             = nrf52_qspi_alloc,
@@ -834,6 +837,11 @@ static int nrf52_qspi_hw_initialize(struct nrf52_qspidev_s *priv)
   regval = (QSPI_IFCONFIG0_READOC_READ4IO | QSPI_IFCONFIG0_WRITEOC_PP4IO);
   regval |= QSPI_IFCONFIG0_PPSIZE_512;
   nrf52_qspi_putreg(priv, NRF52_QSPI_IFCONFIG0_OFFSET, regval);
+
+  /* Configure RX delay */
+
+  nrf52_qspi_putreg(priv, NRF52_QSPI_IFTIMING_OFFSET,
+                    QSPI_IFTIMING_RXDELAY(CONFIG_NRF52_QSPI_RXDELAY));
 
   /* Enable READY interrupt */
 
