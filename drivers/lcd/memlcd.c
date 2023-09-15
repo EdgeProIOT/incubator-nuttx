@@ -476,7 +476,9 @@ static int memlcd_putrun(FAR struct lcd_dev_s *dev,
         {
           __clear_bit(col % 8 + i, p);
         }
-
+#if CONFIG_MEMLCD_BYTE_PER_PIXEL
+      buffer++;
+#else
 #ifdef CONFIG_LCD_PACKEDMSFIRST
       if (usrmask == LS_BIT)
         {
@@ -497,6 +499,7 @@ static int memlcd_putrun(FAR struct lcd_dev_s *dev,
         {
           usrmask <<= 1;
         }
+#endif
 #endif
     }
 
@@ -569,7 +572,9 @@ static int memlcd_getrun(FAR struct lcd_dev_s *dev,
         {
           *buffer &= ~usrmask;
         }
-
+#if CONFIG_MEMLCD_BYTE_PER_PIXEL
+      buffer++;
+#else
 #ifdef CONFIG_LCD_PACKEDMSFIRST
       if (usrmask == LS_BIT)
         {
@@ -590,6 +595,7 @@ static int memlcd_getrun(FAR struct lcd_dev_s *dev,
         {
           usrmask <<= 1;
         }
+#endif
 #endif
     }
 
