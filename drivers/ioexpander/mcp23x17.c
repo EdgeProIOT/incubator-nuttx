@@ -1009,7 +1009,6 @@ FAR struct ioexpander_dev_s *mcp23x17_initialize(
   priv->config  = config;
 
 #ifdef CONFIG_MCP23X17_INT_ENABLE
-
 #ifdef CONFIG_MCP23X17_INT_MIRROR
   buf[0] = MCP23X17_IOCON;
   buf[1] = 0x40;

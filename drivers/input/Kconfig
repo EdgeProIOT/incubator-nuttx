@@ -683,6 +683,18 @@ config MXKBD_NPOLLWAITERS
 	int "Max Number of Poll Waiters"
 	default 2
 
+config MXKBD_ENCODED
+	bool "Encode Special Keys"
+	default n
+	depends on LIBC_KBDCODEC
+	---help---
+		Encode special key press events in the user buffer.  In this case,
+		the user end must decode the encoded special key values using the
+		interfaces defined in include/nuttx/input/kbd_codec.h.  These
+		special keys include such things as up/down arrows, home and end
+		keys, etc.  If this not defined, only 7-bit print-able and control
+		ASCII characters will be provided to the user.
+
 endif # INPUT_MXKBD
 
 endif # INPUT
