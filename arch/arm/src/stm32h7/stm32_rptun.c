@@ -29,6 +29,7 @@
 #include <nuttx/nuttx.h>
 #include <nuttx/kthread.h>
 #include <nuttx/rptun/rptun.h>
+#include <nuttx/signal.h>
 
 #include <nuttx/semaphore.h>
 
@@ -250,7 +251,7 @@ stm32_rptun_get_resource(struct rptun_dev_s *dev)
 
       while (priv->shmem->base == 0)
         {
-          usleep(100);
+          nxsig_usleep(100);
         }
     }
 
@@ -363,7 +364,7 @@ static void stm32_rptun_panic(struct rptun_dev_s *dev)
 
 static void stm32_hsem_master_callback(uint8_t id, void *arg)
 {
-  _info("Rptun HSEM master %d\n", id);
+  ipcinfo("Rptun HSEM master %d\n", id);
 
   switch (id)
     {
@@ -399,7 +400,7 @@ static void stm32_rptun_hsem_cm7(struct stm32_rptun_dev_s *dev)
 
 static void stm32_hsem_slave_callback(uint8_t id, void *arg)
 {
-  _info("Rptun HSEM slave %d\n", id);
+  ipcinfo("Rptun HSEM slave %d\n", id);
 
   switch (id)
     {
@@ -510,7 +511,7 @@ int stm32_rptun_init(const char *shmemname, const char *cpuname)
   ret = rptun_initialize(&dev->rptun);
   if (ret < 0)
     {
-      _err("ERROR: rptun_initialize failed %d!\n", ret);
+      ipcerr("ERROR: rptun_initialize failed %d!\n", ret);
       goto errout;
     }
 
@@ -520,7 +521,7 @@ int stm32_rptun_init(const char *shmemname, const char *cpuname)
                        CONFIG_RPTUN_STACKSIZE, stm32_rptun_thread, NULL);
   if (ret < 0)
     {
-      _err("ERROR: kthread_create failed %d\n", ret);
+      ipcerr("ERROR: kthread_create failed %d\n", ret);
     }
 
 errout:

@@ -773,6 +773,42 @@ bool up_textheap_heapmember(FAR void *p);
 #endif
 
 /****************************************************************************
+ * Name: up_dataheap_memalign
+ *
+ * Description:
+ *   Allocate memory for data sections with the specified alignment.
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_ARCH_USE_DATA_HEAP)
+FAR void *up_dataheap_memalign(size_t align, size_t size);
+#endif
+
+/****************************************************************************
+ * Name: up_dataheap_free
+ *
+ * Description:
+ *   Free memory allocated for data sections.
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_ARCH_USE_DATA_HEAP)
+void up_dataheap_free(FAR void *p);
+#endif
+
+/****************************************************************************
+ * Name: up_dataheap_heapmember
+ *
+ * Description:
+ *   Test if memory is from data heap.
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_ARCH_USE_DATA_HEAP)
+bool up_dataheap_heapmember(FAR void *p);
+#endif
+
+/****************************************************************************
  * Name: up_copy_section
  *
  * Description:
@@ -1342,6 +1378,26 @@ bool up_addrenv_user_vaddr(uintptr_t vaddr);
 #endif
 
 /****************************************************************************
+ * Name: up_addrenv_kmap_init
+ *
+ * Description:
+ *   Initialize the architecture specific part of the kernel mapping
+ *   interface.
+ *
+ * Input Parameters:
+ *   None.
+ *
+ * Returned Value:
+ *   Zero (OK) is returned on success; a negated errno value is returned
+ *   on failure.
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_MM_KMAP)
+int up_addrenv_kmap_init(void);
+#endif
+
+/****************************************************************************
  * Name: up_addrenv_kmap_pages
  *
  * Description:
@@ -1367,7 +1423,7 @@ int up_addrenv_kmap_pages(FAR void **pages, unsigned int npages,
 #endif
 
 /****************************************************************************
- * Name: riscv_unmap_pages
+ * Name: up_addrenv_kunmap_pages
  *
  * Description:
  *   Unmap a previously mapped virtual memory region.
@@ -1581,6 +1637,18 @@ void up_secure_irq(int irq, bool secure);
 # define up_secure_irq(i, s)
 #endif
 
+#ifdef CONFIG_SMP_CALL
+/****************************************************************************
+ * Name: up_send_smp_call
+ *
+ * Description:
+ *   Send smp call to target cpu
+ *
+ ****************************************************************************/
+
+void up_send_smp_call(cpu_set_t cpuset);
+#endif
+
 /****************************************************************************
  * Name: up_secure_irq_all
  *
@@ -1596,33 +1664,23 @@ void up_secure_irq_all(bool secure);
 #endif
 
 /****************************************************************************
- * Function:  up_adj_timer_period
+ * Function:  up_adjtime
  *
  * Description:
  *   Adjusts timer period. This call is used when adjusting timer period as
  *   defined in adjtime() function.
  *
  * Input Parameters:
- *   period_inc_usec  - period adjustment in usec (reset to default value
- *                      if 0)
+ *   ppb - Adjustment in parts per billion (nanoseconds per second).
+ *         Zero is default rate, positive value makes clock run faster
+ *         and negative value slower.
  *
+ * Assumptions:
+ *   Called from within critical section or interrupt context.
  ****************************************************************************/
 
-#ifdef CONFIG_CLOCK_ADJTIME
-void up_adj_timer_period(long long period_inc_usec);
-
-/****************************************************************************
- * Function:  up_get_timer_period
- *
- * Description:
- *   This function returns the timer period in usec.
- *
- * Input Parameters:
- *   period_usec  - returned timer period in usec
- *
- ****************************************************************************/
-
-void up_get_timer_period(long long *period_usec);
+#ifdef CONFIG_ARCH_HAVE_ADJTIME
+void up_adjtime(long ppb);
 #endif
 
 /****************************************************************************
@@ -1655,7 +1713,7 @@ void up_timer_initialize(void);
  * set a time in the future and get an event when that alarm goes off.
  *
  *   int up_alarm_cancel(void):  Cancel the alarm.
- *   int up_alarm_start(FAR const struct timespec *ts): Enable (or re-anable
+ *   int up_alarm_start(FAR const struct timespec *ts): Enable (or re-enable
  *     the alarm.
  * #else
  *   int up_timer_cancel(void):  Cancels the interval timer.
@@ -2556,6 +2614,29 @@ int up_rtc_getdatetime_with_subseconds(FAR struct tm *tp, FAR long *nsec);
 
 #ifdef CONFIG_RTC
 int up_rtc_settime(FAR const struct timespec *tp);
+#endif
+
+/****************************************************************************
+ * Name: up_rtc_adjtime
+ *
+ * Description:
+ *   Adjust RTC frequency (running rate). Used by adjtime() when RTC is used
+ *   as system time source.
+ *
+ * Input Parameters:
+ *   ppb - Adjustment in parts per billion (nanoseconds per second).
+ *         Zero is default rate, positive value makes clock run faster
+ *         and negative value slower.
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno value on failure.
+ *
+ * Assumptions:
+ *   Called from within a critical section.
+ ****************************************************************************/
+
+#if defined(CONFIG_RTC_HIRES) && defined(CONFIG_RTC_ADJTIME)
+int up_rtc_adjtime(long ppb);
 #endif
 
 /****************************************************************************

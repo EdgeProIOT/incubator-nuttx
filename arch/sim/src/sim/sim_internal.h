@@ -42,12 +42,26 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
+/* Determine master-slave relationship when configuring with multiple cores */
+
+#ifdef CONFIG_RPTUN
+#  define SIM_RPTUN_MASTER (1 << 0)  /* As the master */
+#  define SIM_RPTUN_SLAVE  (0 << 0)  /* As the slave */
+
+#  define SIM_RPTUN_BOOT   (1 << 1)  /* As the master and boot the slave  */
+#  define SIM_RPTUN_NOBOOT (0 << 1)  /* As the master but not boot the slave */
+#endif
+
 #ifndef CONFIG_SMP_NCPUS
 #  define CONFIG_SMP_NCPUS 1
 #endif
 
 #ifndef CONFIG_SIM_NETDEV_NUMBER
 #  define CONFIG_SIM_NETDEV_NUMBER 1
+#endif
+
+#ifndef CONFIG_SIM_WIFIDEV_NUMBER
+#  define CONFIG_SIM_WIFIDEV_NUMBER 0
 #endif
 
 /* Determine which (if any) console driver to use */
@@ -107,6 +121,27 @@
                                                                 \
         up_irq_restore(((uint64_t)flags[1] << 32) | flags[0]);  \
         longjmp(env, 1);                                        \
+      }                                                         \
+    while (0)
+
+#define host_uninterruptible(func, ...)                         \
+    ({                                                          \
+        extern uint64_t up_irq_save(void);                      \
+        extern void up_irq_restore(uint64_t flags);             \
+        uint64_t flags_ = up_irq_save();                        \
+        typeof(func(__VA_ARGS__)) ret_ = func(__VA_ARGS__);     \
+        up_irq_restore(flags_);                                 \
+        ret_;                                                   \
+    })
+
+#define host_uninterruptible_no_return(func, ...)               \
+    do                                                          \
+      {                                                         \
+        extern uint64_t up_irq_save(void);                      \
+        extern void up_irq_restore(uint64_t flags);             \
+        uint64_t flags_ = up_irq_save();                        \
+        func(__VA_ARGS__);                                      \
+        up_irq_restore(flags_);                                 \
       }                                                         \
     while (0)
 
@@ -181,7 +216,7 @@ int   host_waitpid(pid_t pid);
 
 /* sim_hostmemory.c *********************************************************/
 
-void *host_allocheap(size_t sz);
+void *host_allocheap(size_t size, bool exec);
 void  host_freeheap(void *mem);
 void *host_allocshmem(const char *name, size_t size, int master);
 void  host_freeshmem(void *mem);
@@ -190,7 +225,7 @@ size_t host_mallocsize(void *mem);
 void *host_memalign(size_t alignment, size_t size);
 void host_free(void *mem);
 void *host_realloc(void *oldmem, size_t size);
-void host_mallinfo(int *aordblks, int *uordblks);
+int host_unlinkshmem(const char *name);
 
 /* sim_hosttime.c ***********************************************************/
 
@@ -251,10 +286,11 @@ void sim_registerblockdevice(void);
 #ifdef CONFIG_SIM_X11FB
 int sim_x11initialize(unsigned short width, unsigned short height,
                       void **fbmem, size_t *fblen, unsigned char *bpp,
-                      unsigned short *stride);
+                      unsigned short *stride, int fbcount);
 int sim_x11update(void);
 int sim_x11openwindow(void);
 int sim_x11closewindow(void);
+int sim_x11setoffset(unsigned int offset);
 #ifdef CONFIG_FB_CMAP
 int sim_x11cmap(unsigned short first, unsigned short len,
                 unsigned char *red, unsigned char *green,
@@ -362,7 +398,7 @@ void sim_netdriver_loop(void);
 /* sim_rptun.c **************************************************************/
 
 #ifdef CONFIG_RPTUN
-int sim_rptun_init(const char *shmemname, const char *cpuname, bool master);
+int sim_rptun_init(const char *shmemname, const char *cpuname, int master);
 #endif
 
 /* sim_hcisocket.c **********************************************************/

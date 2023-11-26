@@ -54,7 +54,7 @@
 #include <nuttx/fs/ioctl.h>
 #include <nuttx/mm/mm.h>
 
-#if defined(CONFIG_SCHED_CPULOAD) || defined(CONFIG_SCHED_CRITMONITOR)
+#if !defined(CONFIG_SCHED_CPULOAD_NONE) || defined(CONFIG_SCHED_CRITMONITOR)
 #  include <nuttx/clock.h>
 #endif
 
@@ -84,7 +84,7 @@ enum proc_node_e
   PROC_LEVEL0 = 0,                    /* The top-level directory */
   PROC_STATUS,                        /* Task/thread status */
   PROC_CMDLINE,                       /* Task command line */
-#ifdef CONFIG_SCHED_CPULOAD
+#ifndef CONFIG_SCHED_CPULOAD_NONE
   PROC_LOADAVG,                       /* Average CPU utilization */
 #endif
 #ifdef CONFIG_SCHED_CRITMONITOR
@@ -171,7 +171,7 @@ static ssize_t proc_status(FAR struct proc_file_s *procfile,
 static ssize_t proc_cmdline(FAR struct proc_file_s *procfile,
                  FAR struct tcb_s *tcb, FAR char *buffer, size_t buflen,
                  off_t offset);
-#ifdef CONFIG_SCHED_CPULOAD
+#ifndef CONFIG_SCHED_CPULOAD_NONE
 static ssize_t proc_loadavg(FAR struct proc_file_s *procfile,
                  FAR struct tcb_s *tcb, FAR char *buffer, size_t buflen,
                  off_t offset);
@@ -278,7 +278,7 @@ static const struct proc_node_s g_cmdline =
   "cmdline",      "cmdline", (uint8_t)PROC_CMDLINE,      DTYPE_FILE        /* Task command line */
 };
 
-#ifdef CONFIG_SCHED_CPULOAD
+#ifndef CONFIG_SCHED_CPULOAD_NONE
 static const struct proc_node_s g_loadavg =
 {
   "loadavg",       "loadavg", (uint8_t)PROC_LOADAVG,     DTYPE_FILE        /* Average CPU utilization */
@@ -340,7 +340,7 @@ static FAR const struct proc_node_s * const g_nodeinfo[] =
 {
   &g_status,       /* Task/thread status */
   &g_cmdline,      /* Task command line */
-#ifdef CONFIG_SCHED_CPULOAD
+#ifndef CONFIG_SCHED_CPULOAD_NONE
   &g_loadavg,      /* Average CPU utilization */
 #endif
 #ifdef CONFIG_SCHED_CRITMONITOR
@@ -369,7 +369,7 @@ static const struct proc_node_s * const g_level0info[] =
 {
   &g_status,       /* Task/thread status */
   &g_cmdline,      /* Task command line */
-#ifdef CONFIG_SCHED_CPULOAD
+#ifndef CONFIG_SCHED_CPULOAD_NONE
   &g_loadavg,      /* Average CPU utilization */
 #endif
 #ifdef CONFIG_SCHED_CRITMONITOR
@@ -578,9 +578,7 @@ static ssize_t proc_status(FAR struct proc_file_s *procfile,
   /* Show task flags */
 
   linesize = procfs_snprintf(procfile->line, STATUS_LINELEN,
-                          "%-12s%c%c%c\n", "Flags:",
-                          tcb->flags & TCB_FLAG_NONCANCELABLE ? 'N' : '-',
-                          tcb->flags & TCB_FLAG_CANCEL_PENDING ? 'P' : '-',
+                          "%-12s%c\n", "Flags:",
                           tcb->flags & TCB_FLAG_EXIT_PROCESSING ? 'P' : '-');
 
   copysize   = procfs_memcpy(procfile->line, linesize, buffer, remaining,
@@ -706,7 +704,7 @@ static ssize_t proc_cmdline(FAR struct proc_file_s *procfile,
  * Name: proc_loadavg
  ****************************************************************************/
 
-#ifdef CONFIG_SCHED_CPULOAD
+#ifndef CONFIG_SCHED_CPULOAD_NONE
 static ssize_t proc_loadavg(FAR struct proc_file_s *procfile,
                             FAR struct tcb_s *tcb, FAR char *buffer,
                             size_t buflen, off_t offset)
@@ -775,7 +773,7 @@ static ssize_t proc_critmon(FAR struct proc_file_s *procfile,
 
   if (tcb->premp_max > 0)
     {
-      up_perf_convert(tcb->premp_max, &maxtime);
+      perf_convert(tcb->premp_max, &maxtime);
     }
   else
     {
@@ -808,7 +806,7 @@ static ssize_t proc_critmon(FAR struct proc_file_s *procfile,
 
   if (tcb->crit_max > 0)
     {
-      up_perf_convert(tcb->crit_max, &maxtime);
+      perf_convert(tcb->crit_max, &maxtime);
     }
   else
     {
@@ -841,7 +839,7 @@ static ssize_t proc_critmon(FAR struct proc_file_s *procfile,
 
   if (tcb->run_max > 0)
     {
-      up_perf_convert(tcb->run_max, &maxtime);
+      perf_convert(tcb->run_max, &maxtime);
     }
   else
     {
@@ -852,7 +850,7 @@ static ssize_t proc_critmon(FAR struct proc_file_s *procfile,
   /* Reset the maximum */
 
   tcb->run_max = 0;
-  up_perf_convert(tcb->run_time, &runtime);
+  perf_convert(tcb->run_time, &runtime);
 
   /* Output the maximum time the thread has run and
    * the total time the thread has run
@@ -1188,16 +1186,23 @@ static ssize_t proc_groupfd(FAR struct proc_file_s *procfile,
                             size_t buflen, off_t offset)
 {
   FAR struct task_group_s *group = tcb->group;
-  FAR struct file *file;
+  FAR struct file *filep;
   char path[PATH_MAX];
   size_t remaining;
   size_t linesize;
   size_t copysize;
   size_t totalsize;
+  int count;
+  int ret;
   int i;
-  int j;
 
   DEBUGASSERT(group != NULL);
+
+  count = files_countlist(&group->tg_filelist);
+  if (count == 0)
+    {
+      return 0;
+    }
 
   remaining = buflen;
   totalsize = 0;
@@ -1219,41 +1224,34 @@ static ssize_t proc_groupfd(FAR struct proc_file_s *procfile,
 
   /* Examine each open file descriptor */
 
-  for (i = 0; i < group->tg_filelist.fl_rows; i++)
+  for (i = 0; i < count; i++)
     {
-      for (j = 0, file = group->tg_filelist.fl_files[i];
-           j < CONFIG_NFILE_DESCRIPTORS_PER_BLOCK;
-           j++, file++)
+      ret = fs_getfilep(i, &filep);
+      if (ret != OK || filep == NULL)
         {
-          /* Is there an inode associated with the file descriptor? */
+          continue;
+        }
 
-          if (file->f_inode == NULL)
-            {
-              continue;
-            }
+      if (file_ioctl(filep, FIOC_FILEPATH, path) < 0)
+        {
+          path[0] = '\0';
+        }
 
-          if (file_ioctl(file, FIOC_FILEPATH, path) < 0)
-            {
-              path[0] = '\0';
-            }
+      linesize   = procfs_snprintf(procfile->line, STATUS_LINELEN,
+                                   "%-3d %-7d %-4x %-9ld %s\n",
+                                   i, filep->f_oflags,
+                                   INODE_GET_TYPE(filep->f_inode),
+                                   (long)filep->f_pos, path);
+      copysize   = procfs_memcpy(procfile->line, linesize,
+                                 buffer, remaining, &offset);
 
-          linesize   = procfs_snprintf(procfile->line, STATUS_LINELEN,
-                                       "%-3d %-7d %-4x %-9ld %s\n",
-                                       i * CONFIG_NFILE_DESCRIPTORS_PER_BLOCK
-                                       + j, file->f_oflags,
-                                       INODE_GET_TYPE(file->f_inode),
-                                       (long)file->f_pos, path);
-          copysize   = procfs_memcpy(procfile->line, linesize,
-                                     buffer, remaining, &offset);
+      totalsize += copysize;
+      buffer    += copysize;
+      remaining -= copysize;
 
-          totalsize += copysize;
-          buffer    += copysize;
-          remaining -= copysize;
-
-          if (totalsize >= buflen)
-            {
-              return totalsize;
-            }
+      if (totalsize >= buflen)
+        {
+          return totalsize;
         }
     }
 
@@ -1521,7 +1519,7 @@ static ssize_t proc_read(FAR struct file *filep, FAR char *buffer,
       ret = proc_cmdline(procfile, tcb, buffer, buflen, filep->f_pos);
       break;
 
-#ifdef CONFIG_SCHED_CPULOAD
+#ifndef CONFIG_SCHED_CPULOAD_NONE
     case PROC_LOADAVG: /* Average CPU utilization */
       ret = proc_loadavg(procfile, tcb, buffer, buflen, filep->f_pos);
       break;

@@ -54,6 +54,12 @@
 #  elif defined(CONFIG_CONSOLE_SYSLOG)
 #    undef  USE_SERIALDRIVER
 #    undef  USE_EARLYSERIALINIT
+#  elif defined(CONFIG_SERIAL_RTT_CONSOLE)
+#    undef  USE_SERIALDRIVER
+#    undef  USE_EARLYSERIALINIT
+#  elif defined(CONFIG_RPMSG_UART_CONSOLE)
+#    undef  USE_SERIALDRIVER
+#    undef  USE_EARLYSERIALINIT
 #  else
 #    define USE_SERIALDRIVER 1
 #    define USE_EARLYSERIALINIT 1
@@ -323,6 +329,8 @@ void modifyreg32(unsigned int addr, uint32_t clearbits, uint32_t setbits);
 
 void arm_boot(void);
 
+int arm_psci_init(const char *method);
+
 /* Context switching */
 
 uint32_t *arm_decodeirq(uint32_t *regs);
@@ -350,6 +358,11 @@ uintptr_t arm_intstack_top(void);
 void weak_function arm_initialize_stack(void);
 #endif
 
+/* Interrupt acknowledge and dispatch */
+
+void arm_ack_irq(int irq);
+uint32_t *arm_doirq(int irq, uint32_t *regs);
+
 /* Exception handling logic unique to the Cortex-M family */
 
 #if defined(CONFIG_ARCH_ARMV6M) || defined(CONFIG_ARCH_ARMV7M) || \
@@ -366,11 +379,6 @@ EXTERN const void *__vector_table[];
 #else
 EXTERN const void * const _vectors[];
 #endif
-
-/* Interrupt acknowledge and dispatch */
-
-void arm_ack_irq(int irq);
-uint32_t *arm_doirq(int irq, uint32_t *regs);
 
 /* Exception Handlers */
 
@@ -392,10 +400,6 @@ int  arm_securefault(int irq, void *context, void *arg);
 
 #elif defined(CONFIG_ARCH_ARMV7A) || defined(CONFIG_ARCH_ARMV7R) || defined(CONFIG_ARCH_ARMV8R)
 
-/* Interrupt acknowledge and dispatch */
-
-uint32_t *arm_doirq(int irq, uint32_t *regs);
-
 /* Paging support */
 
 #ifdef CONFIG_PAGING
@@ -415,11 +419,6 @@ uint32_t *arm_undefinedinsn(uint32_t *regs);
 /* Exception handling logic common to other ARM7 and ARM9 family. */
 
 #else /* ARM7 | ARM9 */
-
-/* Interrupt acknowledge and dispatch */
-
-void arm_ack_irq(int irq);
-void arm_doirq(int irq, uint32_t *regs);
 
 /* Paging support (and exception handlers) */
 

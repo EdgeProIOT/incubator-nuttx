@@ -1403,7 +1403,7 @@ static int nrf24l01_poll(FAR struct file *filep, FAR struct pollfd *fds,
       nxmutex_lock(&dev->lock_fifo);
       if (dev->fifo_len > 0)
         {
-          poll_notify(&dev->pfd, 1, POLLIN);
+          poll_notify(&fds, 1, POLLIN);
         }
 
       nxmutex_unlock(&dev->lock_fifo);
@@ -1805,10 +1805,10 @@ int nrf24l01_settxpower(FAR struct nrf24l01_dev_s *dev, int outpower)
 
   /* RF_PWR value  <->  Output power in dBm
    *
-   * '00' – -18dBm
-   * '01' – -12dBm
-   * '10' – -6dBm
-   * '11' – 0dBm
+   * '00' - -18dBm
+   * '01' - -12dBm
+   * '10' - -6dBm
+   * '11' - 0dBm
    */
 
   switch (outpower)

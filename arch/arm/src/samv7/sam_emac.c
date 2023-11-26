@@ -1407,13 +1407,6 @@ static int sam_transmit(struct sam_emac_s *priv, int qid)
   regval |= EMAC_NCR_TSTART;
   sam_putreg(priv, SAM_EMAC_NCR_OFFSET, regval);
 
-  /* REVISIT: Sometimes TSTART is missed?  In this case, the symptom is
-   * that the packet is not sent until the next transfer when TXSTART
-   * is set again.
-   */
-
-  sam_putreg(priv, SAM_EMAC_NCR_OFFSET, regval);
-
   /* Setup the TX timeout watchdog (perhaps restarting the timer) */
 
   wd_start(&priv->txtimeout, SAM_TXTIMEOUT,
@@ -4028,6 +4021,30 @@ static int sam_phyinit(struct sam_emac_s *priv)
     {
       regval |= EMAC_NCFGR_CLK_DIV8;  /* MCK divided by 8 (MCK up to 20 MHz) */
     }
+
+#ifdef CONFIG_SAMV7_EMAC0_PHYINIT
+  if (priv->attr->emac == EMAC0_INTF)
+    {
+      ret = sam_phy_boardinitialize(0);
+      if (ret < 0)
+        {
+          nerr("ERROR: Failed to initialize the PHY: %d\n", ret);
+          return ret;
+        }
+    }
+#endif
+
+#ifdef CONFIG_SAMV7_EMAC1_PHYINIT
+  if (priv->attr->emac == EMAC1_INTF)
+    {
+      ret = sam_phy_boardinitialize(1);
+      if (ret < 0)
+        {
+          nerr("ERROR: Failed to initialize the PHY: %d\n", ret);
+          return ret;
+        }
+    }
+#endif
 
   sam_putreg(priv, SAM_EMAC_NCFGR_OFFSET, regval);
 

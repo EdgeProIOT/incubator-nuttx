@@ -1057,7 +1057,7 @@ static int net_rpmsg_drv_ioctl(FAR struct net_driver_s *dev, int cmd,
   ssize_t len;
   int ret;
 
-  len = net_ioctl_arglen(cmd);
+  len = net_ioctl_arglen(PF_RPMSG, cmd);
   if (len >= 0)
     {
       FAR struct net_rpmsg_ioctl_s *msg;
@@ -1113,6 +1113,7 @@ int net_rpmsg_drv_init(FAR const char *cpuname,
 {
   FAR struct net_rpmsg_drv_s *priv;
   FAR struct net_driver_s *dev;
+  int ret;
 
   /* Allocate the interface structure */
 
@@ -1144,14 +1145,30 @@ int net_rpmsg_drv_init(FAR const char *cpuname,
 
   /* Register the device with the openamp */
 
-  rpmsg_register_callback(dev,
+  ret = rpmsg_register_callback(dev,
                           net_rpmsg_drv_device_created,
                           net_rpmsg_drv_device_destroy,
                           NULL,
                           NULL);
 
+  if (ret < 0)
+    {
+      kmm_free(priv);
+      return ret;
+    }
+
   /* Register the device with the OS so that socket IOCTLs can be performed */
 
-  netdev_register(dev, lltype);
-  return OK;
+  ret = netdev_register(dev, lltype);
+  if (ret < 0)
+    {
+      rpmsg_unregister_callback(dev,
+                          net_rpmsg_drv_device_created,
+                          net_rpmsg_drv_device_destroy,
+                          NULL,
+                          NULL);
+      kmm_free(priv);
+    }
+
+  return ret;
 }

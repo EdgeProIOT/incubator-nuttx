@@ -38,6 +38,7 @@
 #include <arch/board/board.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/mqueue.h>
+#include <nuttx/signal.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/fs/ioctl.h>
 #include <nuttx/audio/audio.h>
@@ -665,7 +666,7 @@ void classd_enable_audio(struct classd_dev_s *priv, bool pmc_clock_enable)
 
   /* wait for Audio PLL startup time */
 
-  usleep(100);
+  nxsig_usleep(100);
 #endif
 }
 
@@ -1785,8 +1786,7 @@ static void classd_returnbuffers(struct classd_dev_s *priv)
       apb = (struct ap_buffer_s *)dq_remfirst(&priv->doneq);
       leave_critical_section(flags);
 
-      audinfo("Returning: apb=%p curbyte=%" PRId32 " nbytes=%" PRId32 \
-              " flags=%04x\n",
+      audinfo("Returning: apb=%p curbyte=%d nbytes=%d flags=%04x\n",
               apb, apb->curbyte, apb->nbytes, apb->flags);
 
       /* Are we returning the final buffer in the stream? */
@@ -1900,7 +1900,7 @@ static int classd_sendbuffer(struct classd_dev_s *priv)
       /* Take next buffer from the queue of pending transfers */
 
       apb = (struct ap_buffer_s *)dq_remfirst(&priv->pendq);
-      audinfo("Sending apb=%p, size=%" PRId32 " inflight=%d\n",
+      audinfo("Sending apb=%p, size=%d inflight=%d\n",
               apb, apb->nbytes, priv->inflight);
 
       /* Increment the number of buffers in-flight before sending in order
@@ -2342,7 +2342,7 @@ static int classd_enqueuebuffer(struct audio_lowerhalf_s *dev,
 
   DEBUGASSERT(priv && apb && priv->dev.upper);
 
-  audinfo("Enqueuing: apb=%p curbyte=%" PRId32 " nbytes=%" PRId32 "\n",
+  audinfo("Enqueuing: apb=%p curbyte=%d nbytes=%d\n",
            apb, apb->curbyte, apb->nbytes);
 
   /* Take a reference on the new audio buffer */
@@ -2390,7 +2390,7 @@ static int classd_enqueuebuffer(struct audio_lowerhalf_s *dev,
 static int classd_cancelbuffer(struct audio_lowerhalf_s *dev,
                                struct ap_buffer_s *apb)
 {
-  audinfo("apb=%p curbyte=%" PRId32 " nbytes=%" PRId32 ", return OK\n",
+  audinfo("apb=%p curbyte=%d nbytes=%d, return OK\n",
           apb, apb->curbyte, apb->nbytes);
 
   return OK;

@@ -30,7 +30,9 @@
 #include <nuttx/irq.h>
 #include <nuttx/tls.h>
 #include <nuttx/signal.h>
-
+#ifdef CONFIG_ARCH_LEDS
+#  include <arch/board/board.h>
+#endif
 #include <nuttx/panic_notifier.h>
 #include <nuttx/reboot_notifier.h>
 #include <nuttx/syslog/syslog.h>
@@ -295,7 +297,7 @@ static void dump_task(FAR struct tcb_s *tcb, FAR void *arg)
   size_t stack_filled = 0;
   size_t stack_used;
 #endif
-#ifdef CONFIG_SCHED_CPULOAD
+#ifndef CONFIG_SCHED_CPULOAD_NONE
   struct cpuload_s cpuload;
   size_t fracpart = 0;
   size_t intpart = 0;
@@ -339,7 +341,7 @@ static void dump_task(FAR struct tcb_s *tcb, FAR void *arg)
 #ifdef CONFIG_SMP
          "  %4d"
 #endif
-         " %3d %-8s %-7s %c%c%c"
+         " %3d %-8s %-7s %c"
          " %-18s"
          " " SIGSET_FMT
          " %p"
@@ -347,7 +349,7 @@ static void dump_task(FAR struct tcb_s *tcb, FAR void *arg)
 #ifdef CONFIG_STACK_COLORATION
          "   %7zu   %3zu.%1zu%%%c"
 #endif
-#ifdef CONFIG_SCHED_CPULOAD
+#ifndef CONFIG_SCHED_CPULOAD_NONE
          "   %3zu.%01zu%%"
 #endif
          "   %s%s\n"
@@ -361,8 +363,6 @@ static void dump_task(FAR struct tcb_s *tcb, FAR void *arg)
                     TCB_FLAG_POLICY_SHIFT]
          , g_ttypenames[(tcb->flags & TCB_FLAG_TTYPE_MASK)
                         >> TCB_FLAG_TTYPE_SHIFT]
-         , tcb->flags & TCB_FLAG_NONCANCELABLE ? 'N' : '-'
-         , tcb->flags & TCB_FLAG_CANCEL_PENDING ? 'P' : '-'
          , tcb->flags & TCB_FLAG_EXIT_PROCESSING ? 'P' : '-'
          , state
          , SIGSET_ELEM(&tcb->sigprocmask)
@@ -373,7 +373,7 @@ static void dump_task(FAR struct tcb_s *tcb, FAR void *arg)
          , stack_filled / 10, stack_filled % 10
          , (stack_filled >= 10 * 80 ? '!' : ' ')
 #endif
-#ifdef CONFIG_SCHED_CPULOAD
+#ifndef CONFIG_SCHED_CPULOAD_NONE
          , intpart, fracpart
 #endif
 #if CONFIG_TASK_NAME_SIZE > 0
@@ -429,7 +429,7 @@ static void dump_tasks(void)
 #ifdef CONFIG_STACK_COLORATION
          "      USED   FILLED "
 #endif
-#ifdef CONFIG_SCHED_CPULOAD
+#ifndef CONFIG_SCHED_CPULOAD_NONE
          "      CPU"
 #endif
          "   COMMAND\n");
@@ -448,7 +448,7 @@ static void dump_tasks(void)
 #  ifdef CONFIG_STACK_COLORATION
          "   %7zu   %3zu.%1zu%%%c"
 #  endif
-#  ifdef CONFIG_SCHED_CPULOAD
+#  ifndef CONFIG_SCHED_CPULOAD_NONE
          "     ----"
 #  endif
          "   irq\n"
@@ -553,10 +553,20 @@ void _assert(FAR const char *filename, int linenum,
              FAR const char *msg, FAR void *regs)
 {
   FAR struct tcb_s *rtcb = running_task();
+#if CONFIG_TASK_NAME_SIZE > 0
+  FAR struct tcb_s *ptcb = NULL;
+#endif
   struct panic_notifier_s notifier_data;
   struct utsname name;
   bool fatal = true;
   int flags;
+
+#if CONFIG_TASK_NAME_SIZE > 0
+  if (rtcb->group && !(rtcb->flags & TCB_FLAG_TTYPE_KERNEL))
+    {
+      ptcb = nxsched_get_tcb(rtcb->group->tg_pid);
+    }
+#endif
 
   flags = enter_critical_section();
 
@@ -568,6 +578,10 @@ void _assert(FAR const char *filename, int linenum,
     {
       up_saveusercontext(g_last_regs);
       regs = g_last_regs;
+    }
+  else
+    {
+      memcpy(g_last_regs, regs, sizeof(g_last_regs));
     }
 
 #if CONFIG_BOARD_RESET_ON_ASSERT < 2
@@ -585,6 +599,9 @@ void _assert(FAR const char *filename, int linenum,
   notifier_data.msg = msg;
   panic_notifier_call_chain(fatal ? PANIC_KERNEL : PANIC_TASK,
                             &notifier_data);
+#ifdef CONFIG_ARCH_LEDS
+  board_autoled_on(LED_ASSERTION);
+#endif
 
   /* Flush any buffered SYSLOG data (from prior to the assertion) */
 
@@ -602,6 +619,7 @@ void _assert(FAR const char *filename, int linenum,
          ": "
 #if CONFIG_TASK_NAME_SIZE > 0
          "%s "
+         "process: %s "
 #endif
          "%p\n",
          msg ? msg : "",
@@ -611,14 +629,9 @@ void _assert(FAR const char *filename, int linenum,
 #endif
 #if CONFIG_TASK_NAME_SIZE > 0
          rtcb->name,
+         ptcb ? ptcb->name : "Kernel",
 #endif
          rtcb->entry.main);
-
-  /* Show back trace */
-
-#ifdef CONFIG_SCHED_BACKTRACE
-  sched_dumpstack(rtcb->pid);
-#endif
 
   /* Register dump */
 
@@ -626,6 +639,12 @@ void _assert(FAR const char *filename, int linenum,
 
 #ifdef CONFIG_ARCH_STACKDUMP
   dump_stacks(rtcb, up_getusrsp(regs));
+#endif
+
+  /* Show back trace */
+
+#ifdef CONFIG_SCHED_BACKTRACE
+  sched_dumpstack(rtcb->pid);
 #endif
 
   /* Flush any buffered SYSLOG data */
@@ -674,6 +693,13 @@ void _assert(FAR const char *filename, int linenum,
 #else
       for (; ; )
         {
+#ifdef CONFIG_ARCH_LEDS
+          /* FLASH LEDs a 2Hz */
+
+          board_autoled_on(LED_PANIC);
+          up_mdelay(250);
+          board_autoled_off(LED_PANIC);
+#endif
           up_mdelay(250);
         }
 #endif

@@ -18,11 +18,11 @@ config USENSOR
 		Allow application to register user sensor by /dev/usensor.
 
 config SENSORS_RPMSG
-	bool "Sensor rpmsg Support"
+	bool "Sensor RPMSG Support"
 	default n
 	depends on RPTUN
 	---help---
-		Allow application to read or control remote sensor device by rpmsg.
+		Allow application to read or control remote sensor device by RPMSG.
 
 config SENSORS_GPS
 	bool "GPS Support"
@@ -55,6 +55,15 @@ config SENSORS_FAKESENSOR
 		x,y,z
 		2.1234,3.23443,2.23456
 		...
+
+config SENSORS_GOLDFISH_GPS
+	bool "Goldfish GPS Support"
+	depends on SENSORS_GPS
+	default n
+
+config SENSORS_GOLDFISH_SENSOR
+	bool "Goldfish SENSORS Support"
+	default n
 
 config SENSORS_APDS9960
 	bool "Avago APDS-9960 Gesture Sensor support"
@@ -90,7 +99,7 @@ config APDS9922_ALS_NPOLLWAITERS
 config APDS9922_PS_NPOLLWAITERS
 	int "APDS-9922 - number of PS poll waiters"
 	default 2
-	depends on SENSORS_APDS9922  
+	depends on SENSORS_APDS9922
 	---help---
 		Sets the number of poll waiters for the proximity sensor
 
@@ -164,7 +173,6 @@ if SENSORS_BMI160
 config SENSORS_BMI160_UORB
 	bool "BMI160 UORB Interface"
 	default n
-	select UORB
 	---help---
 	Enables Work with the UORB or Character Device interface.
 	If not set, the Character Device is used by default.
@@ -232,6 +240,14 @@ config SENSORS_BMI270_SPI
 
 endchoice
 
+config SENSORS_BMI270_LOAD_FROM_HEAP
+	bool "BMI270 config loading from heap memory"
+	default ARCH_DMA_NO_FLASH_TRANSFER
+	---help---
+		Enable support to load the configuration data from heap memory.
+		Some chips can not do DMA transfer from FLASH and therefore
+		it is necessary to transfer the configuration file to RAM.
+
 endif
 
 config SENSORS_BMP180
@@ -240,6 +256,16 @@ config SENSORS_BMP180
 	select I2C
 	---help---
 		Enable driver support for the Bosch BMP180 barometer sensor.
+
+if SENSORS_BMP180
+
+config SENSORS_BMP180_UORB
+	bool "BMP180 UORB Interface"
+	---help---
+		Enables work with the UORB or Character Device interface.
+		If not set, the Character Device is used by default.
+
+endif #SENSORS_BMP180
 
 config SENSORS_BMP280
 	bool "Bosch BMP280 Barometric Pressure Sensor"
@@ -1064,6 +1090,13 @@ config SENSORS_MAX31855
 	select SPI
 	---help---
 		Enables support for the MAX31855 driver
+
+config SENSORS_MAX31865
+	bool "Maxim MAX31865 Driver"
+	default n
+	select SPI
+	---help---
+		Enables support for the MAX31865 driver
 
 config SENSORS_MAX6675
 	bool "Maxim MAX6675 Driver"

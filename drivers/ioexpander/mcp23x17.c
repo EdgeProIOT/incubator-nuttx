@@ -74,11 +74,11 @@ static int mcp23x17_readbuf(FAR struct ioexpander_dev_s *dev, uint8_t pin,
              FAR bool *value);
 #ifdef CONFIG_IOEXPANDER_MULTIPIN
 static int mcp23x17_multiwritepin(FAR struct ioexpander_dev_s *dev,
-             FAR uint8_t *pins, FAR bool *values, int count);
+             FAR const uint8_t *pins, FAR const bool *values, int count);
 static int mcp23x17_multireadpin(FAR struct ioexpander_dev_s *dev,
-             FAR uint8_t *pins, FAR bool *values, int count);
+             FAR const uint8_t *pins, FAR bool *values, int count);
 static int mcp23x17_multireadbuf(FAR struct ioexpander_dev_s *dev,
-             FAR uint8_t *pins, FAR bool *values, int count);
+             FAR const uint8_t *pins, FAR bool *values, int count);
 #endif
 #ifdef CONFIG_IOEXPANDER_INT_ENABLE
 static FAR void *mcp23x17_attach(FAR struct ioexpander_dev_s *dev,
@@ -572,8 +572,8 @@ static int mcp23x17_getmultibits(FAR struct mcp23x17_dev_s *priv,
  ****************************************************************************/
 
 static int mcp23x17_multiwritepin(FAR struct ioexpander_dev_s *dev,
-                                  FAR uint8_t *pins, FAR bool *values,
-                                  int count)
+                                  FAR const uint8_t *pins,
+                                  FAR const bool *values, int count)
 {
   FAR struct mcp23x17_dev_s *priv = (FAR struct mcp23x17_dev_s *)dev;
   uint8_t addr = MCP23X17_GPIOA;
@@ -670,8 +670,8 @@ static int mcp23x17_multiwritepin(FAR struct ioexpander_dev_s *dev,
  ****************************************************************************/
 
 static int mcp23x17_multireadpin(FAR struct ioexpander_dev_s *dev,
-                                 FAR uint8_t *pins, FAR bool *values,
-                                 int count)
+                                 FAR const uint8_t *pins,
+                                 FAR bool *values, int count)
 {
   FAR struct mcp23x17_dev_s *priv = (FAR struct mcp23x17_dev_s *)dev;
   int ret;
@@ -708,8 +708,8 @@ static int mcp23x17_multireadpin(FAR struct ioexpander_dev_s *dev,
  ****************************************************************************/
 
 static int mcp23x17_multireadbuf(FAR struct ioexpander_dev_s *dev,
-                                 FAR uint8_t *pins, FAR bool *values,
-                                 int count)
+                                 FAR const uint8_t *pins,
+                                 FAR bool *values, int count)
 {
   FAR struct mcp23x17_dev_s *priv = (FAR struct mcp23x17_dev_s *)dev;
   int ret;

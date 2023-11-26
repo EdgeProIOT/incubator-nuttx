@@ -50,6 +50,7 @@
 #include <arch/board/board.h>
 
 #include "hardware/mpfs_usb.h"
+#include "mpfs_gpio.h"
 #include "riscv_internal.h"
 #include "chip.h"
 
@@ -326,7 +327,7 @@ static void mpfs_modifyreg16(uintptr_t addr, uint16_t clearbits,
  ****************************************************************************/
 
 static void mpfs_modifyreg8(uintptr_t addr, uint8_t clearbits,
-                             uint8_t setbits)
+                            uint8_t setbits)
 {
   irqstate_t flags;
   uint8_t    regval;
