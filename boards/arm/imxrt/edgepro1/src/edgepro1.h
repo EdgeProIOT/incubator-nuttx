@@ -99,16 +99,16 @@
 #define GPIO_DATAREADY_IRQ    IMXRT_IRQ_GPIO3_4
 
 /* MCP23X17 Interrupt: GPIO_EMC_16 */
-#define GPIO_MCP23X17_INT1    (GPIO_INTERRUPT | GPIO_INT_FALLINGEDGE | \
-                               IOMUX_SLEW_FAST | IOMUX_DRIVE_50OHM | \
-                               GPIO_PORT4 | GPIO_PIN16)
-#define GPIO_MCP23X17_IRQ1    IMXRT_IRQ_GPIO4_16
+// #define GPIO_MCP23X17_INT1    (GPIO_INTERRUPT | GPIO_INT_FALLINGEDGE | \
+//                                IOMUX_SW_DEFAULT | \
+//                                GPIO_PORT4 | GPIO_PIN16)
+// #define GPIO_MCP23X17_IRQ1    IMXRT_IRQ_GPIO4_16
 
 /* MCP23X17 Interrupt: GPIO_EMC_16 */
-#define GPIO_MCP23X17_INT2    (GPIO_INTERRUPT | GPIO_INT_FALLINGEDGE | \
-                               IOMUX_SLEW_FAST | IOMUX_DRIVE_50OHM | \
-                               GPIO_PORT4 | GPIO_PIN15)
-#define GPIO_MCP23X17_IRQ2    IMXRT_IRQ_GPIO4_15
+// #define GPIO_MCP23X17_INT2    (GPIO_INTERRUPT | GPIO_INT_FALLINGEDGE | \
+//                                IOMUX_SW_DEFAULT | \
+//                                GPIO_PORT4 | GPIO_PIN15)
+// #define GPIO_MCP23X17_IRQ2    IMXRT_IRQ_GPIO4_15
 
 /****************************************************************************
  * Public Types

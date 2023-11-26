@@ -38,6 +38,8 @@
 #include <nuttx/kmalloc.h>
 #include <nuttx/mutex.h>
 #include <nuttx/semaphore.h>
+#include <nuttx/wqueue.h>
+#include <nuttx/clock.h>
 #include <nuttx/ioexpander/mcp23x17.h>
 
 #ifdef CONFIG_MXKBD_ENCODED
@@ -55,6 +57,8 @@
 
 #define DEV_FORMAT        "/dev/kbd%c"
 #define DEV_NAMELEN       11
+
+#define MXKBD_WORK_PERIOD MSEC2TICK(30)
 
 /* Keyboard matrix defines */
 
@@ -104,6 +108,7 @@ struct mxkbd_dev_s
   sem_t waitsem;          /* Signal waiting thread */
   volatile bool waiting;  /* Waiting for keyboard data */
   bool empty;             /* Keep track of data availability */
+  struct work_s work;     /* Periodic work queue */
 
   /* The following is a list if poll structures of threads waiting for
    * driver events. The 'struct pollfd' reference for each open is also
@@ -440,13 +445,8 @@ static ssize_t mxkbd_write(FAR struct file *filep,
                            FAR const char *buffer, size_t len);
 static int mxkbd_poll(FAR struct file *filep, FAR struct pollfd *fds,
                       bool setup);
-
-#ifdef CONFIG_IOEXPANDER_INT_ENABLE
 static int mxkbd_callback(FAR struct ioexpander_dev_s *ioe,
                           ioe_pinset_t pinset, FAR void *arg);
-#else
-#error Not supporting IOEXPANDER polling mode!
-#endif
 
 /****************************************************************************
  * Private Data
@@ -571,6 +571,29 @@ struct mxkbd_outstream_s
  ****************************************************************************/
 
 /****************************************************************************
+ * Name: mxkbd_worker
+ *
+ * Description:
+ *   Scanning keyboard
+ *
+ * Input Parameters:
+ *   arg  - Reference to the mxkbd_dev_s structure
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+static void mxkbd_worker(FAR void *arg)
+{
+  FAR struct mxkbd_dev_s *priv = arg;
+
+  mxkbd_callback(priv->dev, 0xff00, priv);
+
+  work_queue(LPWORK, &priv->work, mxkbd_worker, priv, MXKBD_WORK_PERIOD);
+}
+
+/****************************************************************************
  * Name: mxkbd_putstream
  *
  * Description:
@@ -618,11 +641,6 @@ static void mxkbd_putstream(FAR struct lib_outstream_s *stream, int ch)
 static inline uint8_t mxkbd_mapscancode(uint8_t scancode, uint8_t modifier)
 {
   /* Range check */
-
-  if (scancode >= NUMSCANCODES)
-    {
-      return 0;
-    }
 
   if (scancode & 0x80)
     {
@@ -1271,7 +1289,6 @@ static uint8_t mxkbd_read_cols_on_row(FAR struct mxkbd_dev_s *priv, uint8_t row)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_IOEXPANDER_INT_ENABLE
 static int mxkbd_callback(FAR struct ioexpander_dev_s *dev,
                           ioe_pinset_t pinset, FAR void *arg)
 {
@@ -1285,14 +1302,10 @@ static int mxkbd_callback(FAR struct ioexpander_dev_s *dev,
   priv->layer = 0;
   priv->modifier = 0;
 
-  mxkbd_unselect_rows(priv);
-
   for (row = 0; row < MATRIX_ROWS; row++)
     {
       matrix[row] = mxkbd_read_cols_on_row(priv, row);
     }
-
-  mxkbd_select_rows(priv);
 
   /* Check for keystrokes and add them to keyboard buffer */
 
@@ -1300,11 +1313,11 @@ static int mxkbd_callback(FAR struct ioexpander_dev_s *dev,
     {
       uint8_t change = priv->matrix[row] ^ matrix[row];
       
-      while (change)
+      for (col = 0; col < MATRIX_COLS; col++)
         {
-          if (change & 0x01)
+          if (change & (1 << col))
             {
-              if (!(matrix[row] & (1 << col)))
+              if (matrix[row] & (1 << col))
                 {
                   uint8_t layer = priv->layer;
 
@@ -1319,11 +1332,8 @@ static int mxkbd_callback(FAR struct ioexpander_dev_s *dev,
                       layer = layer > 0 ? layer - 1 : 0;
                     }
                   while (layer);
-                } 
+                }
             }
-
-          change >>= 1;
-          col++;
         }
 
       /* Update matrix */
@@ -1333,7 +1343,6 @@ static int mxkbd_callback(FAR struct ioexpander_dev_s *dev,
 
   return OK;
 }
-#endif
 
 /****************************************************************************
  * Public Functions
@@ -1390,8 +1399,6 @@ int mxkbd_register(FAR struct ioexpander_dev_s *dev, char kbdminor)
 
   /* Listen on COL0 ÷ COL7 */
 
-  IOEP_ATTACH(priv->dev, 0xff00, mxkbd_callback, priv);
-
   IOEXP_SETDIRECTION(priv->dev, 0, IOEXPANDER_DIRECTION_OUT);
   IOEXP_SETDIRECTION(priv->dev, 1, IOEXPANDER_DIRECTION_OUT);
   IOEXP_SETDIRECTION(priv->dev, 2, IOEXPANDER_DIRECTION_OUT);
@@ -1410,7 +1417,9 @@ int mxkbd_register(FAR struct ioexpander_dev_s *dev, char kbdminor)
   IOEXP_SETDIRECTION(priv->dev, 14, IOEXPANDER_DIRECTION_IN_PULLUP);
   IOEXP_SETDIRECTION(priv->dev, 15, IOEXPANDER_DIRECTION_IN_PULLUP);
 
-  mxkbd_callback(priv->dev, 0xff00, priv);
+  mxkbd_unselect_rows(priv);
+
+  work_queue(LPWORK, &priv->work, mxkbd_worker, priv, MXKBD_WORK_PERIOD);
 
   snprintf(kbddevname, DEV_NAMELEN, DEV_FORMAT, kbdminor);
   iinfo("Registering %s\n", kbddevname);

@@ -789,6 +789,11 @@ static FAR void *mcp23x17_attach(FAR struct ioexpander_dev_s *dev,
       return NULL;
     }
 
+  buf[0] = MCP23X17_INTCAPA;
+  buf[1] = 0x00;
+  buf[2] = 0x00;
+  mcp23x17_writeread(priv, &buf[0], 1, &buf[1], 2);
+
   /* Find and available in entry in the callback table */
 
   for (i = 0; i < CONFIG_MCP23X17_INT_NCALLBACKS; i++)

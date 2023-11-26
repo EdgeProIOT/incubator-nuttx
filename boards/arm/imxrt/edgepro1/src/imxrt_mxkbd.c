@@ -49,15 +49,6 @@
 #define MCP23X17_ADDRESS    0x20
 #define MCP23X17_FREQUENCY  400000 
 
-
-/****************************************************************************
- * Private Function Prototypes
- ****************************************************************************/
-
-static int mcp23x17_attach(struct mcp23x17_config_s *state, xcpt_t handler,
-                             FAR void *arg);
-static void mcp23x17_enable(struct mcp23x17_config_s *state, bool enable);
-
 /****************************************************************************
  * Private Data
  ****************************************************************************/
@@ -75,57 +66,7 @@ static struct mcp23x17_config_s g_mcp23x17_info =
   .address        = MCP23X17_ADDRESS,
   .frequency      = MCP23X17_FREQUENCY,
   .set_nreset_pin = NULL
-#ifdef CONFIG_IOEXPANDER_INT_ENABLE
-  , .attach       = mcp23x17_attach
-  , .enable       = mcp23x17_enable
-#endif
 };
-
-/****************************************************************************
- * Private Functions
- ****************************************************************************/
- 
- /* IRQ/GPIO access callbacks.  These operations all hidden behind
- * callbacks to isolate the MCP23X17 driver from differences in GPIO
- * interrupt handling by varying boards and MCUs.  If possible,
- * interrupts should be configured on both rising and falling edges
- * so that contact and loss-of-contact events can be detected.
- *
- * attach  - Attach the MCP23X17 interrupt handler to the GPIO interrupt
- * enable  - Enable or disable the GPIO interrupt
- */
-
-static int mcp23x17_attach(struct mcp23x17_config_s *state, xcpt_t handler,
-                             FAR void *arg)
-{
-  /* Attach then enable the MCP23X17 interrupt handler */
-
-  irq_attach(GPIO_MCP23X17_IRQ1, handler, arg);
-  return OK;
-}
-
-static void mcp23x17_enable(struct mcp23x17_config_s *state, bool enable)
-{
-  iinfo("enable:%d\n", enable);
-  if (enable)
-    {
-      /* Enable MCP23X17 interrupts.
-       * NOTE: The pin interrupt is enabled from worker thread
-       * logic after completion of processing of the interrupt.
-       */
-
-      up_enable_irq(GPIO_MCP23X17_IRQ1);
-    }
-  else
-    {
-      /* Disable MCP23X17 interrupts.
-       * NOTE: The MCP23X17 interrupt will be disabled from
-       * interrupt handling logic.
-       */
-
-      up_disable_irq(GPIO_MCP23X17_IRQ1);
-    }
-}
 
  /****************************************************************************
  * Public Functions
@@ -153,11 +94,6 @@ int mxkbd_initialize(void)
   struct i2c_master_s *i2c;
   struct ioexpander_dev_s *ioe;
   int ret;
-
-#ifdef CONFIG_IMXRT_GPIO4_16_31_IRQ
-  /* Configure the MCP23X17 interrupt pin */
-  imxrt_config_gpio(GPIO_MCP23X17_INT1);
-#endif
 
   i2c = imxrt_i2cbus_initialize(MCP23X17_BUS);
   if (i2c == NULL)
