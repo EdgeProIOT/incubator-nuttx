@@ -50,7 +50,7 @@
 #define LOCAL_SUFFIX_LEN   2
 
 #define LOCAL_FULLPATH_LEN (sizeof(CONFIG_NET_LOCAL_VFS_PATH) + \
-                            UNIX_PATH_MAX + LOCAL_SUFFIX_LEN + 2)
+                            UNIX_PATH_MAX + LOCAL_SUFFIX_LEN + 2 + 8)
 
 /****************************************************************************
  * Private Functions
@@ -239,7 +239,7 @@ static int local_rx_open(FAR struct local_conn_s *conn, FAR const char *path,
   int oflags = nonblock ? O_RDONLY | O_NONBLOCK : O_RDONLY;
   int ret;
 
-  ret = file_open(&conn->lc_infile, path, oflags);
+  ret = file_open(&conn->lc_infile, path, oflags | O_CLOEXEC);
   if (ret < 0)
     {
       nerr("ERROR: Failed on open %s for reading: %d\n",
@@ -272,7 +272,8 @@ static int local_tx_open(FAR struct local_conn_s *conn, FAR const char *path,
 {
   int ret;
 
-  ret = file_open(&conn->lc_outfile, path, O_WRONLY | O_NONBLOCK);
+  ret = file_open(&conn->lc_outfile, path, O_WRONLY | O_NONBLOCK |
+                  O_CLOEXEC);
   if (ret < 0)
     {
       nerr("ERROR: Failed on open %s for writing: %d\n",

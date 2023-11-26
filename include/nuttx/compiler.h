@@ -61,6 +61,14 @@
 #  define CONFIG_C99_BOOL 1
 #endif
 
+/* ISO C99 supports Designated initializers */
+
+#undef CONFIG_DESIGNATED_INITIALIZERS
+
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
+#  define CONFIG_DESIGNATED_INITIALIZERS 1
+#endif
+
 /* ISO C/C++11 atomic types support */
 
 #undef CONFIG_HAVE_ATOMICS
@@ -157,6 +165,7 @@
  */
 
 #  define offsetof(a, b) __builtin_offsetof(a, b)
+#  define return_address(x) __builtin_return_address(x)
 
 /* Attributes
  *
@@ -632,6 +641,7 @@
 #  undef  CONFIG_HAVE_LONG_DOUBLE
 
 #  define offsetof(a, b) ((size_t)(&(((a *)(0))->b)))
+#  define return_address(x) 0
 
 #  define no_builtin(n)
 
@@ -773,6 +783,7 @@
 #  undef  CONFIG_HAVE_LONG_DOUBLE
 
 #  define offsetof(a, b) ((size_t)(&(((a *)(0))->b)))
+#  define return_address(x) 0
 
 #  define no_builtin(n)
 
@@ -843,6 +854,7 @@
 #  define CONFIG_HAVE_FLOAT 1
 
 #  define offsetof(a, b) ((size_t)(&(((a *)(0))->b)))
+#  define return_address(x) 0
 
 #  define no_builtin(n)
 
@@ -920,6 +932,7 @@
 #  define UNUSED(a) ((void)(1 || &(a)))
 
 #  define offsetof(a, b) ((size_t)(&(((a *)(0))->b)))
+#  define return_address(x) 0
 
 #  define no_builtin(n)
 
@@ -988,6 +1001,7 @@
 #  define UNUSED(a) ((void)(1 || &(a)))
 
 #  define offsetof(a, b) ((size_t)(&(((a *)(0))->b)))
+#  define return_address(x) 0
 
 #  define no_builtin(n)
 

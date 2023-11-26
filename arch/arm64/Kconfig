@@ -20,7 +20,7 @@ config ARM64_TOOLCHAIN_CLANG
 	bool "LLVM Clang toolchain"
 	select ARCH_TOOLCHAIN_CLANG
 
-endchoice
+endchoice # ARM64 Toolchain Selection
 
 choice
 	prompt "ARM64 chip selection"
@@ -32,6 +32,7 @@ config ARCH_CHIP_A64
 	select ARCH_HAVE_ADDRENV
 	select ARCH_HAVE_RESET
 	select ARCH_HAVE_PSCI
+	select ARCH_HAVE_IRQTRIGGER
 	select ARCH_NEED_ADDRENV_MAPPING
 	---help---
 		Allwinner A64 SoC
@@ -49,13 +50,35 @@ config ARCH_CHIP_RK3399
 config ARCH_CHIP_QEMU
 	bool "QEMU virt platform (ARMv8a)"
 	select ARCH_HAVE_ADDRENV
+	select ARCH_HAVE_IRQTRIGGER
+	select ARCH_HAVE_PSCI
 	select ARCH_NEED_ADDRENV_MAPPING
+	select ARCH_HAVE_POWEROFF
+	select ARCH_HAVE_RESET
+	select ARCH_HAVE_TEXT_HEAP
+	select LIBC_ARCH_ELF_64BIT if LIBC_ARCH_ELF
 	---help---
 		QEMU virt platform (ARMv8a)
+
+config ARCH_CHIP_GOLDFISH
+	bool "goldfish platform (ARMv8a)"
+	select ARCH_CORTEX_A53
+	select ARCH_HAVE_PSCI
+	select ARCH_HAVE_MULTICPU
+	select ARMV8A_HAVE_GICv2
+	select ARCH_HAVE_ADDRENV
+	select ARCH_HAVE_IRQTRIGGER
+	select ARCH_HAVE_POWEROFF
+	select ARCH_HAVE_RESET
+	select ARCH_NEED_ADDRENV_MAPPING
+	---help---
+		Android GoldFish platform for NuttX (ARMv8a),
+		based on ARM virt board
 
 config ARCH_CHIP_FVP_ARMV8R
 	bool "ARM FVP virt platform (ARMv8r)"
 	select ARCH_CORTEX_R82
+	select ARCH_HAVE_IRQTRIGGER
 	---help---
 		ARM FVP virt platform (ARMv8r)
 
@@ -73,7 +96,7 @@ config ARCH_CHIP_ARM64_CUSTOM
 	---help---
 		Select this option if there is no directory for the chip under arch/arm64/src/.
 
-endchoice
+endchoice # ARM64 chip selection
 
 config ARCH_ARMV8A
 	bool
@@ -202,6 +225,7 @@ config ARCH_CHIP
 	default "a64"       if ARCH_CHIP_A64
 	default "rk3399"    if ARCH_CHIP_RK3399
 	default "qemu"      if ARCH_CHIP_QEMU
+	default "goldfish"  if ARCH_CHIP_GOLDFISH
 	default "fvp-v8r"   if ARCH_CHIP_FVP_ARMV8R
 	default "imx8"      if ARCH_CHIP_IMX8
 
@@ -210,6 +234,14 @@ config ARM_HAVE_NEON
 	default n
 	---help---
 		Decide whether support NEON instruction
+
+config ARM64_DECODEFIQ
+	bool "FIQ Handler"
+	default n
+	---help---
+		Select this option if your platform supports the function
+		arm_decodefiq().  This is used primarily to support secure TrustZone
+		interrupts received on the FIQ vector.
 
 config ARM_GIC_VERSION
 	int "GIC version"
@@ -248,7 +280,7 @@ config ARM64_SEMIHOSTING_HOSTFS_CACHE_COHERENCE
 	---help---
 		Flush & Invalidte cache before & after bkpt instruction.
 
-endif
+endif # ARM64_SEMIHOSTING_HOSTFS
 
 config ARM64_DCACHE_DISABLE
 	bool "Disable DCACHE at __start"
@@ -276,6 +308,10 @@ endif
 
 if ARCH_CHIP_IMX8
 source "arch/arm64/src/imx8/Kconfig"
+endif
+
+if ARCH_CHIP_GOLDFISH
+source "arch/arm64/src/goldfish/Kconfig"
 endif
 
 endif # ARCH_ARM64

@@ -2276,6 +2276,9 @@ static int video_g_ctrl(FAR struct video_mng_s *priv,
   struct v4l2_ext_control  control;
   int                      ret;
 
+  memset(&ext_controls, 0, sizeof(struct v4l2_ext_controls));
+  memset(&control, 0, sizeof(struct v4l2_ext_control));
+
   if (ctrl == NULL)
     {
       return -EINVAL;
@@ -3277,7 +3280,7 @@ static int video_poll(FAR struct file *filep, struct pollfd *fds, bool setup)
           fds->priv     = &type_inf->fds;
           if (!video_framebuff_is_empty(&type_inf->bufinf))
             {
-              poll_notify(&type_inf->fds, 1, POLLIN);
+              poll_notify(&fds, 1, POLLIN);
             }
         }
       else

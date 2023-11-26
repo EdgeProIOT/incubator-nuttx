@@ -118,7 +118,10 @@ static int lcddev_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
         FAR struct lcddev_area_s *lcd_area =
             (FAR struct lcddev_area_s *)arg;
         size_t cols = lcd_area->col_end - lcd_area->col_start + 1;
-        size_t row_size = cols * (priv->planeinfo.bpp >> 3);
+        size_t pixel_size = priv->planeinfo.bpp > 1 ?
+                            priv->planeinfo.bpp >> 3 : 1;
+        size_t row_size = lcd_area->stride > 0 ?
+                          lcd_area->stride : cols * pixel_size;
 
         if (priv->planeinfo.getarea)
           {
@@ -157,7 +160,10 @@ static int lcddev_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
         FAR const struct lcddev_area_s *lcd_area =
             (FAR const struct lcddev_area_s *)arg;
         size_t cols = lcd_area->col_end - lcd_area->col_start + 1;
-        size_t row_size = cols * (priv->planeinfo.bpp >> 3);
+        size_t pixel_size = priv->planeinfo.bpp > 1 ?
+                            priv->planeinfo.bpp >> 3 : 1;
+        size_t row_size = lcd_area->stride > 0 ?
+                          lcd_area->stride : cols * pixel_size;
 
         if (priv->planeinfo.putarea)
           {

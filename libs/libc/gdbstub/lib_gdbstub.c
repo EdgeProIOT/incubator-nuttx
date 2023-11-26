@@ -616,10 +616,10 @@ static ssize_t gdb_hex2bin(FAR void *buf, size_t buf_len,
         };
 
       out[pos / 2] = strtoul(ch, NULL, 16); /* Decode high nibble */
-      if (out[pos / 2] == 0 && errno)
+      if (out[pos / 2] == 0 && get_errno())
         {
           GDB_ASSERT();
-          return -errno; /* Buffer contained junk. */
+          return -get_errno(); /* Buffer contained junk. */
         }
     }
 
@@ -860,7 +860,7 @@ static void gdb_get_registers(FAR struct gdb_state_s *state)
   int i;
 
   reg = (FAR uint8_t *)tcb->xcp.regs;
-  if (state->pid == getpid())
+  if (state->pid == _SCHED_GETPID())
     {
       if (up_interrupt_context())
         {
@@ -1406,7 +1406,7 @@ FAR struct gdb_state_s *gdb_state_init(gdb_send_func_t send,
                                        gdb_monitor_func_t monitor,
                                        FAR void *priv)
 {
-  size_t size = g_tcbinfo.basic_num * sizeof(uintptr_t);
+  size_t size = g_tcbinfo.regs_num * sizeof(uintptr_t);
   FAR struct gdb_state_s *state = lib_zalloc(sizeof(*state) + size);
 
   if (state == NULL)
