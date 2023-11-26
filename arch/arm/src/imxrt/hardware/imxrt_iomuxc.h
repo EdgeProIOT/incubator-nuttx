@@ -183,4 +183,7 @@
 #define IOMUX_FLEXSPI_DEFAULT                 (IOMUX_SLEW_FAST | IOMUX_DRIVE_40OHM | IOMUX_SPEED_MAX | \
                                                IOMUX_PULL_DOWN_100K | IOMUX_PULL_KEEP | GPIO_SION_ENABLE )
 
+#define IOMUX_SAI_DEFAULT                     (IOMUX_PULL_UP_100K | IOMUX_DRIVE_40OHM | \
+                                               IOMUX_SLEW_FAST | IOMUX_SPEED_MEDIUM)
+
 #endif /* __ARCH_ARM_SRC_IMXRT_HARDWARE_IMXRT_IOMUXC_H */

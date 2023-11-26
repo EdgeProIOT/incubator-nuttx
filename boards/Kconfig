@@ -237,6 +237,19 @@ config ARCH_BOARD_ESP32_DEVKITC
 		of two CPUs is symmetric, meaning they use the same addresses to
 		access the same memory.
 
+config ARCH_BOARD_NINA_W10
+	bool "UBlox NINA-W102"
+	depends on ARCH_CHIP_ESP32WROOM32 || ARCH_CHIP_ESP32WROOM32_8MB || ARCH_CHIP_ESP32WROOM32_16MB || ARCH_CHIP_ESP32WROVER || ARCH_CHIP_ESP32SOLO1
+	select ARCH_HAVE_BUTTONS
+	select ARCH_HAVE_IRQBUTTONS if ESP32_GPIO_IRQ
+	---help---
+		The ESP32 is a dual-core system from Espressif with two Harvard
+		architecture Xtensa LX6 CPUs. All embedded memory, external memory
+		and peripherals are located on the data bus and/or the instruction
+		bus of these CPUs. With some minor exceptions, the address mapping
+		of two CPUs is symmetric, meaning they use the same addresses to
+		access the same memory.
+
 config ARCH_BOARD_TLSR8278ADK80D
 	bool "Telink tlsr8278adk80d board"
 	depends on ARCH_CHIP_TLSR82
@@ -347,7 +360,9 @@ config ARCH_BOARD_TTGO_T5V2_ESP32
 	select LCD
 	select LCD_DEV
 	select LCD_FRAMEBUFFER
+	select LCD_PORTRAIT
 	select LCD_SSD1680
+	select LCD_SSD1680_2_90
 	---help---
 		TTGO T5v2 is an ESP32 board with e-ink 2.9 inch display.
 		Display resolution 128/296. More info:
@@ -411,7 +426,7 @@ config ARCH_BOARD_ESP32S2_SAOLA_1
 	select ARCH_HAVE_IRQBUTTONS if ESP32S2_GPIO_IRQ
 	---help---
 		This is the ESP32-S2-Saola-1 board
-
+		
 config ARCH_BOARD_FRANZININHO_WIFI
 	bool "FRANZININHO WI-FI"
 	depends on ARCH_CHIP_ESP32S2WROVER
@@ -420,7 +435,7 @@ config ARCH_BOARD_FRANZININHO_WIFI
 	select ARCH_HAVE_IRQBUTTONS if ESP32S2_GPIO_IRQ
 	---help---
 		Franzininho Wi-Fi is a development board to evaluate the ESP32-S2 SoC
-
+		
 config ARCH_BOARD_ESP32S3_DEVKIT
 	bool "Espressif ESP32-S3 DevKit"
 	depends on ARCH_CHIP_ESP32S3WROOM1 || ARCH_CHIP_ESP32S3MINI1 || ARCH_CHIP_ESP32S3WROOM2
@@ -509,15 +524,6 @@ config ARCH_BOARD_ET_STM32_STAMP
 	---help---
 		The ET-STM32 Stamp features the STM32F103RET6 (Cortex M3) microcontroller.
 		For board details, see: https://www.futurlec.com/ET-STM32_Stamp.shtml
-
-config ARCH_BOARD_ESP32C6_DEVKIT
-	bool "Espressif ESP32-C6 DevKit"
-	depends on ARCH_CHIP_ESP32C6MINI1 || ARCH_CHIP_ESP32C6WROOM1
-	---help---
-		The ESP32-C6 DevKit features the ESP32-C6 CPU with a RISC-V core.
-		It comes in two flavors, the ESP32-C6-DevKitM-1 and the ESP32-C6-DevKitC-02.
-		The ESP32-C6-DevKitM-1 version contains the ESP32-C6-MINI-1 module and the
-		ESP32-C6-DevKitC-02 version the ESP32-C6-WROOM-1.
 
 config ARCH_BOARD_EZ80F910200KITG
 	bool "ZiLOG ez80f910200kitg development kit"
@@ -728,6 +734,13 @@ config ARCH_BOARD_IMXRT1064_EVK
 	---help---
 		This is the board configuration for the port of NuttX to the NXP i.MXRT
 		evaluation kit, MIMXRT1064-EVK.  This board features the MIMXRT1064DVL6A MCU.
+
+config ARCH_BOARD_EDGEPRO1
+	bool "NXP i.MX RT 1064 EdgePro1"
+	depends on ARCH_CHIP_MIMXRT1064DVL6A
+	---help---
+		This is the board configuration for the port of NuttX to the NXP i.MXRT
+		EdgePro1.  This board features the MIMXRT1064DVL6A MCU.
 
 config ARCH_BOARD_LC823450_XGEVK
 	bool "ON Semiconductor LC823450-XGEVK development board"
@@ -1662,7 +1675,7 @@ config ARCH_BOARD_NUCLEO_F446RE
 
 
 config ARCH_BOARD_STM32G071B_DISCO
-	bool "STM32G071 STM32G071B-DISO"
+	bool "STM32G071 STM32G071B-DISO "
 	depends on ARCH_CHIP_STM32G071RB
 	select ARCH_HAVE_LEDS
 	---help---
@@ -1862,13 +1875,6 @@ config ARCH_BOARD_ADAFRUIT_QT_PY_RP2040
 	depends on ARCH_CHIP_RP2040
 	---help---
 		This is a port to the Adafruit QT Py RP2040 board.
-		Support is derived from Raspberry Pi Pico support.
-
-config ARCH_BOARD_WAVESHARE_RP2040_LCD_1_28
-	bool "Waveshare RP2040 LCD 1.28 board"
-	depends on ARCH_CHIP_RP2040
-	---help---
-		This is a port to the Waveshare RP2040 LCD 1.28 board.
 		Support is derived from Raspberry Pi Pico support.
 
 config ARCH_BOARD_RX65N
@@ -2501,15 +2507,6 @@ config ARCH_BOARD_STM32F746_WS
 	---help---
 		Waveshare STM32F746 development board featuring the STM32F746IG MCU.
 
-config ARCH_BOARD_MEADOW_F7MICRO
-	bool "Meadow F7 Micro board"
-	depends on ARCH_CHIP_STM32F777ZI
-	select ARCH_HAVE_LEDS
-	select ARCH_HAVE_BUTTONS
-	select ARCH_HAVE_IRQBUTTONS
-	---help---
-		Meadow board powered by STM32F777ZI
-
 config ARCH_BOARD_B_G474E_DPOW1
 	bool "ST Micro B-G474E-DPOW1 Discovery Kit"
 	depends on ARCH_CHIP_STM32G474R
@@ -2946,13 +2943,6 @@ config ARCH_BOARD_S698PM_DKIT
 	---help---
 		none
 
-config ARCH_BOARD_HPM6750EVK2
-	bool "Hpmicro hpm6750evk2"
-	depends on ARCH_CHIP_HPM6750
-	---help---
-		This is the board configuration for the port of NuttX to the Hpmicro hpm6750evk2
-		board.  This board features the RISC-V hpm6750.
-
 config ARCH_BOARD_SIM
 	bool "User mode simulation"
 	select ARCH_HAVE_BUTTONS
@@ -3109,6 +3099,7 @@ config ARCH_BOARD
 	default "imxrt1050-evk"             if ARCH_BOARD_IMXRT1050_EVK
 	default "imxrt1060-evk"             if ARCH_BOARD_IMXRT1060_EVK
 	default "imxrt1064-evk"             if ARCH_BOARD_IMXRT1064_EVK
+	default "edgepro1"                  if ARCH_BOARD_EDGEPRO1
 	default "kwikstik-k40"              if ARCH_BOARD_KWIKSTIK_K40
 	default "launchxl-cc1310"           if ARCH_BOARD_LAUNCHXL_CC1310
 	default "launchxl-cc1312r1"         if ARCH_BOARD_LAUNCHXL_CC1312R1
@@ -3475,6 +3466,9 @@ endif
 if ARCH_BOARD_IMXRT1064_EVK
 source "boards/arm/imxrt/imxrt1064-evk/Kconfig"
 endif
+if ARCH_BOARD_EDGEPRO1
+source "boards/arm/imxrt/edgepro1/Kconfig"
+endif
 if ARCH_BOARD_TEENSY_4X
 source "boards/arm/imxrt/teensy-4.x/Kconfig"
 endif
@@ -3756,9 +3750,6 @@ source "boards/arm/stm32f7/nucleo-144/Kconfig"
 endif
 if ARCH_BOARD_STM32F746_WS
 source "boards/arm/stm32f7/stm32f746-ws/Kconfig"
-endif
-if ARCH_BOARD_MEADOW_F7MICRO
-source "boards/arm/stm32f7/stm32f777zit6-meadow/Kconfig"
 endif
 if ARCH_BOARD_STM32F746G_DISCO
 source "boards/arm/stm32f7/stm32f746g-disco/Kconfig"
@@ -4055,7 +4046,7 @@ if ARCH_BOARD_MOTEINO_MEGA
 source "boards/avr/atmega/moteino-mega/Kconfig"
 endif
 if ARCH_BOARD_CUSTOM
-source "$BINDIR/boards/dummy/Kconfig"
+source "boards/dummy/Kconfig"
 endif
 if ARCH_BOARD_DEMOS92S12NEC64
 source "boards/hc/m9s12/demo9s12ne64/Kconfig"

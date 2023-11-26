@@ -1,0 +1,19 @@
+:name: EdgePro1
+:description: This script runs a sample NuttX application on EdgePro1.
+
+using sysbus
+
+$name?="EdgePro1"
+mach create $name
+
+machine LoadPlatformDescription @edgepro1.repl
+
+$bin?=@./nuttx
+showAnalyzer lpuart1
+
+macro reset
+"""
+    sysbus LoadELF $bin
+    cpu VectorTableOffset 0x70002000
+"""
+runMacro $reset

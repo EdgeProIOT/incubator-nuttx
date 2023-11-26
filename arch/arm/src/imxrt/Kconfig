@@ -1714,6 +1714,20 @@ menuconfig IMXRT_FLEXSPI1
 	default n
 	select IMXRT_FLEXSPI
 
+if IMXRT_FLEXSPI1
+config FLEXSPI1_FLASH_SIZE
+	int "FlexSPI Flash size in Kilobytes"
+	default 8192
+
+config FLEXSPI1_FLASH_PAGE_SIZE
+	int "FlexSPI Flash Page size in bytes"
+	default 256
+
+config FLEXSPI1_FLASH_SECTOR_SIZE
+	int "FlexSPI Flash Sector size in bytes"
+	default 4096
+
+endif # IMXRT_FLEXSPI1
 endmenu # FLEXSPI Peripherals
 
 menu "ADC Peripherals"

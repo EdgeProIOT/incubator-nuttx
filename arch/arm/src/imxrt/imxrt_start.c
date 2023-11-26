@@ -145,9 +145,7 @@ void __start(void)
                    "r"(CONFIG_IDLETHREAD_STACKSIZE - 64) :);
 #endif
 
-#ifdef CONFIG_BOOT_RUNFROMISRAM
-    imxrt_ocram_initialize();
-#endif
+  imxrt_ocram_initialize();
 
   /* Clear .bss.  We'll do this inline (vs. calling memset) just to be
    * certain that there are no issues with the state of global variables.

@@ -128,6 +128,7 @@ static const struct ioexpander_ops_s g_mcp23x17_ops =
  * Private Functions
  ****************************************************************************/
 
+
 /****************************************************************************
  * Name: mcp23x17_write
  *
@@ -788,6 +789,11 @@ static FAR void *mcp23x17_attach(FAR struct ioexpander_dev_s *dev,
       return NULL;
     }
 
+  buf[0] = MCP23X17_INTCAPA;
+  buf[1] = 0x00;
+  buf[2] = 0x00;
+  mcp23x17_writeread(priv, &buf[0], 1, &buf[1], 2);
+
   /* Find and available in entry in the callback table */
 
   for (i = 0; i < CONFIG_MCP23X17_INT_NCALLBACKS; i++)
@@ -1008,7 +1014,6 @@ FAR struct ioexpander_dev_s *mcp23x17_initialize(
   priv->config  = config;
 
 #ifdef CONFIG_MCP23X17_INT_ENABLE
-
 #ifdef CONFIG_MCP23X17_INT_MIRROR
   buf[0] = MCP23X17_IOCON;
   buf[1] = 0x40;

@@ -101,9 +101,7 @@ void imxrt_boardinitialize(void);
  *
  ****************************************************************************/
 
-#ifdef CONFIG_BOOT_RUNFROMISRAM
 void imxrt_ocram_initialize(void);
-#endif
 
 #undef EXTERN
 #if defined(__cplusplus)
