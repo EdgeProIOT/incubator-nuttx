@@ -3502,6 +3502,7 @@ source "boards/arm/imxrt/imxrt1064-evk/Kconfig"
 endif
 if ARCH_BOARD_EDGEPRO1
 source "boards/arm/imxrt/edgepro1/Kconfig"
+endif
 if ARCH_BOARD_IMXRT1170_EVK
 source "boards/arm/imxrt/imxrt1170-evk/Kconfig"
 endif

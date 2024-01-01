@@ -213,7 +213,7 @@ void imxrt_ocram_initialize(void)
   putreg32(bank_cfg, IMXRT_IOMUXC_GPR_GPR17);
   set_tcm_size(itcm_bank_num, dtcm_bank_num);
   regval = getreg32(IMXRT_IOMUXC_GPR_GPR16);
-  putreg32(regval | GPR_GPR16_FLEXRAM_BANK_CFG_SELF, IMXRT_IOMUXC_GPR_GPR16);
+  putreg32(regval | GPR_GPR16_FLEXRAM_BANK_CFG_SEL, IMXRT_IOMUXC_GPR_GPR16);
 
 #ifdef CONFIG_BOOT_RUNFROMISRAM
   src = (uint32_t *) (LOCATE_IN_SRC(g_boot_data.start) + g_boot_data.size);
