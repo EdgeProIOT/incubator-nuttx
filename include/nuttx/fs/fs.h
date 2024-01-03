@@ -319,7 +319,8 @@ struct mountpt_operations
   CODE int     (*mmap)(FAR struct file *filep,
                        FAR struct mm_map_entry_s *map);
   CODE int     (*truncate)(FAR struct file *filep, off_t length);
-
+  CODE int     (*poll)(FAR struct file *filep, FAR struct pollfd *fds,
+                       bool setup);
   /* The two structures need not be common after this point. The following
    * are extended methods needed to deal with the unique needs of mounted
    * file systems.
@@ -881,6 +882,23 @@ int files_countlist(FAR struct filelist *list);
 int files_duplist(FAR struct filelist *plist, FAR struct filelist *clist,
                   FAR const posix_spawn_file_actions_t *actions,
                   bool cloexec);
+
+/****************************************************************************
+ * Name: files_fget
+ *
+ * Description:
+ *   Get the instance of struct file from file list by file descriptor.
+ *
+ * Input Parameters:
+ *   list - The list of files for a task.
+ *   fd   - A valid descriptor between 0 and files_countlist(list).
+ *
+ * Returned Value:
+ *   Pointer to file structure of list[fd].
+ *
+ ****************************************************************************/
+
+FAR struct file *files_fget(FAR struct filelist *list, int fd);
 
 /****************************************************************************
  * Name: file_allocate_from_tcb

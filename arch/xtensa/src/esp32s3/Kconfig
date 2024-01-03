@@ -35,6 +35,10 @@ config ARCH_CHIP_ESP32S3MINI1
 
 endchoice # ESP32-S3 Chip Selection
 
+config ESPRESSIF_CHIP_SERIES
+	string
+	default "esp32s3"
+
 choice ESP32S3_DEFAULT_CPU_FREQ
 	prompt "CPU frequency"
 	default ESP32S3_DEFAULT_CPU_FREQ_240
@@ -233,7 +237,7 @@ config ESP32S3_FLASH_16M
 config ESP32S3_FLASH_32M
 	bool
 	default n
-	select ESP32S3S_SPI_FLASH_USE_32BIT_ADDRESS
+	select ESP32S3_SPI_FLASH_USE_32BIT_ADDRESS
 
 config ESP32S3_ESPTOOLPY_NO_STUB
 	bool "Disable download stub"
@@ -263,6 +267,8 @@ config ESP32S3_RUN_IRAM
 		images that can fit entirely in IRAM.
 
 menu "ESP32-S3 Peripheral Selection"
+
+source "arch/xtensa/src/common/espressif/Kconfig"
 
 config ESP32S3_UART
 	bool
@@ -861,6 +867,14 @@ config ESP32S3_SPIRAM_SPEED
 	default 80 if ESP32S3_SPIRAM_SPEED_80M
 	default 40 if ESP32S3_SPIRAM_SPEED_40M
 
+config ESP32S3_SPIRAM_ECC_ENABLE
+	bool "Enable SPI RAM ECC"
+	default n
+	depends on ESP32S3_SPIRAM_MODE_OCT
+	---help---
+		Enable MSPI Error-Correcting Code function when accessing SPIRAM.
+		If enabled, 1/16 of the SPI RAM total size will be reserved for error-correcting code.
+
 config ESP32S3_SPIRAM_BOOT_INIT
 	bool "Initialize SPI RAM during startup"
 	depends on ESP32S3_SPIRAM
@@ -897,12 +911,10 @@ choice ESP32S3_SPIRAM_HEAP
 
 config ESP32S3_SPIRAM_COMMON_HEAP
 	bool "Additional region to kernel heap"
-	select XTENSA_USE_SPIRAM_HEAP
 
 config ESP32S3_SPIRAM_USER_HEAP
 	bool "Separated userspace heap"
 	select MM_KERNEL_HEAP
-	select XTENSA_USE_SPIRAM_HEAP
 
 endchoice # ESP32S3_SPIRAM_HEAP
 
@@ -910,6 +922,53 @@ config ESP32S3_RTC_HEAP
 	bool "Use the RTC memory as a separate heap"
 	select ARCH_HAVE_EXTRA_HEAPS
 	default n
+
+config ESP32S3_SPIRAM_MAP
+	bool "Remap the size and offset of SPIRAM virtual address"
+	depends on ESP32S3_SPIRAM
+	default n
+
+config ESP32S3_SPIRAM_VADDR_OFFSET
+	hex "Map virtual address offset"
+	default 0x30000
+	depends on ESP32S3_SPIRAM_MAP
+	range 0 0x1FF0000
+
+config ESP32S3_SPIRAM_VADDR_MAP_SIZE
+	hex "Map virtual address size"
+	default 0x400000
+	depends on ESP32S3_SPIRAM_MAP
+	range 0x10000 0x2000000
+
+config ESP32S3_SPIRAM_BANKSWITCH_ENABLE
+	bool "Enable bank switching for external RAM"
+	default n
+	depends on ESP32S3_SPIRAM_MAP
+	---help---
+		The MMU table of ESP32-S3 is up to 512, and the page size of each MMU
+		is 64KB. The MMU table can be used for mapping instructions and data.
+		External RAM mapped into data space in 64 KB blocks no larger than 32MB.
+		The hardware does support larger memories, but these have to be
+		bank-switched in and out of this address space. Enabling this allows
+		you to reserve some MMU pages for this, which allows the use of the
+		esp32s3_himem api to manage these
+		banks.
+
+config SPIRAM_BANKSWITCH_RESERVE
+	int "Amount of 64K pages to reserve for bank switching"
+	depends on ESP32S3_SPIRAM_BANKSWITCH_ENABLE
+	default 4
+	range 1 256
+	---help---
+		Select the amount of banks reserved for bank switching. Note
+		that the amount of RAM allocatable with malloc will decrease
+		by 64KB for each page reserved here.
+		Note that the amount of banks reserved is smaller than the number
+		of 64KB blocks of configured external RAM mapped to the data space.
+		Note that this reservation is only actually done if your
+		program actually uses the himem API. Without any himem
+		calls, the reservation is not done and the original amount
+		of memory will be available.
 
 endmenu # Memory Configuration
 
@@ -1529,7 +1588,7 @@ config ESP32S3_PHY_INIT_DATA_ERROR
 
 endif
 
-endmenu  # PHY
+endmenu # PHY
 
 menu "Timer/Counter Configuration"
 	depends on ESP32S3_TIMER
@@ -1591,6 +1650,15 @@ config ESP32S3_RTC_CLK_INT_8MD256
 	bool "Internal 8.5MHz oscillator, divided by 256 (~33kHz)"
 
 endchoice
+
+config ESP32S3_SYSTEM_BBPLL_RECALIB
+	bool "Re-calibration BBPLL at startup"
+	default y
+	---help---
+		This configuration helps to address an BBPLL inaccurate issue when boot from certain
+		bootloader version, which may increase about the boot-up time by about 200 us.
+		Disable this when your bootloader is built with ESP-IDF version v5.2 and above.
+
 endmenu # "RTC Configuration"
 
 
@@ -1688,7 +1756,8 @@ config ESP32S3_FLASH_SAMPLE_MODE_DTR
 	bool "DTR Mode"
 config ESP32S3_FLASH_SAMPLE_MODE_STR
 	bool "STR Mode"
-endchoice
+
+endchoice # ESP32S3_FLASH_SAMPLE_MODE
 
 config ESP32S3_SPI_FLASH_DONT_USE_ROM_CODE
 	bool "Don't use SPI flash driver in ROM"
@@ -1697,7 +1766,7 @@ config ESP32S3_SPI_FLASH_DONT_USE_ROM_CODE
 		Use source code for SPI flash driver instead of functions
 		in ROM.
 
-config ESP32S3S_SPI_FLASH_USE_32BIT_ADDRESS
+config ESP32S3_SPI_FLASH_USE_32BIT_ADDRESS
 	bool "SPI flash uses 32-bit address"
 	default n
 	select ESP32S3_SPI_FLASH_DONT_USE_ROM_CODE
@@ -1786,6 +1855,23 @@ config ESP32S3_SPIFLASH_OP_TASK_STACKSIZE
 		that the core that isn't performing the SPI flash operation is able
 		to disable non-IRAM interrupts and wait for the SPI flash operation
 		to be finished.
+
+config ESP32S3_SPI_FLASH_SUPPORT_PSRAM_STACK
+	bool "Support PSRAM As Task Stack"
+	default n
+	depends on ESP32S3_SPIRAM
+	select SCHED_LPWORK
+	---help---
+		Enable this option, Tasks which use PSRAM as stack
+		can do SPI Flash read/write/erase/map/unmap. Otherwise,
+		it may cause exception, the root cause is as following:
+			1. When operating SPI flash, cache is also disable,
+		   		then software can't access PSRAM by data cache.
+			2. SPI flash read/write/erase functions have instruction like
+				stack-pop and stack-push which may use stack buffer which is
+		   		PSRAM space or load/store temp variables which locate in PSRAM space too.
+			3. Once operation in step 2 triggers, CPU will trigger exception.
+		So related SPI flash functions should be sent and run in tasks which use SRAM as task stack.
 
 if ESP32S3_APP_FORMAT_LEGACY
 
@@ -2089,6 +2175,7 @@ config ESP32S3_APP_FORMAT_LEGACY
 
 config ESP32S3_APP_FORMAT_MCUBOOT
 	bool "MCUboot-bootable format"
+	depends on !MCUBOOT_BOOTLOADER
 	select ESP32S3_HAVE_OTA_PARTITION
 	---help---
 		The Espressif port of MCUboot supports the loading of unsegmented firmware

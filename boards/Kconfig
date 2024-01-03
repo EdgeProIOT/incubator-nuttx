@@ -742,6 +742,16 @@ config ARCH_BOARD_EDGEPRO1
 		This is the board configuration for the port of NuttX to the NXP i.MXRT
 		EdgePro1.  This board features the MIMXRT1064DVL6A MCU.
 
+config ARCH_BOARD_IMXRT1170_EVK
+	bool "NXP i.MX RT 1170 EVK"
+	depends on ARCH_CHIP_MIMXRT1176DVMAA
+	select ARCH_HAVE_LEDS
+	select ARCH_HAVE_BUTTONS
+	select ARCH_HAVE_IRQBUTTONS
+	---help---
+		This is the board configuration for the port of NuttX to the NXP i.MXRT
+		evaluation kit, MIMXRT1170-EVK.  This board features the MIMXRT1176DVMAA MCU.
+
 config ARCH_BOARD_LC823450_XGEVK
 	bool "ON Semiconductor LC823450-XGEVK development board"
 	depends on ARCH_CHIP_LC823450
@@ -1863,6 +1873,13 @@ config ARCH_BOARD_ADAFRUIT_FEATHER_RP2040
 		This is a port to the Adafruit Feather RP2040 board.
 		Support is derived from Raspberry Pi Pico support.
 
+config ARCH_BOARD_SEEED_XIAO_RP2040
+	bool "Seeed Studio XIAO RP2040 board"
+	depends on ARCH_CHIP_RP2040
+	---help---
+		This is a port to the Seeed Studio XIAO RP2040 board.
+		Support is derived from Raspberry Pi Pico support.
+
 config ARCH_BOARD_ADAFRUIT_KB2040
 	bool "Adafruit KB2040 board"
 	depends on ARCH_CHIP_RP2040
@@ -1935,6 +1952,19 @@ config ARCH_BOARD_JH7110_STAR64
 	---help---
 		This options selects support for NuttX on PINE64 Star64 based
 		on StarFive JH7110 SoC.
+
+config ARCH_BOARD_K230_CANMV
+	bool "CanMV K230"
+	depends on ARCH_CHIP_K230
+	---help---
+		This selects NuttX on CanMV-K230 board with Kendryte K230 SoC.
+
+config ARCH_BOARD_BL808_OX64
+	bool "PINE64 Ox64"
+	depends on ARCH_CHIP_BL808
+	---help---
+		This options selects support for NuttX on PINE64 Ox64 based
+		on Bouffalo Lab BL808 SoC.
 
 config ARCH_BOARD_S32K118EVB
 	bool "NXP S32K118EVB"
@@ -3100,6 +3130,7 @@ config ARCH_BOARD
 	default "imxrt1060-evk"             if ARCH_BOARD_IMXRT1060_EVK
 	default "imxrt1064-evk"             if ARCH_BOARD_IMXRT1064_EVK
 	default "edgepro1"                  if ARCH_BOARD_EDGEPRO1
+	default "imxrt1170-evk"             if ARCH_BOARD_IMXRT1170_EVK
 	default "kwikstik-k40"              if ARCH_BOARD_KWIKSTIK_K40
 	default "launchxl-cc1310"           if ARCH_BOARD_LAUNCHXL_CC1310
 	default "launchxl-cc1312r1"         if ARCH_BOARD_LAUNCHXL_CC1312R1
@@ -3214,6 +3245,7 @@ config ARCH_BOARD
 	default "raspberrypi-pico-w"        if ARCH_BOARD_RASPBERRYPI_PICO_W
 	default "pimoroni-tiny2040"         if ARCH_BOARD_PIMORONI_TINY2040
 	default "adafruit-feather-rp2040"   if ARCH_BOARD_ADAFRUIT_FEATHER_RP2040
+	default "seeed-xiao-rp2040"         if ARCH_BOARD_SEEED_XIAO_RP2040
 	default "adafruit-kb2040"           if ARCH_BOARD_ADAFRUIT_KB2040
 	default "adafruit-qt-py-rp2040"     if ARCH_BOARD_ADAFRUIT_QT_PY_RP2040
 	default "waveshare-rp2040-lcd-1.28" if ARCH_BOARD_WAVESHARE_RP2040_LCD_1_28
@@ -3232,6 +3264,8 @@ config ARCH_BOARD
 	default "rv32m1-vega"               if ARCH_BOARD_RV32M1_VEGA
 	default "rv-virt"                   if ARCH_BOARD_QEMU_RV_VIRT
 	default "star64"                    if ARCH_BOARD_JH7110_STAR64
+	default "canmv230"                  if ARCH_BOARD_K230_CANMV
+	default "ox64"                      if ARCH_BOARD_BL808_OX64
 	default "sabre-6quad"               if ARCH_BOARD_SABRE_6QUAD
 	default "qemu-armv7a"               if ARCH_BOARD_QEMU_ARMV7A
 	default "qemu-armv8a"               if ARCH_BOARD_QEMU_ARMV8A
@@ -3469,6 +3503,9 @@ endif
 if ARCH_BOARD_EDGEPRO1
 source "boards/arm/imxrt/edgepro1/Kconfig"
 endif
+if ARCH_BOARD_IMXRT1170_EVK
+source "boards/arm/imxrt/imxrt1170-evk/Kconfig"
+endif
 if ARCH_BOARD_TEENSY_4X
 source "boards/arm/imxrt/teensy-4.x/Kconfig"
 endif
@@ -3621,6 +3658,9 @@ source "boards/arm/rp2040/pimoroni-tiny2040/Kconfig"
 endif
 if ARCH_BOARD_ADAFRUIT_FEATHER_RP2040
 source "boards/arm/rp2040/adafruit-feather-rp2040/Kconfig"
+endif
+if ARCH_BOARD_SEEED_XIAO_RP2040
+source "boards/arm/rp2040/seeed-xiao-rp2040/Kconfig"
 endif
 if ARCH_BOARD_ADAFRUIT_KB2040
 source "boards/arm/rp2040/adafruit-kb2040/Kconfig"
@@ -4117,6 +4157,12 @@ endif
 if ARCH_BOARD_JH7110_STAR64
 source "boards/risc-v/jh7110/star64/Kconfig"
 endif
+if ARCH_BOARD_K230_CANMV
+source "boards/risc-v/k230/canmv230/Kconfig"
+endif
+if ARCH_BOARD_BL808_OX64
+source "boards/risc-v/bl808/ox64/Kconfig"
+endif
 if ARCH_BOARD_ESP32C3_DEVKIT
 source "boards/risc-v/esp32c3/esp32c3-devkit/Kconfig"
 endif
@@ -4332,18 +4378,30 @@ config BOARD_CRASHDUMP
 		"machine state" in a place where on the next reset can write it
 		to more sophisticated storage in a sane operating environment.
 
-config BOARD_COREDUMP
-	bool "Enable Core Dump after assert"
+config BOARD_COREDUMP_SYSLOG
+	bool "Enable Core dump to syslog"
 	default n
 	depends on ELF_COREDUMP
 	---help---
-		Enable to support for the dump core information after assert.
+		Enable put coredump to syslog when crash.
 
-if BOARD_COREDUMP
+config BOARD_COREDUMP_BLKDEV
+	bool "Enable Core Dump to block device"
+	default n
+	depends on ELF_COREDUMP
+	---help---
+		Enable save coredump at block device when crash.
+
+config BOARD_COREDUMP_BLKDEV_PATH
+	string "Save Core Dump block device PATH"
+	depends on BOARD_COREDUMP_BLKDEV
+	---help---
+		Save coredump file block device path.
 
 config BOARD_COREDUMP_FULL
 	bool "Core Dump all thread registers and stacks"
 	default y
+	depends on BOARD_COREDUMP_SYSLOG || BOARD_COREDUMP_BLKDEV
 	---help---
 		Enable to support for the dump all task registers and stacks.
 
@@ -4351,10 +4409,9 @@ config BOARD_COREDUMP_COMPRESSION
 	bool "Enable Core Dump compression"
 	default y
 	select LIBC_LZF
+	depends on BOARD_COREDUMP_SYSLOG || BOARD_COREDUMP_BLKDEV
 	---help---
 		Enable LZF compression algorithm for core dump content
-
-endif # BOARD_COREDUMP
 
 config BOARD_ENTROPY_POOL
 	bool "Enable Board level storing of entropy pool structure"
@@ -4550,3 +4607,14 @@ config BOARD_USBDEV_SERIALSTR
 	default n
 	---help---
 		Use board unique serial number to iSerialNumber in the device descriptor.
+
+config BOARD_MEMORY_RANGE
+	string "Board memory range"
+	default ""
+	---help---
+		Memory range of board. format: <start>,<end>,<flags>,....
+		start: start address of memory range
+		end: end address of memory range
+		flags: Readable 0x1, writable 0x2, executable 0x4
+		example:0x1000,0x2000,0x1,0x2000,0x3000,0x3,0x3000,0x4000,0x7
+

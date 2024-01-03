@@ -84,6 +84,14 @@
 #  include "esp32s2_board_spislavedev.h"
 #endif
 
+#ifdef CONFIG_RTC_DRIVER
+#  include "esp32s2_rtc_lowerhalf.h"
+#endif
+
+#ifdef CONFIG_ESP_RMT
+#  include "esp32s2_board_rmt.h"
+#endif
+
 #include "esp32s2-saola-1.h"
 
 /****************************************************************************
@@ -357,6 +365,31 @@ int esp32s2_bringup(void)
 #endif /* CONFIG_AUDIO_CS4344 */
 
 #endif /* CONFIG_ESP32S2_I2S */
+
+#ifdef CONFIG_ESP_RMT
+  ret = board_rmt_txinitialize(RMT_TXCHANNEL, RMT_OUTPUT_PIN);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: board_rmt_txinitialize() failed: %d\n", ret);
+    }
+
+  ret = board_rmt_rxinitialize(RMT_RXCHANNEL, RMT_INPUT_PIN);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: board_rmt_txinitialize() failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_RTC_DRIVER
+  /* Instantiate the ESP32 RTC driver */
+
+  ret = esp32s2_rtc_driverinit();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR,
+             "ERROR: Failed to Instantiate the RTC driver: %d\n", ret);
+    }
+#endif
 
   /* If we got here then perhaps not all initialization was successful, but
    * at least enough succeeded to bring-up NSH with perhaps reduced

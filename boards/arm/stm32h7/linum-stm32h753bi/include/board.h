@@ -232,7 +232,7 @@
 
 /* ADC 1 2 3 clock source - pll2_pclk */
 
-#define STM32_RCC_D3CCIPR_ADCSEL     RCC_D3CCIPR_ADCSEL_PLL2
+#define STM32_RCC_D3CCIPR_ADCSRC     RCC_D3CCIPR_ADCSEL_PLL2
 
 /* FLASH wait states
  *
@@ -348,6 +348,36 @@
 
 #define GPIO_USART1_RX   (GPIO_USART1_RX_1 | GPIO_SPEED_100MHz)  /* PB15 */
 #define GPIO_USART1_TX   (GPIO_USART1_TX_1 | GPIO_SPEED_100MHz)  /* PB14 */
+
+/* UART4 */
+
+#ifdef CONFIG_UART4_RS485
+  /* Lets use for RS485 */
+
+#  define GPIO_UART4_TX        (GPIO_UART4_TX_3 | GPIO_SPEED_100MHz) /* PB9 */
+#  define GPIO_UART4_RX        (GPIO_UART4_RX_3 | GPIO_SPEED_100MHz) /* PB8 */
+
+  /* RS485 DIR pin: PA15 */
+
+#  define GPIO_UART4_RS485_DIR (GPIO_OUTPUT | GPIO_PUSHPULL | GPIO_SPEED_100MHz |\
+                                GPIO_OUTPUT_CLEAR | GPIO_PORTA | GPIO_PIN15)
+
+#endif
+
+/* USART6 */
+
+#ifdef CONFIG_USART6_RS485
+  /* Lets use for RS485 */
+
+#  define GPIO_USART6_TX        (GPIO_USART6_TX_1 | GPIO_SPEED_100MHz) /* PC6 */
+#  define GPIO_USART6_RX        (GPIO_USART6_RX_1 | GPIO_SPEED_100MHz) /* PC7 */
+
+  /* RS485 DIR pin: PG12 */
+
+#  define GPIO_USART6_RS485_DIR (GPIO_OUTPUT | GPIO_PUSHPULL | GPIO_SPEED_100MHz |\
+                                 GPIO_OUTPUT_CLEAR | GPIO_PORTG | GPIO_PIN12)
+
+#endif
 
 /* I2C4 - Used by Touchscreen and Audio Codec */
 

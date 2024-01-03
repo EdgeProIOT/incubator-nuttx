@@ -18,8 +18,8 @@
  *
  ****************************************************************************/
 
-#ifndef __ARCH_XTENSA_SRC_ESP32S3S3_ESP32S3S3_PARTITION_H
-#define __ARCH_XTENSA_SRC_ESP32S3S3_ESP32S3S3_PARTITION_H
+#ifndef __ARCH_XTENSA_SRC_ESP32S3_ESP32S3_PARTITION_H
+#define __ARCH_XTENSA_SRC_ESP32S3_ESP32S3_PARTITION_H
 
 /****************************************************************************
  * Included Files
@@ -41,6 +41,19 @@ extern "C"
 #else
 #define EXTERN extern
 #endif
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+/* Partition DATA type and subtype */
+
+#define PARTITION_TYPE_DATA               (0x01)
+#define PARTITION_SUBTYPE_DATA_OTA        (0x00)
+#define PARTITION_SUBTYPE_DATA_RF         (0x01)
+#define PARTITION_SUBTYPE_DATA_WIFI       (0x02)
+#define PARTITION_SUBTYPE_DATA_NVS_KEYS   (0x04)
+#define PARTITION_SUBTYPE_DATA_EFUSE_EM   (0x05)
 
 /****************************************************************************
  * Public Function Prototypes
@@ -109,4 +122,4 @@ int esp32s3_partition_write(const char *label, size_t offset, void *buf,
 #undef EXTERN
 
 #endif /* __ASSEMBLY__ */
-#endif /* __ARCH_XTENSA_SRC_ESP32S3S3_ESP32S3S3_PARTITION_H */
+#endif /* __ARCH_XTENSA_SRC_ESP32S3_ESP32S3_PARTITION_H */
