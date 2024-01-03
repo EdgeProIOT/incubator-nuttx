@@ -1,5 +1,5 @@
 /****************************************************************************
- * drivers/wireless/ieee80211/esp_hosted_fg/esp_spi.h
+ * drivers/wireless/esp-hosted/esp_hosted_queue.h
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -18,28 +18,35 @@
  *
  ****************************************************************************/
 
-#ifndef _ESP_SPI_H_
-#define _ESP_SPI_H_
+#ifndef __ESP_HOSTED_QUEUE_H__
+#define __ESP_HOSTED_QUEUE_H__
 
-#include "esp.h"
+#define ESP_HOSTED_QUEUE_SUCCESS         	0
+#define ESP_HOSTED_QUEUE_ERR_UNINITALISED -1
+#define ESP_HOSTED_QUEUE_ERR_MEMORY       -2
 
-#define SPI_BUF_SIZE            1600
-
-struct esp_spi_context
+struct q_element_s
 {
-  struct esp_adapter            *adapter;
-  struct spi_dev_s              *esp_spi_dev;
-  struct sk_buff_head           tx_q[MAX_PRIORITY_QUEUES];
-  struct sk_buff_head           rx_q[MAX_PRIORITY_QUEUES];
-  struct work_s                 *spi_workqueue;
-  worker_t                      spi_work;
+	void *buf;
+	int buf_len;
 };
 
-enum
+/* Queue based on Linked List */
+
+struct q_node_s
 {
-  CLOSE_DATAPATH,
-  OPEN_DATAPATH,
+	void *data;
+	struct q_node_s* next;
 };
 
+struct esp_hosted_queue_s
+{
+	struct q_node_s *front, *rear;
+};
 
-#endif
+struct esp_hosted_queue_s* esp_hosted_queue_create(void);
+void *esp_hosted_queue_get(struct esp_hosted_queue_s* q);
+int esp_hosted_queue_put(struct esp_hosted_queue_s* q, void *data);
+void esp_hosted_queue_destroy(struct esp_hosted_queue_s** q);
+
+#endif /*__ESP_HOSTED_QUEUE_H__*/

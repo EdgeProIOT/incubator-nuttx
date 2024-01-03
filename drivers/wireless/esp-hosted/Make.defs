@@ -20,6 +20,14 @@
 
 ifeq ($(CONFIG_ESP_HOSTED),y)
 
+CSRCS += esp_hosted_queue.c
+CSRCS += esp_hosted_serial_if.c
+CSRCS += esp_hosted_control_api.c
+CSRCS += esp_hosted_control_core.c
+CSRCS += esp_hosted_transport_driver.c
+CSRCS += esp_hosted_wifi_utils.c
+CSRCS += esp_hosted_wifi_adapter.c
+CSRCS += esp_hosted_wireless.c
 CSRCS += esp_hosted_wlan.c
 CSRCS += esp_hosted_config.pb-c.c
 CSRCS += esp_hosted_spi.c
