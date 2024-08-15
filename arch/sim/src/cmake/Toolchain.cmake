@@ -1,5 +1,5 @@
 # ##############################################################################
-# arch/sim/cmake/Toolchain.cmake
+# arch/sim/src/cmake/Toolchain.cmake
 #
 # Licensed to the Apache Software Foundation (ASF) under one or more contributor
 # license agreements.  See the NOTICE file distributed with this work for
@@ -75,15 +75,18 @@ endif()
 
 if(CONFIG_SIM_ASAN)
   add_compile_options(-fsanitize=address)
+  add_link_options(-fsanitize=address)
   add_compile_options(-fsanitize-address-use-after-scope)
   add_compile_options(-fsanitize=pointer-compare)
   add_compile_options(-fsanitize=pointer-subtract)
+  add_link_options(-fsanitize=address)
 elseif(CONFIG_MM_KASAN_ALL)
   add_compile_options(-fsanitize=kernel-address)
 endif()
 
 if(CONFIG_SIM_UBSAN)
   add_compile_options(-fsanitize=undefined)
+  add_link_options(-fsanitize=undefined)
 else()
   if(CONFIG_MM_UBSAN_ALL)
     add_compile_options(${CONFIG_MM_UBSAN_OPTION})
@@ -94,33 +97,30 @@ else()
   endif()
 endif()
 
+if(CONFIG_DEBUG_OPT_UNUSED_SECTIONS)
+  if(APPLE)
+    add_link_options(-Wl,-dead_strip)
+  else()
+    add_link_options(-Wl,--gc-sections)
+  endif()
+  add_compile_options(-ffunction-sections -fdata-sections)
+endif()
+
 if(CONFIG_CXX_STANDARD)
   add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-std=${CONFIG_CXX_STANDARD}>)
 endif()
 
-set(ARCHCFLAGS "-Wstrict-prototypes")
-set(ARCHCXXFLAGS "-nostdinc++")
+add_compile_options($<$<COMPILE_LANGUAGE:C>:-Wstrict-prototypes>)
 
-if(CONFIG_CXX_EXCEPTION)
-  string(APPEND ARCHCXXFLAGS " -fno-exceptions -fcheck-new")
+if(NOT CONFIG_LIBCXXTOOLCHAIN)
+  add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-nostdinc++>)
 endif()
 
-if(CONFIG_CXX_RTTI)
-  string(APPEND ARCHCXXFLAGS " -fno-rtti")
+if(NOT CONFIG_CXX_EXCEPTION)
+  add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>
+                      $<$<COMPILE_LANGUAGE:CXX>:-fcheck-new>)
 endif()
 
-if(NOT "${CMAKE_C_FLAGS}" STREQUAL "")
-  string(REGEX MATCH "${ARCHCFLAGS}" EXISTS_FLAGS "${CMAKE_C_FLAGS}")
-endif()
-
-if(NOT EXISTS_FLAGS)
-  set(CMAKE_ASM_FLAGS
-      "${CMAKE_ASM_FLAGS}${ARCHCFLAGS}"
-      CACHE STRING "" FORCE)
-  set(CMAKE_C_FLAGS
-      "${CMAKE_C_FLAGS}${ARCHCFLAGS}"
-      CACHE STRING "" FORCE)
-  set(CMAKE_CXX_FLAGS
-      "${CMAKE_CXX_FLAGS}${ARCHCXXFLAGS}"
-      CACHE STRING "" FORCE)
+if(NOT CONFIG_CXX_RTTI)
+  add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>)
 endif()

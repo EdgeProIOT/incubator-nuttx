@@ -67,8 +67,6 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define NRF53_TIMER (0)
-
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
@@ -205,9 +203,9 @@ int nrf53_bringup(void)
 
 #ifdef CONFIG_RPTUN
 #ifdef CONFIG_NRF53_APPCORE
-  nrf53_rptun_init("nrf53-shmem", "appcore");
+  nrf53_rptun_init("appcore");
 #else
-  nrf53_rptun_init("nrf53-shmem", "netcore");
+  nrf53_rptun_init("netcore");
 #endif
 #endif
 
@@ -259,6 +257,16 @@ int nrf53_bringup(void)
       syslog(LOG_ERR, "ERROR: nrf53_rgbled_init failed: %d\n", ret);
     }
 #endif
+
+  /* Initialize on-board sensors */
+
+  ret = nrf53_sensors_init();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR,
+             "ERROR: Failed to initialize sensors: %d\n",
+             ret);
+    }
 
   UNUSED(ret);
   return OK;

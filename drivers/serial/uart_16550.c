@@ -42,6 +42,7 @@
 #include <nuttx/serial/serial.h>
 #include <nuttx/fs/ioctl.h>
 #include <nuttx/serial/uart_16550.h>
+#include <nuttx/spinlock.h>
 
 #include <arch/board/board.h>
 
@@ -96,6 +97,7 @@ struct u16550_s
   bool                   flow;      /* flow control (RTS/CTS) enabled */
 #endif
 #endif
+  uart_datawidth_t       rxtrigger; /* RX trigger level */
 };
 
 /****************************************************************************
@@ -225,6 +227,7 @@ static struct u16550_s g_uart0priv =
   .flow           = true,
 #endif
 #endif
+  .rxtrigger      = CONFIG_16550_UART0_RX_TRIGGER,
 };
 
 static uart_dev_t g_uart0port =
@@ -278,6 +281,7 @@ static struct u16550_s g_uart1priv =
   .flow           = true,
 #endif
 #endif
+  .rxtrigger      = CONFIG_16550_UART1_RX_TRIGGER,
 };
 
 static uart_dev_t g_uart1port =
@@ -331,6 +335,7 @@ static struct u16550_s g_uart2priv =
   .flow           = true,
 #endif
 #endif
+  .rxtrigger      = CONFIG_16550_UART2_RX_TRIGGER,
 };
 
 static uart_dev_t g_uart2port =
@@ -384,6 +389,7 @@ static struct u16550_s g_uart3priv =
   .flow           = true,
 #endif
 #endif
+  .rxtrigger      = CONFIG_16550_UART3_RX_TRIGGER,
 };
 
 static uart_dev_t g_uart3port =
@@ -684,17 +690,6 @@ static inline void u16550_disableuartint(FAR struct u16550_s *priv,
 }
 
 /****************************************************************************
- * Name: u16550_restoreuartint
- ****************************************************************************/
-
-static inline void u16550_restoreuartint(FAR struct u16550_s *priv,
-                                         uint32_t ier)
-{
-  priv->ier |= ier & UART_IER_ALLIE;
-  u16550_serialout(priv, UART_IER_OFFSET, priv->ier);
-}
-
-/****************************************************************************
  * Name: u16550_enablebreaks
  ****************************************************************************/
 
@@ -768,11 +763,6 @@ static int u16550_setup(FAR struct uart_dev_s *dev)
 
   u16550_serialout(priv, UART_FCR_OFFSET,
                    (UART_FCR_RXRST | UART_FCR_TXRST));
-
-  /* Set trigger */
-
-  u16550_serialout(priv, UART_FCR_OFFSET,
-                   (UART_FCR_FIFOEN | UART_FCR_RXTRIGGER_8));
 
   /* Set up the IER */
 
@@ -852,7 +842,8 @@ static int u16550_setup(FAR struct uart_dev_s *dev)
   /* Configure the FIFOs */
 
   u16550_serialout(priv, UART_FCR_OFFSET,
-                   (UART_FCR_RXTRIGGER_8 | UART_FCR_TXRST | UART_FCR_RXRST |
+                   (priv->rxtrigger << UART_FCR_RXTRIGGER_SHIFT |
+                    UART_FCR_TXRST | UART_FCR_RXRST |
                     UART_FCR_FIFOEN));
 
   /* Set up the auto flow control */
@@ -1705,8 +1696,12 @@ static bool u16550_txempty(struct uart_dev_s *dev)
 #ifdef HAVE_16550_CONSOLE
 static void u16550_putc(FAR struct u16550_s *priv, int ch)
 {
+  irqstate_t flags;
+
+  flags = spin_lock_irqsave(NULL);
   while ((u16550_serialin(priv, UART_LSR_OFFSET) & UART_LSR_THRE) == 0);
   u16550_serialout(priv, UART_THR_OFFSET, (uart_datawidth_t)ch);
+  spin_unlock_irqrestore(NULL, flags);
 }
 #endif
 
@@ -1779,13 +1774,6 @@ void u16550_serialinit(void)
 int up_putc(int ch)
 {
   FAR struct u16550_s *priv = (FAR struct u16550_s *)CONSOLE_DEV.priv;
-  irqstate_t flags;
-
-  /* All interrupts must be disabled to prevent re-entrancy and to prevent
-   * interrupts from firing in the serial driver code.
-   */
-
-  flags = enter_critical_section();
 
   /* Check for LF */
 
@@ -1797,7 +1785,6 @@ int up_putc(int ch)
     }
 
   u16550_putc(priv, ch);
-  leave_critical_section(flags);
 
   return ch;
 }

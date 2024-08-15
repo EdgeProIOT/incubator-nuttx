@@ -102,6 +102,14 @@ static int backtrace(uintptr_t *base, uintptr_t *limit,
  * Returned Value:
  *   up_backtrace() returns the number of addresses returned in buffer
  *
+ * Assumptions:
+ *   Have to make sure tcb keep safe during function executing, it means
+ *   1. Tcb have to be self or not-running.  In SMP case, the running task
+ *      PC & SP cannot be backtrace, as whose get from tcb is not the newest.
+ *   2. Tcb have to keep not be freed.  In task exiting case, have to
+ *      make sure the tcb get from pid and up_backtrace in one critical
+ *      section procedure.
+ *
  ****************************************************************************/
 
 int up_backtrace(struct tcb_s *tcb,
@@ -109,11 +117,6 @@ int up_backtrace(struct tcb_s *tcb,
 {
   struct tcb_s *rtcb = (struct tcb_s *)arch_get_current_tcb();
   struct regs_context * p_regs;
-
-#if CONFIG_ARCH_INTERRUPTSTACK > 7
-  void *istacklimit;
-#endif
-  irqstate_t flags;
   int ret;
 
   if (rtcb == NULL)
@@ -131,13 +134,9 @@ int up_backtrace(struct tcb_s *tcb,
       if (up_interrupt_context())
         {
 #if CONFIG_ARCH_INTERRUPTSTACK > 7
-#  ifdef CONFIG_SMP
-          istacklimit = (void *)arm64_intstack_top();
-#  else
-          istacklimit = g_interrupt_stack + INTSTACK_SIZE;
-#  endif /* CONFIG_SMP */
-          ret = backtrace(istacklimit - (CONFIG_ARCH_INTERRUPTSTACK & ~15),
-                          istacklimit,
+          void *istackbase = (void *)up_get_intstackbase(up_cpu_index());
+          ret = backtrace(istackbase,
+                          istackbase + INTSTACK_SIZE,
                           (void *)__builtin_frame_address(0),
                           NULL, buffer, size, &skip);
 #else
@@ -166,7 +165,6 @@ int up_backtrace(struct tcb_s *tcb,
     }
   else
     {
-      flags = enter_critical_section();
       p_regs = (struct regs_context *)tcb->xcp.regs;
 
       ret = backtrace(tcb->stack_base_ptr,
@@ -174,8 +172,6 @@ int up_backtrace(struct tcb_s *tcb,
                       (void *)p_regs->regs[REG_X29],
                       (void *)p_regs->elr,
                       buffer, size, &skip);
-
-      leave_critical_section(flags);
     }
 
   return ret;

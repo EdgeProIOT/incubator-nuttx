@@ -272,7 +272,7 @@ struct xcptcontext
    * address register (FAR) at the time of data abort exception.
    */
 
-#ifdef CONFIG_PAGING
+#ifdef CONFIG_LEGACY_PAGING
   uintptr_t far;
 #endif
 
@@ -357,7 +357,7 @@ static inline irqstate_t up_irq_save(void)
     (
       "\tmrs    %0, cpsr\n"
       "\tcpsid  i\n"
-#if defined(CONFIG_ARMV7R_DECODEFIQ)
+#if defined(CONFIG_ARMV8R_DECODEFIQ)
       "\tcpsid  f\n"
 #endif
       : "=r" (cpsr)
@@ -378,7 +378,7 @@ static inline irqstate_t up_irq_enable(void)
     (
       "\tmrs    %0, cpsr\n"
       "\tcpsie  i\n"
-#if defined(CONFIG_ARMV7R_DECODEFIQ)
+#if defined(CONFIG_ARMV8R_DECODEFIQ)
       "\tcpsie  f\n"
 #endif
       : "=r" (cpsr)
@@ -400,6 +400,19 @@ static inline void up_irq_restore(irqstate_t flags)
       : "r" (flags)
       : "memory"
     );
+}
+
+static inline_function uint32_t up_getsp(void)
+{
+  register uint32_t sp;
+
+  __asm__ __volatile__
+  (
+    "mov %0, sp\n"
+    : "=r" (sp)
+  );
+
+  return sp;
 }
 
 #endif /* __ASSEMBLY__ */

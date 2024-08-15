@@ -30,3 +30,5 @@ Guides
   stm32nullpointer.rst
   stm32ccm.rst
   stackrecord.rst
+  etcromfs.rst
+  thread_local_storage.rst

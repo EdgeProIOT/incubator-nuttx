@@ -5843,6 +5843,13 @@
 #define RTC_CNTL_DATE_V  0x0fffffff
 #define RTC_CNTL_DATE_S  0
 
+/* LDO SLAVE : R/W ;bitpos:[18:13] ; default: 6'd0 ; */
+
+#define RTC_CNTL_SLAVE_PD    0x0000003F
+#define RTC_CNTL_SLAVE_PD_M  ((RTC_CNTL_SLAVE_PD_V)<<(RTC_CNTL_SLAVE_PD_S))
+#define RTC_CNTL_SLAVE_PD_V  0x3f
+#define RTC_CNTL_SLAVE_PD_S  13
+
 /* Deep sleep (power down digital domain) */
 
 #define RTC_SLEEP_PD_DIG                BIT(0)
@@ -5892,5 +5899,16 @@
 /* Power down main XTAL */
 
 #define RTC_SLEEP_PD_XTAL               BIT(11)
+
+/* These flags are not power domains, but will affect some sleep parameters */
+
+#define RTC_SLEEP_DIG_USE_8M            BIT(16)
+#define RTC_SLEEP_USE_ADC_TESEN_MONITOR BIT(17)
+
+/* Avoid using ultra low power in deep sleep, in which RTCIO cannot
+ * be used as input, and RTCMEM can't work under high temperature
+ */
+
+#define RTC_SLEEP_NO_ULTRA_LOW          BIT(18)
 
 #endif /* __ARCH_XTENSA_SRC_ESP32S3_HARDWARE_ESP32S3_RTCCNTL_H */

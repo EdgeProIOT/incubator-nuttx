@@ -32,6 +32,7 @@
 #  include <nuttx/sched.h>
 #  include <stdint.h>
 #  include <arch/io.h>
+#  include <arch/multiboot2.h>
 #endif
 
 /****************************************************************************
@@ -63,7 +64,7 @@
 #    undef  USE_SERIALDRIVER
 #    undef  USE_EARLYSERIALINIT
 #    undef  CONFIG_DEV_LOWCONSOLE
-#  else
+#  elif defined(CONFIG_16550_UART)
 #    define USE_SERIALDRIVER 1
 #    define USE_EARLYSERIALINIT 1
 #  endif
@@ -110,7 +111,15 @@
  * referenced is passed to get the state from the TCB.
  */
 
-#define x86_64_restorestate(regs) (g_current_regs = regs)
+#define x86_64_restorestate(regs) (up_set_current_regs(regs))
+
+/* ISR/IRQ stack size */
+
+#if CONFIG_ARCH_INTERRUPTSTACK == 0
+#  define IRQ_STACK_SIZE 0x2000
+#else
+#  define IRQ_STACK_SIZE CONFIG_ARCH_INTERRUPTSTACK
+#endif
 
 /****************************************************************************
  * Public Types
@@ -131,13 +140,13 @@ typedef void (*up_vector_t)(void);
  * end of the heap is CONFIG_RAM_END
  */
 
-extern const uintptr_t g_idle_topstack;
+extern const uintptr_t g_idle_topstack[];
 
 /* Address of the saved user stack pointer */
 
 #if CONFIG_ARCH_INTERRUPTSTACK > 3
 extern uint8_t g_intstackalloc[];
-extern uint8_t g_intstacktop[];
+extern uint8_t g_intstackalloc[];
 #endif
 
 /* These symbols are setup by the linker script. */
@@ -195,6 +204,11 @@ void x86_64_checktasks(void);
 
 void x86_64_syscall(uint64_t *regs);
 
+#ifdef CONFIG_ARCH_MULTIBOOT2
+void x86_64_mb2_fbinitialize(struct multiboot_tag_framebuffer *tag);
+void fb_putc(char ch);
+#endif
+
 /* Defined in up_allocateheap.c */
 
 #if CONFIG_MM_REGIONS > 1
@@ -215,7 +229,7 @@ void x86_64_timer_initialize(void);
 
 /* Defined in board/x86_64_network.c */
 
-#ifdef CONFIG_NET
+#if defined(CONFIG_NET) && !defined(CONFIG_NETDEV_LATEINIT)
 void x86_64_netinitialize(void);
 #else
 #  define x86_64_netinitialize()
@@ -227,6 +241,12 @@ void x86_64_usbuninitialize(void);
 #else
 #  define x86_64_usbinitialize()
 #  define x86_64_usbuninitialize()
+#endif
+
+/* Defined in x86_64_pci.c */
+
+#ifdef CONFIG_PCI
+void x86_64_pci_init(void);
 #endif
 
 #endif /* __ASSEMBLY__ */

@@ -192,14 +192,14 @@ typedef _wchar_t     wchar_t;
  *   An integral type capable of storing any valid value of wchar_t, or WEOF.
  */
 
-typedef int wint_t;
+typedef _wint_t wint_t;
 
 /* wctype_t
  *   A scalar type of a data object that can hold values which represent
  *   locale-specific character classification.
  */
 
-typedef int wctype_t;
+typedef _wctype_t wctype_t;
 
 #if defined(CONFIG_FS_LARGEFILE)
 /* Large file versions */
@@ -268,11 +268,7 @@ typedef int32_t      suseconds_t;
 
 /* This is the smallest integer type that will hold a bitset of all CPUs */
 
-#if (CONFIG_SMP_NCPUS <= 8)
-typedef volatile uint8_t cpu_set_t;
-#elif (CONFIG_SMP_NCPUS <= 16)
-typedef volatile uint16_t cpu_set_t;
-#elif (CONFIG_SMP_NCPUS <= 32)
+#if (CONFIG_SMP_NCPUS <= 32)
 typedef volatile uint32_t cpu_set_t;
 #else
 #  error SMP: Extensions needed to support this number of CPUs

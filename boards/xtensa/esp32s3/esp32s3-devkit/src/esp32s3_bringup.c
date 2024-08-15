@@ -100,6 +100,27 @@
 #  include "esp32s3_board_rmt.h"
 #endif
 
+#ifdef CONFIG_ESP_MCPWM
+#  include "esp32s3_board_mcpwm.h"
+#endif
+
+#ifdef CONFIG_ESP32S3_SPI
+#include "esp32s3_spi.h"
+#include "esp32s3_board_spidev.h"
+#endif
+
+#ifdef CONFIG_ESP32S3_AES_ACCELERATOR
+#  include "esp32s3_aes.h"
+#endif
+
+#ifdef CONFIG_ESP32S3_ADC
+#include "esp32s3_board_adc.h"
+#endif
+
+#ifdef CONFIG_ESPRESSIF_TEMP
+#  include "espressif/esp_temperature_sensor.h"
+#endif
+
 #include "esp32s3-devkit.h"
 
 /****************************************************************************
@@ -136,6 +157,24 @@ int esp32s3_bringup(void)
     {
       syslog(LOG_ERR, "ERROR: Failed to init HIMEM: %d\n", ret);
     }
+#endif
+
+#if defined(CONFIG_ESP32S3_SPI) && defined(CONFIG_SPI_DRIVER)
+  #ifdef CONFIG_ESP32S3_SPI2
+  ret = board_spidev_initialize(ESP32S3_SPI2);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to init spidev 2: %d\n", ret);
+    }
+  #endif
+
+  #ifdef CONFIG_ESP32S3_SPI3
+  ret = board_spidev_initialize(ESP32S3_SPI3);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to init spidev 3: %d\n", ret);
+    }
+  #endif
 #endif
 
 #if defined(CONFIG_ESP32S3_EFUSE)
@@ -221,6 +260,16 @@ int esp32s3_bringup(void)
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: board_rmt_txinitialize() failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_ESPRESSIF_TEMP
+  struct esp_temp_sensor_config_t cfg = TEMPERATURE_SENSOR_CONFIG(10, 50);
+  ret = esp_temperature_sensor_initialize(cfg);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "Failed to initialize temperature sensor driver: %d\n",
+             ret);
     }
 #endif
 
@@ -412,6 +461,46 @@ int esp32s3_bringup(void)
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: Failed to initialize SPI ethernet LAN9250.\n");
+    }
+#endif
+
+#ifdef CONFIG_ESP32S3_AES_ACCELERATOR
+  ret = esp32s3_aes_init();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to initialize AES: %d\n", ret);
+    }
+#ifdef CONFIG_ESP32S3_AES_ACCELERATOR_TEST
+  else
+    {
+      esp32s3_aes_test();
+    }
+#endif
+#endif
+
+#ifdef CONFIG_ESP32S3_ADC
+  /* Configure ADC */
+
+  ret = board_adc_init();
+  if (ret)
+    {
+      syslog(LOG_ERR, "ERROR: board_adc_init() failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_ESP_MCPWM_CAPTURE
+  ret = board_capture_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: board_capture_initialize failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_ESP_MCPWM_MOTOR_BDC
+  ret = board_motor_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: board_motor_initialize failed: %d\n", ret);
     }
 #endif
 

@@ -294,6 +294,22 @@ the ``buttons`` application and pressing on any of the available board buttons::
     nsh> Sample = 1
     Sample = 0
 
+capture
+--------
+
+The capture configuration enables the capture driver and the capture example, allowing
+the user to measure duty cycle and frequency of a signal. Default pin is GPIO 14 with
+an internal pull-up resistor enabled. When connecting a 50 Hz pulse with 50% duty cycle,
+the following output is expected::
+
+    nsh> cap
+    cap_main: Hardware initialized. Opening the capture device: /dev/capture0
+    cap_main: Number of samples: 0
+    pwm duty cycle: 50 % 
+    pwm frequence: 50 Hz 
+    pwm duty cycle: 50 % 
+    pwm frequence: 50 Hz 
+
 coremark
 --------
 
@@ -328,6 +344,33 @@ was successful by running ``cxxtest``::
     File /proc/meminfo exists!
     Invalid file! /invalid
     File /proc/version exists!
+
+dac
+---
+This configuration enables DAC and registers a `DAC example application <https://github.com/apache/nuttx-apps/tree/master/examples/dac>`_.
+
+.. note:: The DAC module is hard-wired to pins 25 (channel 0) and 26
+  (channel 1). The default device name is ``/dev/dac0`` and can be changed in
+  the config menu.
+
+.. note:: The DAC channels in `IDF <https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/dac.html>`_ are numbered ``channel 1`` (pin 25) and ``channel 2`` (pin 26).
+
+.. note:: Max value 255 should be close to VRef (3.3V) but it probably will not.
+  You can more realistically expect to get voltage around 3.09V.
+
+With this example you can use (not only) the following commands:
+
+For a multimeter, you can use the command:
+
+``dac -d 5000 -s 32 test``
+
+For oscilloscope or anything else with tracing:
+
+``dac -d 0 -s 4 test``
+
+For more info about the example capabilities invoke help message by typing
+
+``dac -h``
 
 efuse
 -----
@@ -517,6 +560,19 @@ module
 ------
 
 This config is to run apps/examples/module.
+
+motor
+-------
+
+The motor configuration enables the MCPWM peripheral with support to brushed DC motor
+control.
+
+It creates a ``/dev/motor0`` device with speed and direction control capabilities
+by using two GPIOs (GPIO15 and GPIO16) for PWM output. PWM frequency is configurable
+from 25 Hz to 3 kHz, however it defaults to 1 kHz.
+There is also support for an optional fault GPIO (defaults to GPIO10), which can be used
+for quick motor braking. All GPIOs are configurable in ``menuconfig``.
+
 
 mqttc
 -----
@@ -854,7 +910,7 @@ This example uses littlefs on ESP32's SPI flash to store wasm modules.
 
       % python3 mkfsimg.py \
         --img-filename ..../littlefs.bin \
-        --img-size 3080192 \
+        --img-size 2621440 \
         --block-size 4096 \
         --prog-size 256 \
         --read-size 256 \

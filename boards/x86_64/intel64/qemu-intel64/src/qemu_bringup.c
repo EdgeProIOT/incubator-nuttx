@@ -31,9 +31,26 @@
 
 #include <nuttx/board.h>
 #include <nuttx/fs/fs.h>
-#include <nuttx/input/buttons.h>
 
+#ifdef CONFIG_ONESHOT
+#  include <nuttx/timers/oneshot.h>
+#endif
+
+#include "x86_64_internal.h"
 #include "qemu_intel64.h"
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+#ifdef CONFIG_ARCH_INTEL64_HPET_ALARM
+#  if CONFIG_ARCH_INTEL64_HPET_ALARM_CHAN != 0
+#    error this logic requires that HPET_ALARM_CHAN is set to 0
+#  endif
+#  define ONESHOT_TIMER 1
+#else
+#  define ONESHOT_TIMER 0
+#endif
 
 /****************************************************************************
  * Public Functions
@@ -45,7 +62,17 @@
 
 int qemu_bringup(void)
 {
+#ifdef CONFIG_ONESHOT
+  struct oneshot_lowerhalf_s *os = NULL;
+#endif
+
   int ret = OK;
+
+  /* Initialize the PCI bus */
+
+#ifdef CONFIG_PCI
+  x86_64_pci_init();
+#endif
 
 #ifdef CONFIG_FS_PROCFS
   /* Mount the procfs file system */
@@ -54,6 +81,14 @@ int qemu_bringup(void)
   if (ret < 0)
     {
       serr("ERROR: Failed to mount procfs at %s: %d\n", "/proc", ret);
+    }
+#endif
+
+#ifdef CONFIG_ONESHOT
+  os = oneshot_initialize(ONESHOT_TIMER, 10);
+  if (os)
+    {
+      oneshot_register("/dev/oneshot", os);
     }
 #endif
 
